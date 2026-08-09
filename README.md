@@ -15,6 +15,7 @@ service-dash/
 ├── Dockerfile
 ├── Dockerfile.network-info
 ├── docker-compose.build.yml
+├── docker-compose.casaos.yml
 ├── docker-compose.yml
 ├── .github/workflows/
 │   ├── publish-images.yml
@@ -35,7 +36,7 @@ Service Dash currently supports ZimaOS, CasaOS, and conventional Linux AMD64 hos
 | Platform | Support level | Notes |
 | --- | --- | --- |
 | ZimaOS on ZimaBoard | Supported | Primary target and expected to provide full host metrics |
-| CasaOS on Linux AMD64 | Supported | Uses the same CasaOS metadata and Linux host integration |
+| CasaOS on Linux AMD64 | Supported | Use the dedicated `docker-compose.casaos.yml` importer file |
 | Debian/Ubuntu Linux AMD64 | Supported | Requires standard Docker Engine and permission to use host mounts and capabilities |
 | Other Linux AMD64 distributions | Best effort | AppArmor, SELinux, firewall, or mount policies may require adjustments |
 | Synology/QNAP and similar NAS systems | Best effort | Vendor Docker restrictions may prevent some host metrics or mounts |
@@ -45,6 +46,8 @@ Service Dash currently supports ZimaOS, CasaOS, and conventional Linux AMD64 hos
 | Kubernetes or Podman | Not currently supported | The supplied deployment is specifically designed for Docker Compose |
 
 The `x-casaos` section adds ZimaOS/CasaOS presentation metadata. Standard Docker Compose implementations ignore this extension and continue using the regular service configuration.
+
+CasaOS users must use `docker-compose.casaos.yml`. Its UI importer does not reliably preserve named volumes or the default Compose network, so the dedicated file uses explicit `/DATA/AppData/service-dash` bind mounts and a named bridge network with service aliases.
 
 ## Requirements
 
@@ -165,6 +168,24 @@ docker compose down
 
 Keep `docker-compose.yml` in this directory so the stack can be managed and updated later.
 
+## CasaOS UI installation
+
+CasaOS requires the dedicated `docker-compose.casaos.yml`; do not import the standard `docker-compose.yml` through its UI.
+
+1. Open **App Store**, select **Custom Install**, and choose the Docker Compose import option.
+2. Paste the complete contents of `docker-compose.casaos.yml`.
+3. Adjust `KUMA_PORT`, `STATUS_SLUG`, `STORAGE_MOUNT`, or the host port only when their defaults differ.
+4. Install the application and open `http://CASAOS-IP:8888`.
+
+The CasaOS file stores persistent data below `/DATA/AppData/service-dash`, exposes `/DATA` to Netdata for storage metrics, and attaches Service Dash, Netdata, and Docker metadata to the explicit `service-dash-network`. The LAN/WAN helper intentionally continues using host networking.
+
+If the dashboard container does not become healthy, inspect it with:
+
+```sh
+docker inspect service-dash --format '{{json .State.Health}}'
+docker logs --tail=100 service-dash
+```
+
 ### Portainer and other stack managers
 
 The public Compose file uses registry images and can be pasted directly into a compatible Portainer or ZimaOS stack editor. Keep the `x-casaos` metadata when importing into ZimaOS so its title, icon, port, and main service are recognized.
@@ -173,7 +194,7 @@ The public Compose file uses registry images and can be pasted directly into a c
 
 The frontend expects same-origin paths `/kuma` and `/netdata`. Nginx maps `/kuma` to the configured Uptime Kuma service and reaches the included Netdata Agent directly over the stack's private Docker network. Netdata port `19999` is not published on the ZimaBoard.
 
-All installation settings live directly in `docker-compose.yml`; no `.env` file is supported or required. These settings contain no Uptime Kuma credentials. Do not add a Kuma password or token to Compose; the optional URL-unlock login remains a browser-only action.
+All installation settings live directly in the Compose file used for the installation (`docker-compose.yml`, or `docker-compose.casaos.yml` on CasaOS); no `.env` file is supported or required. These settings contain no Uptime Kuma credentials. Do not add a Kuma password or token to Compose; the optional URL-unlock login remains a browser-only action.
 
 | Compose setting | Purpose | Default value |
 | --- | --- | --- |
@@ -326,7 +347,7 @@ Static assets are cached for seven days, so a browser hard refresh or cache clea
 
 ## Update and rollback
 
-Download the `docker-compose.yml` from the desired release, then run:
+Download the appropriate Compose file from the desired release—`docker-compose.yml` for standard Docker/ZimaOS or `docker-compose.casaos.yml` for the CasaOS UI—then run:
 
 ```sh
 docker compose pull
@@ -335,7 +356,7 @@ docker compose ps
 docker compose logs --tail=100 service-dash
 ```
 
-To roll back, restore the previous release's Compose file and run the same pull and up commands. Dashboard preferences and remembered tokens live in each browser. Netdata configuration, history, and cache persist in the named Docker volumes `netdataconfig`, `netdatalib`, and `netdatacache`.
+To roll back, restore the previous release's corresponding Compose file and run the same pull and up commands. Dashboard preferences and remembered tokens live in each browser. Standard installations retain Netdata data in named Docker volumes; CasaOS installations retain it below `/DATA/AppData/service-dash/netdata`.
 
 ## Maintenance commands
 

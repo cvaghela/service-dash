@@ -5,26 +5,26 @@ services:
     image: ghcr.io/cvaghela/service-dash:1.0.3
     container_name: service-dash
     ports:
-      # Change 8888 only when a different host port is required.
       - "8888:80"
     environment:
-      # User configuration: edit these values directly when defaults differ.
       KUMA_PORT: "3001"
       STATUS_SLUG: "homelab"
-      # Use "auto" or an exact mount path reported by Netdata, such as "/",
-      # "/DATA", "/media/1TB-SSD-1", or "/mnt/storage".
       STORAGE_MOUNT: "auto"
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
-      netdata:
-        condition: service_healthy
-      docker-metadata:
-        condition: service_started
-      network-info:
-        condition: service_healthy
+      - netdata
+      - docker-metadata
+      - network-info
     volumes:
-      - networkinfo:/var/run/network-info:ro
+      - type: bind
+        source: /DATA/AppData/service-dash/network-info
+        target: /var/run/network-info
+        read_only: true
+    networks:
+      service-dash-network:
+        aliases:
+          - service-dash
     restart: unless-stopped
 
   network-info:
@@ -35,7 +35,9 @@ services:
     environment:
       NETWORK_INFO_REFRESH_SECONDS: "600"
     volumes:
-      - networkinfo:/status
+      - type: bind
+        source: /DATA/AppData/service-dash/network-info
+        target: /status
     security_opt:
       - no-new-privileges:true
     healthcheck:
@@ -58,6 +60,10 @@ services:
         GET %API_PREFIX_NETWORKS%/%NETWORK_ID_OR_NAME%(\?.*)?
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      service-dash-network:
+        aliases:
+          - docker-metadata
     security_opt:
       - no-new-privileges:true
     restart: unless-stopped
@@ -74,10 +80,10 @@ services:
     security_opt:
       - apparmor:unconfined
     volumes:
-      - netdataconfig:/etc/netdata
-      - netdatalib:/var/lib/netdata
-      - netdatacache:/var/cache/netdata
-      - /:/host/root:ro,rslave
+      - /DATA/AppData/service-dash/netdata/config:/etc/netdata
+      - /DATA/AppData/service-dash/netdata/lib:/var/lib/netdata
+      - /DATA/AppData/service-dash/netdata/cache:/var/cache/netdata
+      - /DATA:/host/root/DATA:ro,rslave
       - /etc/hostname:/host/etc/hostname:ro
       - /etc/passwd:/host/etc/passwd:ro
       - /etc/group:/host/etc/group:ro
@@ -88,13 +94,16 @@ services:
       - /var/log:/host/var/log:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - /run/dbus:/run/dbus:ro
+    networks:
+      service-dash-network:
+        aliases:
+          - netdata
     restart: unless-stopped
 
-volumes:
-  networkinfo:
-  netdataconfig:
-  netdatalib:
-  netdatacache:
+networks:
+  service-dash-network:
+    name: service-dash-network
+    driver: bridge
 
 x-casaos:
   architectures:
