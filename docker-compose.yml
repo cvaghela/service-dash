@@ -2,7 +2,7 @@ name: service-dash
 
 services:
   service-dash:
-    image: ghcr.io/cvaghela/service-dash:1.0.1
+    image: ghcr.io/cvaghela/service-dash:1.0.2
     container_name: service-dash
     ports:
       # Change 8888 only when a different host port is required.
@@ -14,8 +14,6 @@ services:
       # Use "auto" or an exact mount path reported by Netdata, such as "/",
       # "/DATA", "/media/1TB-SSD-1", or "/mnt/storage".
       STORAGE_MOUNT: "auto"
-      # Bundled Netdata service: do not change this internal address.
-      NETDATA_UPSTREAM: "http://netdata:19999"
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
@@ -30,7 +28,7 @@ services:
     restart: unless-stopped
 
   network-info:
-    image: ghcr.io/cvaghela/service-dash-network-info:1.0.1
+    image: ghcr.io/cvaghela/service-dash-network-info:1.0.2
     container_name: service-dash-network-info
     network_mode: host
     read_only: true
@@ -67,7 +65,6 @@ services:
   netdata:
     image: netdata/netdata:stable
     container_name: service-dash-netdata
-    hostname: zimaos
     pid: host
     environment:
       DISABLE_TELEMETRY: "1"
@@ -105,7 +102,7 @@ x-casaos:
   main: service-dash
   category: Utilities
   description:
-    en_us: Glass dashboard with an embedded Netdata Agent for ZimaOS host metrics
+    en_us: Glass dashboard with an embedded Netdata Agent for host metrics
   icon: https://i.postimg.cc/BnL4qBwB/service-dash.png
   index: /
   port_map: "8888"

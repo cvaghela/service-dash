@@ -2,7 +2,6 @@
 set -eu
 
 : "${KUMA_PORT:?Set KUMA_PORT under environment in docker-compose.yml}"
-: "${NETDATA_UPSTREAM:?Set NETDATA_UPSTREAM under environment in docker-compose.yml}"
 : "${STATUS_SLUG:?Set STATUS_SLUG under environment in docker-compose.yml}"
 : "${STORAGE_MOUNT:?Set STORAGE_MOUNT under environment in docker-compose.yml}"
 
@@ -17,11 +16,6 @@ fi
 
 KUMA_UPSTREAM="http://host.docker.internal:$KUMA_PORT"
 
-case "$NETDATA_UPSTREAM" in
-    http://*|https://*) ;;
-    *) echo "NETDATA_UPSTREAM must start with http:// or https://" >&2; exit 1 ;;
-esac
-
 case "$STATUS_SLUG" in
     ''|*[!A-Za-z0-9_-]*) echo "STATUS_SLUG may contain only letters, numbers, underscores, and hyphens" >&2; exit 1 ;;
 esac
@@ -34,8 +28,8 @@ esac
 printf 'window.__DASHBOARD_CONFIG__ = { statusSlug: "%s", storageMount: "%s" };\n' "$STATUS_SLUG" "$STORAGE_MOUNT" \
     > /usr/share/nginx/html/config.js
 
-export KUMA_UPSTREAM NETDATA_UPSTREAM
-envsubst '${KUMA_UPSTREAM} ${NETDATA_UPSTREAM}' \
+export KUMA_UPSTREAM
+envsubst '${KUMA_UPSTREAM}' \
     < /etc/nginx/templates/default.conf.template \
     > /etc/nginx/conf.d/default.conf
 

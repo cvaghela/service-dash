@@ -80,7 +80,7 @@ server {
     }
 
     location /netdata/ {
-        proxy_pass ${NETDATA_UPSTREAM}/;
+        proxy_pass http://netdata:19999/;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection $connection_upgrade;

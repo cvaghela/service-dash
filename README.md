@@ -117,7 +117,7 @@ environment:
   STORAGE_MOUNT: "auto"
 ```
 
-Service Dash constructs the internal Kuma origin as `http://host.docker.internal:KUMA_PORT`. Users configure only the port; the hostname, scheme, and proxy paths are implementation details. Netdata is installed by this stack and has a fixed private address, so users should not change `NETDATA_UPSTREAM`.
+Service Dash constructs the internal Kuma origin as `http://host.docker.internal:KUMA_PORT`. Users configure only the port; the hostname, scheme, and proxy paths are implementation details. Netdata is installed by this stack and uses a fixed private address that is not exposed as user configuration.
 
 ### 4. Install
 
