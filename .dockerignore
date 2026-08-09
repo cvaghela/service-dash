@@ -1,6 +1,5 @@
 .git
 .gitignore
 .DS_Store
-.env
 *.zip
 README.md

@@ -1,7 +1,8 @@
 #!/bin/sh
 set -u
 
-refresh_seconds="${NETWORK_INFO_REFRESH_SECONDS:-600}"
+: "${NETWORK_INFO_REFRESH_SECONDS:?Set NETWORK_INFO_REFRESH_SECONDS under environment in docker-compose.yml}"
+refresh_seconds="$NETWORK_INFO_REFRESH_SECONDS"
 status_file="/status/status.json"
 temporary_file="/status/.status.json.tmp"
 

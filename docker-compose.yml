@@ -2,14 +2,19 @@ name: service-dash
 
 services:
   service-dash:
-    image: "ghcr.io/cvaghela/service-dash:${SERVICE_DASH_VERSION:-1.0.0}"
+    image: ghcr.io/cvaghela/service-dash:1.0.1
     container_name: service-dash
     ports:
-      - "${DASHBOARD_PORT:-8888}:80"
+      # Change 8888 only when a different host port is required.
+      - "8888:80"
     environment:
-      KUMA_UPSTREAM: "${KUMA_UPSTREAM:-http://host.docker.internal:3001}"
-      STATUS_SLUG: "${STATUS_SLUG:-homelab}"
-      STORAGE_MOUNT: "${STORAGE_MOUNT:-auto}"
+      # User configuration: edit these values directly when defaults differ.
+      KUMA_PORT: "3001"
+      STATUS_SLUG: "homelab"
+      # Use "auto" or an exact mount path reported by Netdata, such as "/",
+      # "/DATA", "/media/1TB-SSD-1", or "/mnt/storage".
+      STORAGE_MOUNT: "auto"
+      # Bundled Netdata service: do not change this internal address.
       NETDATA_UPSTREAM: "http://netdata:19999"
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -25,10 +30,12 @@ services:
     restart: unless-stopped
 
   network-info:
-    image: "ghcr.io/cvaghela/service-dash-network-info:${SERVICE_DASH_VERSION:-1.0.0}"
+    image: ghcr.io/cvaghela/service-dash-network-info:1.0.1
     container_name: service-dash-network-info
     network_mode: host
     read_only: true
+    environment:
+      NETWORK_INFO_REFRESH_SECONDS: "600"
     volumes:
       - networkinfo:/status
     security_opt:

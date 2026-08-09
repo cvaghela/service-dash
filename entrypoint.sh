@@ -1,15 +1,21 @@
 #!/bin/sh
 set -eu
 
-: "${KUMA_UPSTREAM:=http://uptime-kuma:3001}"
-: "${NETDATA_UPSTREAM:=http://netdata:19999}"
-: "${STATUS_SLUG:=homelab}"
-: "${STORAGE_MOUNT:=auto}"
+: "${KUMA_PORT:?Set KUMA_PORT under environment in docker-compose.yml}"
+: "${NETDATA_UPSTREAM:?Set NETDATA_UPSTREAM under environment in docker-compose.yml}"
+: "${STATUS_SLUG:?Set STATUS_SLUG under environment in docker-compose.yml}"
+: "${STORAGE_MOUNT:?Set STORAGE_MOUNT under environment in docker-compose.yml}"
 
-case "$KUMA_UPSTREAM" in
-    http://*|https://*) ;;
-    *) echo "KUMA_UPSTREAM must start with http:// or https://" >&2; exit 1 ;;
+case "$KUMA_PORT" in
+    ''|*[!0-9]*) echo "KUMA_PORT must be a number between 1 and 65535" >&2; exit 1 ;;
 esac
+
+if [ "$KUMA_PORT" -lt 1 ] || [ "$KUMA_PORT" -gt 65535 ]; then
+    echo "KUMA_PORT must be a number between 1 and 65535" >&2
+    exit 1
+fi
+
+KUMA_UPSTREAM="http://host.docker.internal:$KUMA_PORT"
 
 case "$NETDATA_UPSTREAM" in
     http://*|https://*) ;;
