@@ -1,0 +1,11 @@
+services:
+  service-dash:
+    image: service-dash:local
+    build:
+      context: .
+
+  network-info:
+    image: service-dash-network-info:local
+    build:
+      context: .
+      dockerfile: Dockerfile.network-info

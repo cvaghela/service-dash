@@ -1,0 +1,357 @@
+<!doctype html>
+<!-- "aurora","sunset","ocean","cyber","forest","candy","royal","midnight","deepocean","neonnoir","ember","evergreen","plum" -->
+<html lang="en" data-accent="plum">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+        <meta name="mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <meta name="apple-mobile-web-app-title" content="Service Dash" />
+        <title>Service Dash</title>
+        <!-- Favicons -->
+        <link rel="icon" type="image/png" href="/icon-favicon.png" />
+        <link rel="apple-touch-icon" href="/icon-favicon.png" />
+        <!-- Google Fonts (only external dependency) -->
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <link
+            href="https://fonts.googleapis.com/css2?family=Outfit:wght@300..900&family=Inter:wght@300..900&display=swap"
+            rel="stylesheet"
+        />
+        <link
+            rel="stylesheet"
+            href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,500,0,0"
+        />
+        <link rel="stylesheet" href="assets/css/styles.css?v=1.0.52" />
+    </head>
+    <body>
+        <div class="bg" aria-hidden="true"></div>
+        <div class="noise" aria-hidden="true"></div>
+        <div class="app">
+            <!-- Top Bar -->
+            <div id="topbar" class="glass topbar">
+                <div class="blob" style="top: -70px; left: -70px"></div>
+                <div class="blob b2" style="top: -90px; right: -80px"></div>
+                <div class="brand">
+                    <div class="logo" aria-hidden="true" title="Click to cycle accent">⚡</div>
+                    <div style="min-width: 0">
+                        <h1>Service Dash</h1>
+                        <p id="subtitle">
+                            Auto-populated from Uptime Kuma • status:
+                            <span id="kumaConn" class="muted">connecting…</span> • Private URLs:
+                            <span id="urlState" class="muted" style="color: var(--offline)">LOCKED</span> • Metrics:
+                            <span data-role="dataSourceBadge" class="data-source-badge" data-state="offline">OFFLINE</span>
+                        </p>
+                    </div>
+                </div>
+                <div class="actions">
+                    <button
+                        class="pill"
+                        id="btnAuth"
+                        title="Optional: connect to Kuma Socket.IO to reveal private URLs"
+                    >
+                        🔐 <span>Unlock URLs</span>
+                    </button>
+                    <button
+                        class="pill danger"
+                        id="btnLogout"
+                        style="display: none"
+                        title="Log out of Socket.IO and clear saved token"
+                    >
+                        <span class="material-symbols-rounded logoutIcon" aria-hidden="true"> logout </span>
+                        <span>Logout</span>
+                    </button>
+
+                    <button
+                        class="pill iconbtn"
+                        id="btnRefresh"
+                        title="Refresh now (poll still runs)"
+                        aria-label="Refresh"
+                    >
+                        <span class="material-symbols-rounded refreshIcon" aria-hidden="true">refresh</span>
+                    </button>
+                    <div class="pill linkModePill" title="Local ⇄ External">
+                        <label class="link-toggle">
+                            <input type="checkbox" id="linkModeToggle" />
+                            <span class="track"><span class="thumb"></span></span>
+                            <span class="modeIcon" aria-hidden="true">🏠</span>
+                        </label>
+                    </div>
+
+                    <button class="pill iconbtn primary" id="btnTheme" title="Toggle theme">🌙</button>
+                </div>
+            </div>
+            <!-- Mobile hamburger (mobile-only via CSS) -->
+            <button
+                class="mobile-menu-btn"
+                type="button"
+                aria-label="Toggle navigation"
+                aria-controls="topbar"
+                aria-expanded="false"
+            >
+                <span class="mobile-menu-icon" aria-hidden="true"> <span></span><span></span><span></span> </span>
+            </button>
+
+            <!-- Date & Time Panel -->
+            <!-- Left Column Stack (Date/Time ABOVE sidebar, but stays in same grid cell) -->
+            <div class="side-stack">
+                <!-- Date & Time Panel -->
+
+                <section class="glass sidebar datetime-panel">
+                    <div class="datetime-header">
+                        <div class="clock" id="liveClock" aria-label="Current time">
+                            <span class="clockTime" id="clockTime">00:00</span>
+                            <sup class="clockMeridiem" id="clockMeridiem" aria-hidden="true">AM</sup>
+                        </div>
+
+                        <div class="date" id="currentDate">Loading…</div>
+                    </div>
+
+                    <div class="section calendar" id="secCalendar" data-open="true">
+                        <div class="sec-head">
+                            <div class="sec-title">
+                                <span>📅</span>
+                                <h3>Calendar</h3>
+                            </div>
+                            <div class="chev">▾</div>
+                        </div>
+
+                        <div class="sec-body">
+                            <div class="calendar-nav">
+                                <button id="prevMonth" aria-label="Previous month">‹</button>
+
+                                <span id="calendarMonth" class="calendar-month clickable" title="Jump to current month">
+                                </span>
+
+                                <button id="nextMonth" aria-label="Next month">›</button>
+                            </div>
+
+                            <div class="calendar-days">
+                                <span>Sun</span><span>Mon</span><span>Tue</span> <span>Wed</span><span>Thu</span
+                                ><span>Fri</span>
+                                <span>Sat</span>
+                            </div>
+
+                            <div class="calendar-grid" id="calendarGrid"></div>
+                        </div>
+                    </div>
+                </section>
+
+                <!--Metrics Sidebar -->
+                <aside class="glass sidebar metrics-wrap" data-open="true" id="metricsSidebar">
+                    <div class="blob" style="top: 190px; left: -90px"></div>
+                    <div class="blob b2" style="top: 520px; right: -120px"></div>
+                    <!-- Wrapper makes the entire sidebar collapsible and avoids the "empty header" look -->
+
+                    <div class="sec-head">
+                        <div class="sec-title">
+                            <span class="material-symbols-rounded" aria-hidden="true">stacked_line_chart</span>
+                            <h3>Metrics &amp; Notes</h3>
+                        </div>
+                        <div class="chev">▾</div>
+                    </div>
+
+                    <div class="section" data-open="true" id="secMetrics">
+                        <div class="sec-head">
+                            <div class="sec-title">
+                                <span>🧠</span>
+                                <h3>Host Metrics</h3>
+                            </div>
+                            <div class="chev">▾</div>
+                        </div>
+                        <div class="sec-body">
+                            <div class="metric-grid">
+                                <div class="metric metric-wide">
+                                    <div class="label"><span>CPU</span><span id="cpuVal">—</span></div>
+                                    <div class="bar">
+                                        <i id="cpuBar" style="width: 42%"></i>
+                                    </div>
+                                    <div class="metric-details">
+                                        <span>Power <b id="cpuWatts">—</b></span>
+                                        <span>Temperature <b id="cpuTemp">—</b></span>
+                                    </div>
+                                    <div class="metric-submetric">
+                                        <div class="label"><span>1m Load</span><span id="loadVal">—</span></div>
+                                        <div class="bar load-bar">
+                                            <i id="loadBar" style="width: 0%"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="metric metric-wide">
+                                    <div class="label"><span>RAM</span><span id="memVal">—</span></div>
+                                    <div class="metric-details">
+                                        <span>Total <b id="memTotal">—</b></span>
+                                    </div>
+                                    <div class="bar">
+                                        <i id="memBar" style="width: 58%"></i>
+                                    </div>
+                                </div>
+                                <div class="metric metric-wide">
+                                    <div class="label"><span>Storage</span><span id="diskVal">—</span></div>
+                                    <div class="metric-details">
+                                        <span>Free <b id="diskFree">—</b></span>
+                                        <span>Total <b id="diskTotal">—</b></span>
+                                    </div>
+                                    <details class="storage-source-picker" id="diskSourcePicker">
+                                        <summary><span>Sources</span><b id="diskMount">detecting…</b></summary>
+                                        <div class="storage-source-options" id="diskMountOptions"></div>
+                                    </details>
+                                    <div class="bar">
+                                        <i id="diskBar" style="width: 36%"></i>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="subtle">
+                                Powered by Netdata!
+                            </div>
+                        </div>
+                    </div>
+                    <div class="section" data-open="true" id="secNetwork">
+                        <div class="sec-head">
+                            <div class="sec-title">
+                                <span>🛰️</span>
+                                <h3>Network</h3>
+                            </div>
+                            <div class="chev">▾</div>
+                        </div>
+                        <div class="sec-body">
+                            <div class="net-controls">
+                                <label class="net-iface">
+                                    <span>Interface</span>
+                                    <select id="netIface" aria-label="Network interface">
+                                        <option value="auto">Auto</option>
+                                    </select>
+                                </label>
+                                <label class="net-iface">
+                                    <span>Link</span>
+                                    <select id="netCap" aria-label="Network link speed">
+                                        <option value="auto">Auto</option>
+                                        <option value="100">100 Mb/s</option>
+                                        <option value="1000">1 Gb/s</option>
+                                        <option value="2500">2.5 Gb/s</option>
+                                        <option value="10000">10 Gb/s</option>
+                                    </select>
+                                </label>
+                                <div class="net-spark" id="netSpark" aria-hidden="true"></div>
+                                <div class="net-spark-meta" id="netSparkMeta" aria-hidden="true"></div>
+                            </div>
+
+                            <div class="netline"><span>LAN</span><button type="button" class="network-copy-value" id="lan" aria-label="Copy LAN IP address">detecting…</button></div>
+                            <div class="netline"><span>WAN</span><button type="button" class="network-copy-value" id="wan" aria-label="Copy WAN IP address">detecting…</button></div>
+                            <div class="subtle">Detected from the ZimaOS host network. WAN refreshes every 10 minutes.</div>
+                        </div>
+                    </div>
+                    <div class="section" data-open="true" id="secNotes">
+                        <div class="sec-head">
+                            <div class="sec-title">
+                                <span>📝</span>
+                                <h3>Quick Notes</h3>
+                            </div>
+                            <div class="chev">▾</div>
+                        </div>
+                        <div class="sec-body">
+                            <textarea
+                                class="note"
+                                id="notes"
+                                placeholder="Add runbooks, ports, maintenance notes… (saved locally)"
+                            ></textarea>
+                            <div class="subtle">Saved to your browser (localStorage).</div>
+                        </div>
+                    </div>
+                </aside>
+            </div>
+
+            <!-- Main -->
+            <main class="glass main">
+                <div class="controls">
+                    <div class="control-left">
+                        <div class="search" title="Search services by name or URL">
+                            🔎
+                            <input
+                                id="q"
+                                type="text"
+                                placeholder="Search… (name, URL, category) — try “plex” or “grafana”"
+                            />
+                            <span class="kbd">/</span>
+                        </div>
+                        <div class="chiprow" id="statusChips">
+                            <!-- status chips injected -->
+                        </div>
+                    </div>
+                    <div class="control-right">
+                        <div class="chiprow" id="categoryChips" aria-label="Category filters">
+                            <!-- category chips injected -->
+                        </div>
+                        <div class="sync">
+                            <div class="pulseDot" id="pollDot" title="Polling heartbeat"></div>
+                            <span>Last sync: <b id="lastSync">—</b></span>
+                        </div>
+                    </div>
+                </div>
+                <div class="groups" id="groups">
+                    <!-- groups render here -->
+                </div>
+            </main>
+        </div>
+        <!-- Toast -->
+        <div class="toast" id="toast" role="status" aria-live="polite">
+            <div class="left">
+                <span class="toast-emoji">✨</span>
+                <span id="toastMsg"><b>Ready.</b></span>
+            </div>
+            <button class="pill" id="toastClose">Got it</button>
+        </div>
+        <!-- Auth Overlay -->
+        <div class="overlay" id="overlay" aria-hidden="true">
+            <div class="modal">
+                <div class="blob" style="top: -110px; left: -110px"></div>
+                <div class="blob b2" style="bottom: -120px; right: -140px"></div>
+                <h2>Optional Private URL Unlock (Socket.IO)</h2>
+                <p>
+                    This connects to <b>/kuma/socket.io</b> and logs into Kuma to fetch monitor URLs (the public status
+                    API can’t show them). Heartbeat/status updates work either way.
+                </p>
+                <div class="grid2">
+                    <div class="field">
+                        <label>Username</label>
+                        <input id="authUser" autocomplete="username" placeholder="admin" />
+                    </div>
+                    <div class="field">
+                        <label>Password</label>
+                        <input id="authPass" type="password" autocomplete="current-password" placeholder="••••••••" />
+                    </div>
+                    <div class="field" style="grid-column: 1/-1">
+                        <label>2FA Token (optional)</label>
+                        <input id="authTfa" placeholder="If you enable 2FA later, paste token here…" />
+                    </div>
+                </div>
+                <div class="checkrow">
+                    <div class="left">
+                        <input id="authRemember" type="checkbox" />
+                        <div style="min-width: 0">
+                            <b>Remember me</b>
+                            <div class="subtle">Keeps you signed in (stores a Kuma token in localStorage).</div>
+                        </div>
+                    </div>
+                    <div class="subtle" id="authConn">Not connected</div>
+                </div>
+                <div class="row">
+                    <button class="pill" id="btnCancel">Cancel</button>
+                    <button class="pill primary" id="btnConnect">Connect</button>
+                </div>
+                <div class="subtle" style="margin-top: 10px">
+                    If Socket.IO is blocked/misconfigured, the dashboard still works via public status APIs (status +
+                    uptime only).
+                </div>
+            </div>
+        </div>
+        <button id="scrollTopBtn" class="scroll-top" aria-label="Scroll to top" title="Back to top">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 5l-7 7h4v7h6v-7h4z"></path>
+            </svg>
+        </button>
+        <script src="/config.js?v=1.0.52"></script>
+        <script src="./assets/js/app.js?v=1.0.52" defer></script>
+    </body>
+</html>

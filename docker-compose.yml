@@ -1,0 +1,108 @@
+name: service-dash
+
+services:
+  service-dash:
+    image: "ghcr.io/cvaghela/service-dash:${SERVICE_DASH_VERSION:-1.0.0}"
+    container_name: service-dash
+    ports:
+      - "${DASHBOARD_PORT:-8888}:80"
+    environment:
+      KUMA_UPSTREAM: "${KUMA_UPSTREAM:-http://host.docker.internal:3001}"
+      STATUS_SLUG: "${STATUS_SLUG:-homelab}"
+      STORAGE_MOUNT: "${STORAGE_MOUNT:-auto}"
+      NETDATA_UPSTREAM: "http://netdata:19999"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      netdata:
+        condition: service_healthy
+      docker-metadata:
+        condition: service_started
+      network-info:
+        condition: service_healthy
+    volumes:
+      - networkinfo:/var/run/network-info:ro
+    restart: unless-stopped
+
+  network-info:
+    image: "ghcr.io/cvaghela/service-dash-network-info:${SERVICE_DASH_VERSION:-1.0.0}"
+    container_name: service-dash-network-info
+    network_mode: host
+    read_only: true
+    volumes:
+      - networkinfo:/status
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "test", "-s", "/status/status.json"]
+      interval: 2s
+      timeout: 2s
+      retries: 15
+      start_period: 2s
+    restart: unless-stopped
+
+  docker-metadata:
+    image: ghcr.io/hectorm/cetusguard:v1
+    container_name: service-dash-docker-metadata
+    read_only: true
+    environment:
+      CETUSGUARD_BACKEND_ADDR: unix:///var/run/docker.sock
+      CETUSGUARD_FRONTEND_ADDR: tcp://0.0.0.0:2375
+      CETUSGUARD_RULES: |
+        GET %API_PREFIX_NETWORKS%(\?.*)?
+        GET %API_PREFIX_NETWORKS%/%NETWORK_ID_OR_NAME%(\?.*)?
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
+
+  netdata:
+    image: netdata/netdata:stable
+    container_name: service-dash-netdata
+    hostname: zimaos
+    pid: host
+    environment:
+      DISABLE_TELEMETRY: "1"
+    cap_add:
+      - SYS_PTRACE
+      - SYS_ADMIN
+    security_opt:
+      - apparmor:unconfined
+    volumes:
+      - netdataconfig:/etc/netdata
+      - netdatalib:/var/lib/netdata
+      - netdatacache:/var/cache/netdata
+      - /:/host/root:ro,rslave
+      - /etc/hostname:/host/etc/hostname:ro
+      - /etc/passwd:/host/etc/passwd:ro
+      - /etc/group:/host/etc/group:ro
+      - /etc/localtime:/etc/localtime:ro
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /etc/os-release:/host/etc/os-release:ro
+      - /var/log:/host/var/log:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /run/dbus:/run/dbus:ro
+    restart: unless-stopped
+
+volumes:
+  networkinfo:
+  netdataconfig:
+  netdatalib:
+  netdatacache:
+
+x-casaos:
+  architectures:
+    - amd64
+  main: service-dash
+  category: Utilities
+  description:
+    en_us: Glass dashboard with an embedded Netdata Agent for ZimaOS host metrics
+  icon: https://i.postimg.cc/BnL4qBwB/service-dash.png
+  index: /
+  port_map: "8888"
+  scheme: http
+  store_app_id: service-dash
+  title:
+    en_us: Service Dash
