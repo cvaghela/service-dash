@@ -206,11 +206,12 @@ All installation settings live directly in the Compose file used for the install
 | `KUMA_PORT` | HTTP port published by Uptime Kuma on the same Linux host | `3001` |
 | `STATUS_SLUG` | Final path segment of the published Kuma status-page URL | `homelab` |
 | `STORAGE_MOUNT` | Initial storage mount for browsers without a saved dropdown selection | `auto` |
-| `SERVICE_ICONS` | Per-service icon overrides, as a JSON object keyed by card name | `{}` |
-| `SHARED_SETTINGS` | `on` shares card settings, filters and notes across every browser and device. See **Shared settings** below | `off` |
-| `SHARED_SETTINGS_USER` | Username required to save a change when `SHARED_SETTINGS` is `on` | `dashboard` |
-| `SHARED_SETTINGS_PASSWORD_FILE` | Path to a file holding the password. Required when `SHARED_SETTINGS` is `on`; the container refuses to start without it | `/run/secrets/settings_password` |
-| `NETWORK_INFO_REFRESH_SECONDS` | How often the LAN route and WAN address are re-read. Set on the `network-info` service, and required — the helper exits if it is removed | `600` |
+
+The dashboard also proxies the icon catalogue at `/icon-index`; nothing to configure, but it does mean the container
+makes one outbound request a day to `cdn.jsdelivr.net`. Without internet access the picker falls back to its built-in
+list and cards fall back to monograms.
+| `KUMA_URL` | Where the `kuma-auth` service reaches Uptime Kuma. Must point at the same instance as `KUMA_PORT` | `http://host.docker.internal:3001` |
+| `NETWORK_INFO_REFRESH_SECONDS` | Starting value for how often the LAN route and WAN address are re-read. Optional — the **Settings** page overrides it | `600` |
 
 ### Container CPU and RAM
 
@@ -235,58 +236,46 @@ each mapped container costs an extra pair of Netdata queries — a card mapped t
 
 ### Shared settings
 
-Card settings, filters, the storage and network selections, and the notes panel are saved in the browser that made
-them. That is deliberate — the dashboard has no accounts — but it means a second browser, or a phone, starts from
-scratch.
+Card settings, filters, the storage and network selections, and the notes panel are shared by every browser and device.
+There is nothing to switch on and no password to set: **reading them is open, and saving a change requires being signed
+in to Uptime Kuma** — the login the dashboard already offers.
 
-Set `SHARED_SETTINGS: "on"` to keep those values in the `settings` volume instead. Every browser reads the same
-document on load and writes back on change, so a card renamed or remapped on a laptop looks the same on a phone.
+nginx cannot verify a Kuma token, and a browser claiming to be signed in proves nothing, so the question is put to Kuma
+itself. The `kuma-auth` service answers it: it emits Kuma's `loginByToken`, which verifies the token against Kuma's own
+secret, confirms the user is still active, and rejects tokens issued before a password change. Anything that is not an
+explicit yes is a no — an unreachable or slow Kuma means the write is refused.
 
-**Reading is open; saving requires a password.** Without that split, anyone who could reach the dashboard could rewrite
-what every browser and device shows — including the image URLs each viewer's browser then requests. Create the password
-file and turn the setting on:
+The token stays in the browser that signed in. It is never written into the document other devices read, and the
+validator stores answers by fingerprint rather than by token.
 
-```bash
-printf '%s' 'a-long-random-passphrase' > ./settings-password.txt
-chmod 600 ./settings-password.txt
-```
+Practical consequences:
 
-```yaml
-environment:
-  SHARED_SETTINGS: "on"
-  SHARED_SETTINGS_USER: "dashboard"
-  SHARED_SETTINGS_PASSWORD_FILE: "/run/secrets/settings_password"
-secrets:
-  - settings_password
-volumes:
-  - settings:/var/lib/service-dash
-```
+- **Anyone who can reach the dashboard can read the settings**, as they can already read the dashboard itself.
+- **Anyone who can sign in to your Uptime Kuma can change them for everyone.** Kuma's user list is the guest list.
+- **Last write wins.** No merge, no locking; changes made elsewhere appear on reload rather than live.
+- **If `kuma-auth` is down, shared settings become unavailable — reads included.** nginx checks every request to the
+  document and cannot be made to check only writes, so a validator outage takes reads with it. The dashboard falls back
+  to each browser's own copy and keeps working; the rest of the dashboard is unaffected.
+- The document is capped at 256 KB, and a failed write leaves the browser working from its own copy with a warning.
 
-The volume and the secret are already declared in `docker-compose.yml`; recreate the container after changing the
-setting. On CasaOS the values bind-mount to `/DATA/AppData/service-dash/settings`, and the password file to
-`/DATA/AppData/service-dash/settings-password`.
+### Settings
 
-The password is read from a file rather than an environment variable so it stays out of `docker inspect` and the
-container's process environment. `SHARED_SETTINGS_PASSWORD` is accepted as a fallback but is not recommended. It must
-be at least 12 characters, and the container **refuses to start** if `SHARED_SETTINGS` is `on` with no password — the
-write endpoint is never exposed unauthenticated.
+The gear in the top bar opens a settings page. What is there applies to every browser and device, stored in the same
+shared document: reading it needs nothing, changing it asks you to sign in to Uptime Kuma.
 
-The first time you change a setting, the dashboard asks for the username and password and stores them in that browser
-alone. Viewers who never change anything are never asked.
+It currently holds how often the LAN route and public IP are re-read, between 30 seconds and 24 hours. The value is
+bounded in the browser and again in the `network-info` service, which reads it straight from the shared document and
+picks it up on its next pass — no container to recreate. The `settings` volume is mounted read-only into that service
+for the purpose. Without it, or with an unreadable or out-of-range value, the service falls back to
+`NETWORK_INFO_REFRESH_SECONDS`, and failing that to 600 seconds.
 
-Understand the remaining trade-offs:
+`KUMA_PORT`, `STATUS_SLUG` and `STORAGE_MOUNT` stay in Compose, because the dashboard needs them before it can start.
 
-- **Anyone who can reach the dashboard can still read the settings**, as they can already read the dashboard itself.
-- **Uptime Kuma credentials and the settings password are never shared.** They stay in the browser that entered them
-  and are deliberately excluded from the document.
-- **Last write wins.** There is no merge and no locking. Two browsers changing different settings at the same time will
-  see one overwrite the other, and changes made elsewhere appear after a reload rather than live.
-- **The document is small and non-critical.** It is capped at 256 KB, and a failed write leaves the browser working
-  from its own copy with a warning rather than losing the change.
-- **Anyone who knows the password can change what every viewer sees.** Treat it as a shared admin password for the
-  dashboard, not a per-person login.
+### Values hidden until you sign in
 
-With `SHARED_SETTINGS` off — the default — the endpoint returns 404 and nothing is ever written to the volume.
+Service URLs and the host's LAN and WAN addresses render as a blurred mask until you sign in to Uptime Kuma. While
+locked the addresses are not requested at all, so they never reach the browser — the blur is how it looks, not what
+protects it. Signing in reveals them; signing out hides them again immediately.
 
 ### Response headers
 
@@ -304,7 +293,12 @@ should be served over HTTPS or bind-mounted into the container instead.
 Service cards show a real application logo from [selfh.st/icons](https://github.com/selfhst/icons), matched automatically
 from the service name — `Radarr` finds the Radarr logo, `Home Assistant` finds Home Assistant, and so on.
 
-Icons load from `https://cdn.jsdelivr.net/gh/selfhst/icons/png/`. Any card whose service has no match, or whose icon fails
+Icons load from `https://cdn.jsdelivr.net/gh/selfhst/icons/png/`, and the dashboard searches the **full selfh.st
+catalogue** — around 2,900 icons — not a fixed list. The catalogue index is proxied through the dashboard at
+`/icon-index` rather than fetched by the browser, which is what lets the page keep `connect-src 'self'` in its
+Content-Security-Policy. It is cached for a day, and a host with no internet simply falls back to the built-in list.
+
+Any card whose service has no match, or whose icon fails
 to load for any reason, shows a monogram instead: the service's initials over a gradient keyed to its name, so every card
 stays distinguishable. The monogram is drawn in the browser rather than fetched, so it works on a host with no internet
 access and can never itself fail to load.
@@ -484,6 +478,24 @@ docker compose up -d --force-recreate service-dash
 
 Static assets are cached for seven days, so a browser hard refresh or cache clear may be required.
 
+## Upgrading from 1.2.0
+
+This release **changes the Compose file**, so pulling the image alone is not enough.
+
+1. Add the new `kuma-auth` service and point `KUMA_URL` at the same Uptime Kuma as `KUMA_PORT`.
+2. Mount the `settings` volume read-only into `network-info` at `/settings`.
+3. Remove `SHARED_SETTINGS`, `SHARED_SETTINGS_USER`, `SHARED_SETTINGS_PASSWORD_FILE` and `SERVICE_ICONS`, and the
+   `settings_password` secret. They no longer exist, and the container ignores them.
+4. `NETWORK_INFO_REFRESH_SECONDS` is now optional; keep it as a starting value or drop it.
+
+Taking the release's `docker-compose.yml` wholesale and re-applying your `KUMA_PORT`, `STATUS_SLUG` and
+`STORAGE_MOUNT` is the least error-prone route.
+
+What changes for people using it: **saving settings now requires signing in to Uptime Kuma**, and anyone who can sign
+in there can change them for everyone. Any per-service icons previously set through `SERVICE_ICONS` are gone — set them
+per card instead, where the picker now searches the whole catalogue. Service URLs and the LAN and WAN addresses are
+hidden until you sign in.
+
 ## Upgrading from 1.1.1
 
 Pull the new image and recreate the container. **No configuration changes are required** — the existing
@@ -559,7 +571,7 @@ Turning the setting back off leaves the document in the volume untouched and ret
 
 ## Update and rollback
 
-The current release is **1.2.0**; the Compose files in this repository reference the matching `1.2.0` images.
+The current release is **1.2.1**; the Compose files in this repository reference the matching `1.2.1` images.
 
 Download the appropriate Compose file from the desired release—`docker-compose.yml` for standard Docker/ZimaOS or `docker-compose.casaos.yml` for the CasaOS UI—then run:
 

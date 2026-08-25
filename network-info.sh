@@ -1,10 +1,43 @@
 #!/bin/sh
 set -u
 
-: "${NETWORK_INFO_REFRESH_SECONDS:?Set NETWORK_INFO_REFRESH_SECONDS under environment in docker-compose.yml}"
-refresh_seconds="$NETWORK_INFO_REFRESH_SECONDS"
+# The starting value only. The dashboard's settings page overrides it, so this
+# no longer has to be set by hand — it is the default until someone changes it.
+default_refresh_seconds="${NETWORK_INFO_REFRESH_SECONDS:-600}"
+
+case "$default_refresh_seconds" in
+    ''|*[!0-9]*)
+        echo "NETWORK_INFO_REFRESH_SECONDS must be a whole number of seconds" >&2
+        exit 1 ;;
+esac
+
 status_file="/status/status.json"
 temporary_file="/status/.status.json.tmp"
+# Mounted read-only from the same volume the dashboard writes its settings to.
+# Absent when the volume is not mounted, which simply means "use the default".
+settings_file="/settings/settings/state.json"
+
+# The document stores each browser value as the JSON string localStorage held,
+# so the preference has to be parsed out of a string inside the document.
+read_refresh_seconds() {
+    [ -r "$settings_file" ] || { printf '%s' "$default_refresh_seconds"; return; }
+
+    value="$(jq -r '.values.serviceDashPrefs // empty' "$settings_file" 2>/dev/null \
+        | jq -r '.networkRefreshSeconds // empty' 2>/dev/null)"
+
+    case "$value" in
+        ''|*[!0-9]*) printf '%s' "$default_refresh_seconds"; return ;;
+    esac
+
+    # Bounded here as well as in the browser: this file is shared, and a value
+    # from anywhere else should not be able to spin this loop.
+    if [ "$value" -lt 30 ] || [ "$value" -gt 86400 ]; then
+        printf '%s' "$default_refresh_seconds"
+        return
+    fi
+
+    printf '%s' "$value"
+}
 
 write_status() {
     route_json="$(ip -j route get 1.1.1.1 2>/dev/null || printf '[]')"
@@ -65,5 +98,7 @@ write_status() {
 mkdir -p /status
 while :; do
     write_status
-    sleep "$refresh_seconds"
+    # Re-read each pass, so a change on the settings page takes effect without
+    # recreating the container.
+    sleep "$(read_refresh_seconds)"
 done

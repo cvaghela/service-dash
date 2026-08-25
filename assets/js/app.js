@@ -25,9 +25,6 @@ const RUNTIME_CONFIG = window.__DASHBOARD_CONFIG__ || {};
 const KUMA_BASE = "/kuma";
 const STATUS_SLUG = String(RUNTIME_CONFIG.statusSlug || "homelab");
 const STORAGE_MOUNT = String(RUNTIME_CONFIG.storageMount || "auto").trim();
-// Per-service icon overrides from SERVICE_ICONS in the Compose file. These are
-// the server-wide default; anything the user sets in the browser beats them.
-const ICON_OVERRIDES = parseIconOverrides(RUNTIME_CONFIG.iconOverrides);
 const ICON_STORAGE_KEY = "serviceIcons";
 let BROWSER_ICON_OVERRIDES = loadBrowserIconOverrides();
 const POLL_MS = 15000;
@@ -239,6 +236,12 @@ const state = {
     socket: null,
     socketReady: false,
     socketAuthed: false,
+    // Seconds between network-address reads. The sidecar's own default applies
+    // until somebody sets one here.
+    networkRefreshSeconds: 600,
+    // The Uptime Kuma session token, held in memory unless the user asked to be
+    // remembered. It is what proves a settings write is allowed.
+    kumaToken: "",
     monitorById: {},
 
     // derived
@@ -267,12 +270,12 @@ const els = {
     iconPreview: document.getElementById("iconPreview"),
     iconStatus: document.getElementById("iconStatus"),
     iconSuggest: document.getElementById("iconSuggest"),
-    settingsAuthOverlay: document.getElementById("settingsAuthOverlay"),
-    settingsAuthUser: document.getElementById("settingsAuthUser"),
-    settingsAuthPass: document.getElementById("settingsAuthPass"),
-    settingsAuthStatus: document.getElementById("settingsAuthStatus"),
-    btnSettingsAuthSave: document.getElementById("btnSettingsAuthSave"),
-    btnSettingsAuthCancel: document.getElementById("btnSettingsAuthCancel"),
+    settingsOverlay: document.getElementById("settingsOverlay"),
+    setNetworkRefresh: document.getElementById("setNetworkRefresh"),
+    settingsStatus: document.getElementById("settingsStatus"),
+    btnSettings: document.getElementById("btnSettings"),
+    btnSettingsSave: document.getElementById("btnSettingsSave"),
+    btnSettingsClose: document.getElementById("btnSettingsClose"),
     containerPicker: document.getElementById("containerPicker"),
     containerSummary: document.getElementById("containerSummary"),
     containerOptions: document.getElementById("containerOptions"),
@@ -662,12 +665,25 @@ async function copyNetworkAddress(element, label) {
 }
 
 async function updateNetworkAddresses() {
+    // Locked like the service URLs: the request is not made at all until you
+    // are signed in, so the addresses never reach this browser to be read out
+    // of the page.
+    if (!state.socketAuthed) {
+        applyLockedValue(els.lan, null, "Sign in to Uptime Kuma to reveal the LAN address");
+        applyLockedValue(els.wan, null, "Sign in to Uptime Kuma to reveal the public IP");
+        delete els.lan?.dataset.copyIp;
+        delete els.wan?.dataset.copyIp;
+        return;
+    }
+
     if (els.lan) {
+        els.lan.classList.remove("is-locked");
         els.lan.textContent = "detecting…";
         delete els.lan.dataset.copyIp;
         els.lan.title = "Reading the ZimaOS host network";
     }
     if (els.wan) {
+        els.wan.classList.remove("is-locked");
         els.wan.textContent = "detecting…";
         delete els.wan.dataset.copyIp;
         els.wan.title = "Looking up the ZimaOS public IP";
@@ -1533,16 +1549,29 @@ async function tickNetdata() {
     if (_netdataTickInFlight) return;
     _netdataTickInFlight = true;
     try {
-        await initNetdataCharts();
+        // Discovery reads the host's whole chart list, which on a busy host is
+        // slow — and it runs again on every page load. CPU, RAM and load do not
+        // depend on it: their chart ids are right by default. So start discovery
+        // without waiting for it, and paint those three on the first tick
+        // instead of leaving the panel blank until the list arrives.
+        const discovery = initNetdataCharts().catch(() => {});
+        if (_netdataChartsReady) await discovery;
+
+        // Storage, network and the optional sensors DO depend on discovery —
+        // reading them early would show the wrong volume or interface for a
+        // moment. They fill in on the next tick.
+        const discovered = _netdataChartsReady;
 
         const results = await Promise.allSettled([
             fetchNetdataChartOnce(ND_CHART_CPU),
             fetchNetdataChartOnce(ND_CHART_RAM),
-            fetchSelectedDiskBundle(),
-            fetchNetdataChartOnce(_netSelectedChart === "auto" ? ND_CHART_NET : _netSelectedChart),
+            discovered ? fetchSelectedDiskBundle() : Promise.resolve(null),
+            discovered
+                ? fetchNetdataChartOnce(_netSelectedChart === "auto" ? ND_CHART_NET : _netSelectedChart)
+                : Promise.resolve(null),
             fetchNetdataChartOnce(ND_CHART_LOAD),
-            ND_CHART_CPU_POWER ? fetchNetdataChartOnce(ND_CHART_CPU_POWER) : Promise.resolve(null),
-            ND_CHART_CPU_TEMP ? fetchNetdataChartOnce(ND_CHART_CPU_TEMP) : Promise.resolve(null),
+            discovered && ND_CHART_CPU_POWER ? fetchNetdataChartOnce(ND_CHART_CPU_POWER) : Promise.resolve(null),
+            discovered && ND_CHART_CPU_TEMP ? fetchNetdataChartOnce(ND_CHART_CPU_TEMP) : Promise.resolve(null),
         ]);
 
         const rawValues = results.map((result) => (result.status === "fulfilled" ? result.value : null));
@@ -1581,7 +1610,9 @@ async function tickNetdata() {
 
         window.__netdata.last = {
             ok: true,
-            status: `${liveCount}/5 fresh metric feeds`,
+            status: _netdataChartsReady
+                ? `${liveCount}/5 fresh metric feeds`
+                : `${liveCount}/5 fresh metric feeds (discovering charts)`,
             at: new Date().toISOString(),
             error: null,
             samples: Object.fromEntries(
@@ -1771,6 +1802,9 @@ function savePrefs() {
         statusFilter: state.statusFilter,
         categoryFilter: state.categoryFilter,
         query: state.query,
+        // Read by the network-info sidecar straight from the shared document,
+        // so changing it here takes effect without recreating a container.
+        networkRefreshSeconds: state.networkRefreshSeconds,
         notes: els.notes.value || "",
         calendarOpen: document.getElementById("secCalendar")?.getAttribute("data-open") === "true",
 
@@ -1792,6 +1826,9 @@ function loadPrefs() {
         if (p.statusFilter) state.statusFilter = p.statusFilter;
         if (p.categoryFilter) state.categoryFilter = p.categoryFilter;
         if (typeof p.query === "string") state.query = p.query;
+        if (Number.isFinite(Number(p.networkRefreshSeconds))) {
+            state.networkRefreshSeconds = clampNetworkRefresh(p.networkRefreshSeconds);
+        }
         if (typeof p.notes === "string") els.notes.value = p.notes;
         if (typeof p.calendarOpen === "boolean") {
             const cal = document.getElementById("secCalendar");
@@ -2064,8 +2101,19 @@ function populateNetIfaceSelect() {
     }
 
     // Apply saved value if it exists in list
+    // A saved interface can vanish — a container's veth goes away with it. The
+    // dropdown used to fall back to Auto while the poller kept requesting the
+    // dead chart, so the panel sat broken and Netdata logged a 404 every tick.
     const exists = _netSelectedChart === "auto" || _netChartChoices.some((c) => c.id === _netSelectedChart);
-    els.netIface.value = exists ? _netSelectedChart : "auto";
+    if (!exists) {
+        _netSelectedChart = "auto";
+        // Corrected locally only: a passive viewer should not be asked to sign
+        // in just because an interface disappeared.
+        try {
+            localStorage.setItem("netIface", "auto");
+        } catch {}
+    }
+    els.netIface.value = _netSelectedChart;
 
     els.netIface.addEventListener(
         "change",
@@ -2123,36 +2171,22 @@ function iconFor(category) {
     return CATEGORY_META[category]?.icon || "✨";
 }
 
-function parseIconOverrides(raw) {
-    const overrides = new Map();
-    let source = raw;
-
-    if (typeof source === "string") {
-        try {
-            source = JSON.parse(source || "{}");
-        } catch (error) {
-            // Never let a typo in Compose take the dashboard down with it.
-            console.warn("SERVICE_ICONS is not valid JSON; ignoring icon overrides", error);
-            return overrides;
-        }
-    }
-
-    if (source && typeof source === "object") {
-        for (const [service, url] of Object.entries(source)) {
-            overrides.set(safeStr(service).trim().toLowerCase(), safeStr(url).trim());
-        }
-    }
-
-    return overrides;
-}
-
 function loadBrowserIconOverrides() {
+    const overrides = new Map();
+
     try {
         const stored = JSON.parse(localStorage.getItem(ICON_STORAGE_KEY) || "{}");
-        return parseIconOverrides(stored);
+        if (!stored || typeof stored !== "object") return overrides;
+
+        for (const [service, url] of Object.entries(stored)) {
+            // "" is a real value: it pins a card to its monogram.
+            overrides.set(safeStr(service).trim().toLowerCase(), safeStr(url).trim());
+        }
     } catch {
         return new Map();
     }
+
+    return overrides;
 }
 
 function saveBrowserIconOverrides() {
@@ -2164,6 +2198,105 @@ function saveBrowserIconOverrides() {
 
 function iconUrlForSlug(slug) {
     return `${SERVICE_ICON_BASE}/${slug}.png`;
+}
+
+/* =========================
+        ICON CATALOGUE
+========================= */
+// The list above is a curated head: it carries the aliases automatic matching
+// needs ("hass", "npm") and decides precedence. The full selfh.st catalogue is
+// ~2,900 icons, far more than any list worth hand-maintaining, so it is fetched
+// at runtime and searched alongside. nginx proxies it at /icon-index, which is
+// what keeps the page's connect-src on 'self'.
+const ICON_INDEX_URL = "/icon-index";
+const ICON_INDEX_CACHE_KEY = "iconIndex";
+const ICON_INDEX_TTL_MS = 24 * 60 * 60 * 1000;
+
+let ICON_INDEX = [];
+let _iconIndexPromise = null;
+
+function readCachedIconIndex() {
+    try {
+        const cached = JSON.parse(localStorage.getItem(ICON_INDEX_CACHE_KEY) || "null");
+        if (!cached || !Array.isArray(cached.entries)) return null;
+        if (!(Date.now() - Number(cached.savedAt) < ICON_INDEX_TTL_MS)) return null;
+        return cached.entries;
+    } catch {
+        return null;
+    }
+}
+
+function adoptIconIndex(entries) {
+    // Anything already in the curated list keeps its entry, so its aliases and
+    // ordering win over the generic catalogue row for the same icon.
+    const curated = new Set(SERVICE_ICONS.map((entry) => entry.slug));
+    ICON_INDEX = entries.filter((entry) => entry.slug && entry.label && !curated.has(entry.slug));
+    return ICON_INDEX;
+}
+
+// Called when the icon editor opens and once at startup. Never blocks anything:
+// a host with no internet keeps the curated list and the monograms.
+function loadIconIndex() {
+    if (_iconIndexPromise) return _iconIndexPromise;
+
+    const cached = readCachedIconIndex();
+    if (cached) {
+        adoptIconIndex(cached);
+        _iconIndexPromise = Promise.resolve(ICON_INDEX);
+        return _iconIndexPromise;
+    }
+
+    _iconIndexPromise = (async () => {
+        try {
+            const res = await fetch(ICON_INDEX_URL, { cache: "no-store" });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+            const payload = await res.json();
+            if (!Array.isArray(payload)) throw new Error("icon index is not a list");
+
+            const entries = payload
+                .filter((row) => row && row.PNG === "Yes")
+                .map((row) => ({ label: safeStr(row.Name).trim(), slug: safeStr(row.Reference).trim() }))
+                .filter((entry) => entry.label && entry.slug);
+
+            adoptIconIndex(entries);
+            try {
+                localStorage.setItem(
+                    ICON_INDEX_CACHE_KEY,
+                    JSON.stringify({ savedAt: Date.now(), entries })
+                );
+            } catch {}
+
+            return ICON_INDEX;
+        } catch (error) {
+            console.info("Icon catalogue unavailable; using the built-in list", error);
+            return [];
+        }
+    })();
+
+    return _iconIndexPromise;
+}
+
+// Cards render before the catalogue arrives, so any that fell back to a
+// monogram get another chance once it does. Cards with a real icon are left
+// alone — re-rendering them would flicker for no reason.
+function refreshMonogramCards() {
+    if (!ICON_INDEX.length || !state.services?.length) return;
+
+    for (const service of state.services) {
+        const card = state.cardElById.get(String(service.id));
+        const img = card?.querySelector(".svcIconImg");
+        if (!img || img.dataset.fallbackApplied !== "true") continue;
+        if (!serviceIconUrl(service.name)) continue;
+        renderCardIcon(card, service.name);
+    }
+}
+
+function indexIconEntryFor(name) {
+    if (!ICON_INDEX.length) return null;
+    const wanted = normalizeForMatch(baseServiceKey(name));
+    if (!wanted) return null;
+    return ICON_INDEX.find((entry) => normalizeForMatch(entry.label) === wanted) || null;
 }
 
 /* =========================
@@ -2221,9 +2354,12 @@ function monogramIcon(name) {
     return uri;
 }
 
-// The catalogue entry a name matches on its own, before any override.
+// The catalogue entry a name matches on its own, before any override. The
+// curated list is checked first because its patterns encode aliases the plain
+// catalogue name cannot ("hass", "npm"); the full catalogue then covers
+// everything else, which is most of what a homelab actually runs.
 function serviceIconEntryFor(name) {
-    return SERVICE_ICONS.find((entry) => entry.regex.test(safeStr(name))) || null;
+    return SERVICE_ICONS.find((entry) => entry.regex.test(safeStr(name))) || indexIconEntryFor(name) || null;
 }
 
 // The icon this service would get with no override at all.
@@ -2244,7 +2380,7 @@ function searchIconCatalog(query) {
     if (!q) return [];
 
     const scored = [];
-    for (const entry of SERVICE_ICONS) {
+    for (const entry of [...SERVICE_ICONS, ...ICON_INDEX]) {
         const label = entry.label.toLowerCase();
         const slug = entry.slug.toLowerCase();
 
@@ -2252,10 +2388,11 @@ function searchIconCatalog(query) {
         if (label === q || slug === q) score = 100;
         else if (label.startsWith(q) || slug.startsWith(q)) score = 80;
         else if (label.includes(q) || slug.includes(q)) score = 60;
-        else if (entry.regex.test(q)) score = 40;
+        else if (entry.regex && entry.regex.test(q)) score = 40;
         else continue;
 
-        scored.push({ entry, score });
+        // A curated entry outranks the catalogue row it duplicates.
+        scored.push({ entry, score: entry.regex ? score + 5 : score });
     }
 
     return scored
@@ -2284,9 +2421,6 @@ function iconOverrideFor(name) {
     // here — it is how a card is pinned back to its category emoji.
     const browser = BROWSER_ICON_OVERRIDES.get(key) ?? BROWSER_ICON_OVERRIDES.get(baseKey);
     if (browser !== undefined) return { source: "browser", url: browser };
-
-    const configured = ICON_OVERRIDES.get(key) ?? ICON_OVERRIDES.get(baseKey);
-    if (configured !== undefined) return { source: "compose", url: configured };
 
     return { source: "auto", url: autoServiceIconUrl(name) };
 }
@@ -2340,56 +2474,23 @@ const SHARED_SETTINGS_URL = "/settings/state.json";
 // them and are never written to a document other devices can read.
 const SHARED_KEYS = ["serviceDashPrefs", "serviceIcons", "serviceContainers", "storageMounts", "netIface"];
 const SHARED_SAVE_DEBOUNCE_MS = 1200;
-// Writing the shared document is authenticated; reading it is not. The
-// credential lives in this browser and is deliberately absent from SHARED_KEYS
-// above — sending it to a document every other device can read would defeat the
-// point of asking for it.
-const SETTINGS_AUTH_KEY = "settingsAuth";
+// Writing the shared document is authenticated; reading it is not. There is no
+// separate password: the Uptime Kuma session already proves who you are, and
+// nginx checks the token with Kuma before allowing the write. The token stays
+// in this browser and is never written into the document every device reads.
+const SETTINGS_TOKEN_HEADER = "X-Kuma-Token";
 
+// Whether the deployment serves a settings document at all.
 let _sharedSettingsAvailable = false;
+// A failed write warns once, not once per keystroke.
 let _sharedSettingsWarned = false;
 let _sharedSaveTimer = null;
+// Likewise for the nudge to sign in.
 let _settingsAuthPrompted = false;
-// Boot applies the theme, accent and preferences it just read, and each of
-// those calls savePrefs(). Mirroring that straight back would write the
-// document nobody changed — and, now that writing is authenticated, would ask
-// every read-only visitor for a password just for opening the page.
+// Boot replays stored state and calls the same save paths; nothing is written
+// back until it has finished, so a read-only visitor is never nudged to sign in
+// merely for opening the page.
 let _sharedSettingsReady = false;
-
-function loadSettingsAuth() {
-    try {
-        const stored = JSON.parse(localStorage.getItem(SETTINGS_AUTH_KEY) || "null");
-        if (!stored || typeof stored.user !== "string" || typeof stored.pass !== "string") return null;
-        return stored;
-    } catch {
-        return null;
-    }
-}
-
-function saveSettingsAuth(user, pass) {
-    try {
-        localStorage.setItem(SETTINGS_AUTH_KEY, JSON.stringify({ user, pass }));
-    } catch {}
-}
-
-function clearSettingsAuth() {
-    try {
-        localStorage.removeItem(SETTINGS_AUTH_KEY);
-    } catch {}
-}
-
-function settingsAuthHeader() {
-    const auth = loadSettingsAuth();
-    if (!auth) return null;
-    try {
-        // btoa handles Latin-1 only, so widen to bytes first and a non-ASCII
-        // password still produces a valid header.
-        const bytes = new TextEncoder().encode(`${auth.user}:${auth.pass}`);
-        return `Basic ${btoa(String.fromCharCode(...bytes))}`;
-    } catch {
-        return null;
-    }
-}
 
 function collectSharedSettings() {
     const values = {};
@@ -2418,8 +2519,6 @@ function applySharedSettings(payload) {
 }
 
 async function loadSharedSettings() {
-    if (!RUNTIME_CONFIG.sharedSettings) return false;
-
     try {
         const res = await fetch(SHARED_SETTINGS_URL, { cache: "no-store" });
 
@@ -2457,8 +2556,7 @@ async function saveSharedSettings() {
     if (!_sharedSettingsAvailable) return;
 
     const headers = { "Content-Type": "application/json" };
-    const authorization = settingsAuthHeader();
-    if (authorization) headers.Authorization = authorization;
+    if (state.kumaToken) headers[SETTINGS_TOKEN_HEADER] = state.kumaToken;
 
     try {
         const res = await fetch(SHARED_SETTINGS_URL, {
@@ -2467,10 +2565,10 @@ async function saveSharedSettings() {
             body: JSON.stringify(collectSharedSettings()),
         });
 
-        // No credential yet, or the stored one is wrong: ask for it and retry
-        // rather than silently dropping the change.
+        // Not signed in, or Kuma no longer accepts the token: point at the
+        // Kuma login rather than silently dropping the change.
         if (res.status === 401) {
-            openSettingsAuth(authorization ? "Those details were not accepted. Try again." : "");
+            promptKumaSignIn();
             return;
         }
         if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
@@ -2487,67 +2585,100 @@ async function saveSharedSettings() {
     }
 }
 
-/* ---- shared settings unlock ---- */
+/* =========================
+          SETTINGS
+========================= */
+// Bounded here and again in the sidecar. The floor keeps the public-IP lookup
+// from being hammered; the ceiling keeps a typo from parking it for a year.
+const NETWORK_REFRESH_MIN = 30;
+const NETWORK_REFRESH_MAX = 86400;
 
-function openSettingsAuth(message) {
-    if (!els.settingsAuthOverlay) return;
-
-    // One prompt per session: a rejected password should not reopen the dialog
-    // on every keystroke in the notes field.
-    if (_settingsAuthPrompted && els.settingsAuthOverlay.classList.contains("show") === false && !message) return;
-    _settingsAuthPrompted = true;
-
-    if (els.settingsAuthUser && !els.settingsAuthUser.value) {
-        els.settingsAuthUser.value = loadSettingsAuth()?.user || "dashboard";
-    }
-    if (els.settingsAuthPass) els.settingsAuthPass.value = "";
-    setSettingsAuthStatus(message ? "error" : "idle", message || "Changes are saved once you sign in.");
-
-    els.settingsAuthOverlay.classList.add("show");
-    els.settingsAuthOverlay.setAttribute("aria-hidden", "false");
-    setTimeout(() => els.settingsAuthPass?.focus(), 60);
+function clampNetworkRefresh(value) {
+    const seconds = Math.round(Number(value));
+    if (!Number.isFinite(seconds)) return 600;
+    return clamp(seconds, NETWORK_REFRESH_MIN, NETWORK_REFRESH_MAX);
 }
 
-function closeSettingsAuth() {
-    if (!els.settingsAuthOverlay) return;
-    els.settingsAuthOverlay.classList.remove("show");
-    els.settingsAuthOverlay.setAttribute("aria-hidden", "true");
-    if (els.settingsAuthPass) els.settingsAuthPass.value = "";
+function openSettings() {
+    if (!els.settingsOverlay) return;
+
+    if (els.setNetworkRefresh) els.setNetworkRefresh.value = String(state.networkRefreshSeconds);
+    setSettingsStatus(
+        "idle",
+        state.socketAuthed
+            ? "Changes apply to every browser and device."
+            : "Sign in to Uptime Kuma to change these."
+    );
+
+    els.settingsOverlay.classList.add("show");
+    els.settingsOverlay.setAttribute("aria-hidden", "false");
+    setTimeout(() => els.setNetworkRefresh?.focus(), 60);
 }
 
-function setSettingsAuthStatus(state, message) {
-    if (!els.settingsAuthStatus) return;
-    els.settingsAuthStatus.dataset.state = state;
-    els.settingsAuthStatus.textContent = message;
+function closeSettings() {
+    if (!els.settingsOverlay) return;
+    els.settingsOverlay.classList.remove("show");
+    els.settingsOverlay.setAttribute("aria-hidden", "true");
 }
 
-function submitSettingsAuth() {
-    const user = safeStr(els.settingsAuthUser?.value).trim();
-    const pass = safeStr(els.settingsAuthPass?.value);
+function setSettingsStatus(state_, message) {
+    if (!els.settingsStatus) return;
+    els.settingsStatus.dataset.state = state_;
+    els.settingsStatus.textContent = message;
+}
 
-    if (!user || !pass) {
-        setSettingsAuthStatus("error", "Enter both a username and a password.");
+function saveSettings() {
+    const requested = Number(els.setNetworkRefresh?.value);
+    const seconds = clampNetworkRefresh(requested);
+
+    if (!Number.isFinite(requested) || String(els.setNetworkRefresh?.value).trim() === "") {
+        setSettingsStatus("error", "Enter a number of seconds.");
         return;
     }
 
-    saveSettingsAuth(user, pass);
-    closeSettingsAuth();
-    // Retry the write that triggered the prompt; a wrong password reopens it.
-    saveSharedSettings();
+    state.networkRefreshSeconds = seconds;
+    if (els.setNetworkRefresh) els.setNetworkRefresh.value = String(seconds);
+    savePrefs();
+
+    // Both facts matter, so neither is allowed to hide the other: a clamped
+    // value the user cannot see explained looks like the page ignored them.
+    const notes = [];
+    if (seconds !== Math.round(requested)) {
+        notes.push(`Kept within ${NETWORK_REFRESH_MIN}–${NETWORK_REFRESH_MAX} seconds, so saved as ${seconds}.`);
+    }
+    // savePrefs still keeps it in this browser; the save path raises the Kuma
+    // sign-in itself.
+    if (!state.socketAuthed) notes.push("Saved in this browser. Sign in to Uptime Kuma to share it.");
+
+    if (notes.length) setSettingsStatus("error", notes.join(" "));
+    else setSettingsStatus("ok", "Saved.");
 }
 
-els.btnSettingsAuthSave?.addEventListener("click", submitSettingsAuth);
-els.btnSettingsAuthCancel?.addEventListener("click", () => {
-    clearSettingsAuth();
-    closeSettingsAuth();
-    toast("🔒 <b>Not signed in.</b> Changes stay in this browser only.", 3600);
+els.btnSettings?.addEventListener("click", openSettings);
+els.btnSettingsClose?.addEventListener("click", closeSettings);
+els.btnSettingsSave?.addEventListener("click", saveSettings);
+els.settingsOverlay?.addEventListener("click", (event) => {
+    if (event.target === els.settingsOverlay) closeSettings();
 });
-els.settingsAuthOverlay?.addEventListener("click", (event) => {
-    if (event.target === els.settingsAuthOverlay) closeSettingsAuth();
+els.setNetworkRefresh?.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") saveSettings();
 });
-els.settingsAuthPass?.addEventListener("keydown", (event) => {
-    if (event.key === "Enter") submitSettingsAuth();
-});
+
+/* ---- shared settings unlock ---- */
+
+// One nudge per session: a change made while signed out should say so once,
+// not reopen a dialog on every keystroke in the notes field.
+function promptKumaSignIn() {
+    if (_settingsAuthPrompted) return;
+    _settingsAuthPrompted = true;
+
+    toast(
+        "🔒 <b>Sign in to Uptime Kuma to save settings.</b> Changes stay in this browser until you do.",
+        5200
+    );
+    openAuth();
+}
+
 
 const normalizeForMatch = (value) => safeStr(value).toLowerCase().replace(/[^a-z0-9]/g, "");
 
@@ -2690,6 +2821,11 @@ function setUrlState(label) {
 
 function updateAuthButtons() {
     const authed = !!state.socketAuthed;
+
+    // Signing in reveals the addresses; signing out hides them again, without
+    // waiting for the next poll.
+    updateNetworkAddresses();
+    if (state.domBuilt) updateCardUrlsInPlace();
 
     // Show Logout only when authenticated
     els.btnLogout.style.display = authed ? "flex" : "none";
@@ -2849,6 +2985,7 @@ async function autoReauthAndLoadUrls(reason) {
             await new Promise((resolve) => {
                 state.socket.emit("loginByToken", token, (res) => {
                     if (res?.ok) {
+                        state.kumaToken = token;
                         state.socketAuthed = true;
                         updateAuthButtons();
                         setUrlState("authenticated");
@@ -2858,6 +2995,7 @@ async function autoReauthAndLoadUrls(reason) {
                         resolve(true);
                     } else {
                         localStorage.removeItem("ml_token");
+                        state.kumaToken = "";
                         state.socketAuthed = false;
                         updateAuthButtons();
                         setUrlState("LOCKED");
@@ -2902,6 +3040,11 @@ async function doLogin({ username, password, token2fa, remember }) {
                     return;
                 }
 
+                // Held for this session either way: saving settings needs
+                // it, and asking for a Kuma login on every save would defeat
+                // the point of using that login. "Remember me" still decides
+                // whether it outlives the tab.
+                state.kumaToken = res.token || "";
                 if (remember && res.token) {
                     localStorage.setItem("ml_token", res.token);
                 } else if (!remember) {
@@ -2932,6 +3075,7 @@ function doLogout() {
     state.socket = null;
     state.socketReady = false;
     state.socketAuthed = false;
+    state.kumaToken = "";
     updateAuthButtons();
 
     localStorage.removeItem("ml_token");
@@ -3196,13 +3340,13 @@ function buildDomOnceIfNeeded() {
                 <div class="linkLine" data-role="localLine">
                   <span class="miniDot" data-role="localDot" data-status="pending"></span>
                   <span class="linkBadge">Local</span>
-                  <span class="linkUrl" data-role="localUrlText">URL locked 🔒</span>
+                  <span class="linkUrl is-locked" data-role="localUrlText" aria-label="Hidden until you sign in to Uptime Kuma">••••••••••••</span>
                   <span class="linkMeta" data-role="localUp">—</span>
                 </div>
                 <div class="linkLine" data-role="externalLine">
                   <span class="miniDot" data-role="externalDot" data-status="pending"></span>
                   <span class="linkBadge">External</span>
-                  <span class="linkUrl" data-role="externalUrlText">URL locked 🔒</span>
+                  <span class="linkUrl is-locked" data-role="externalUrlText" aria-label="Hidden until you sign in to Uptime Kuma">••••••••••••</span>
                   <span class="linkMeta" data-role="externalUp">—</span>
                 </div>
               </div>
@@ -3354,6 +3498,25 @@ function buildDomOnceIfNeeded() {
     state.domBuilt = true;
 }
 
+// Anything only a signed-in user should read — service URLs, and the host's
+// LAN and WAN addresses — renders as a blurred mask until then. The real value
+// is never written into the DOM while locked: the blur is how it looks, not
+// what protects it, and a blurred string sitting in the markup would protect
+// nothing at all.
+const LOCKED_MASK = "••••••••••••";
+
+function applyLockedValue(el, value, lockedTitle, unlockedTitle) {
+    if (!el) return;
+
+    const locked = !value;
+    el.textContent = locked ? LOCKED_MASK : value;
+    el.classList.toggle("is-locked", locked);
+    // Blur says nothing to a screen reader, so the state is stated outright.
+    el.setAttribute("aria-label", locked ? "Hidden until you sign in to Uptime Kuma" : String(value));
+    el.title = locked ? lockedTitle : unlockedTitle || String(value);
+    return !locked;
+}
+
 function updateCardUrlsInPlace() {
     for (const s of state.services) {
         const card = state.cardElById.get(String(s.id));
@@ -3380,8 +3543,8 @@ function updateCardUrlsInPlace() {
         const localText = card.querySelector('[data-role="localUrlText"]');
         const extText = card.querySelector('[data-role="externalUrlText"]');
 
-        if (localText) localText.textContent = localUrl ? localUrl : "URL locked 🔒";
-        if (extText) extText.textContent = extUrl ? extUrl : "URL locked 🔒";
+        applyLockedValue(localText, localUrl, "Sign in to Uptime Kuma to reveal this URL");
+        applyLockedValue(extText, extUrl, "Sign in to Uptime Kuma to reveal this URL");
 
         markActiveEndpoint(card);
     }
@@ -3738,6 +3901,7 @@ function openIconEditor(service) {
 
     // An automatic match is shown by name rather than by URL: that is what the
     // picker reads, and it resolves back to the same icon on save.
+    loadIconIndex();
     _iconEditAutoLabel = current.source === "auto" ? (serviceIconEntryFor(service.name)?.label ?? "") : null;
     _iconPickedLabel = null;
     closeIconSuggest();
@@ -4133,6 +4297,10 @@ async function initialLoad() {
     // somebody changed something.
     _sharedSettingsReady = true;
 
+    // Fetched in the background: cards are already on screen, and any showing a
+    // monogram are re-checked once the catalogue lands.
+    loadIconIndex().then(refreshMonogramCards);
+
     // Sidebar metrics: Netdata (preferred) with graceful fallback to mock animation.
     // A hidden tab cannot show the values, so skip the 2s poll while backgrounded
     // and take one fresh sample the moment the tab is looked at again.
@@ -4182,7 +4350,7 @@ async function initialLoad() {
         if (e.key === "Escape") {
             closeAuth();
             closeIconEditor();
-            closeSettingsAuth();
+            closeSettings();
         }
         // ✅ Optional: press "T" to cycle accents
         if (e.key.toLowerCase() === "t" && !e.metaKey && !e.ctrlKey && !e.altKey) {

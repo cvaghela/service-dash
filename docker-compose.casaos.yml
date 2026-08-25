@@ -2,7 +2,7 @@ name: service-dash
 
 services:
   service-dash:
-    image: ghcr.io/cvaghela/service-dash:1.2.0
+    image: ghcr.io/cvaghela/service-dash:1.2.1
     container_name: service-dash
     ports:
       - "8888:80"
@@ -10,27 +10,13 @@ services:
       KUMA_PORT: "3001"
       STATUS_SLUG: "homelab"
       STORAGE_MOUNT: "auto"
-      # Optional: override the auto-picked icon for a service, by its card name.
-      # An empty value keeps that card on its category emoji.
-      SERVICE_ICONS: '{}'
-      # "on" shares card settings, filters and notes across every browser and
-      # device, by keeping them in the settings volume below instead of in each
-      # browser. Reading stays open; saving a change requires the password
-      # below, so a visitor cannot rewrite what everyone else sees.
-      SHARED_SETTINGS: "off"
-      SHARED_SETTINGS_USER: "dashboard"
-      # Required when SHARED_SETTINGS is "on" — the container refuses to start
-      # without it. A file keeps the secret out of `docker inspect`; create it
-      # with, for example:
-      #   printf '%s' 'a-long-random-passphrase' > ./settings-password.txt
-      #   chmod 600 ./settings-password.txt
-      SHARED_SETTINGS_PASSWORD_FILE: "/run/secrets/settings-password"
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
       - netdata
       - docker-metadata
       - network-info
+      - kuma-auth
     volumes:
       - type: bind
         source: /DATA/AppData/service-dash/network-info
@@ -40,28 +26,52 @@ services:
       - type: bind
         source: /DATA/AppData/service-dash/settings
         target: /var/lib/service-dash
-      # Only read when SHARED_SETTINGS is "on".
-      - type: bind
-        source: /DATA/AppData/service-dash/settings-password
-        target: /run/secrets/settings-password
-        read_only: true
     networks:
       service-dash-network:
         aliases:
           - service-dash
     restart: unless-stopped
 
+  # Answers one question for nginx: is this browser really signed in to Uptime
+  # Kuma? Without it, saving settings would have to trust the browser's word.
+  kuma-auth:
+    image: ghcr.io/cvaghela/service-dash-kuma-auth:1.2.1
+    container_name: service-dash-kuma-auth
+    environment:
+      # Must point at the same Uptime Kuma as KUMA_PORT above.
+      KUMA_URL: "http://host.docker.internal:3001"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - default
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('node:http').get('http://127.0.0.1:2371/healthz',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    restart: unless-stopped
+
   network-info:
-    image: ghcr.io/cvaghela/service-dash-network-info:1.2.0
+    image: ghcr.io/cvaghela/service-dash-network-info:1.2.1
     container_name: service-dash-network-info
     network_mode: host
     read_only: true
     environment:
+      # Starting value only — the dashboard's settings page overrides it.
       NETWORK_INFO_REFRESH_SECONDS: "600"
     volumes:
       - type: bind
         source: /DATA/AppData/service-dash/network-info
         target: /status
+      # Read-only: the refresh interval is set on the dashboard's settings page.
+      - type: bind
+        source: /DATA/AppData/service-dash/settings
+        target: /settings
+        read_only: true
     security_opt:
       - no-new-privileges:true
     healthcheck:

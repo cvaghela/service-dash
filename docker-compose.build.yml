@@ -9,3 +9,9 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.network-info
+
+  kuma-auth:
+    image: service-dash-kuma-auth:local
+    build:
+      context: .
+      dockerfile: Dockerfile.kuma-auth

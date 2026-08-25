@@ -3,3 +3,4 @@
 .DS_Store
 *.zip
 README.md
+kuma-auth/node_modules

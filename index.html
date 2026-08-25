@@ -23,7 +23,7 @@
             rel="stylesheet"
             href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,500,0,0"
         />
-        <link rel="stylesheet" href="assets/css/styles.css?v=1.2.0" />
+        <link rel="stylesheet" href="assets/css/styles.css?v=1.2.1" />
     </head>
     <body>
         <div class="bg" aria-hidden="true"></div>
@@ -66,6 +66,14 @@
                         <span>Logout</span>
                     </button>
 
+                    <button
+                        class="pill iconbtn"
+                        id="btnSettings"
+                        title="Settings"
+                        aria-label="Settings"
+                    >
+                        <span class="material-symbols-rounded" aria-hidden="true">settings</span>
+                    </button>
                     <button
                         class="pill iconbtn"
                         id="btnRefresh"
@@ -332,39 +340,51 @@
                 </div>
             </div>
         </div>
-        <!-- Shared settings unlock -->
-        <div class="overlay" id="settingsAuthOverlay" aria-hidden="true">
-            <div class="modal">
+        <!-- Settings -->
+        <div class="overlay" id="settingsOverlay" aria-hidden="true">
+            <div class="modal settingsModal">
                 <div class="blob" style="top: -110px; left: -110px"></div>
                 <div class="blob b2" style="bottom: -120px; right: -140px"></div>
-                <h2>Sign in to save settings</h2>
+                <h2>Settings</h2>
                 <p>
-                    This dashboard shares its settings across every browser and device, so saving a change asks for the
-                    password set in <b>SHARED_SETTINGS_PASSWORD</b>. Reading needs nothing — only changes do.
+                    These apply to every browser and device. Reading them needs nothing; changing them asks you to sign
+                    in to Uptime Kuma.
                 </p>
-                <div class="grid2">
+
+                <div class="settingsSection">
+                    <h3>Network addresses</h3>
                     <div class="field">
-                        <label for="settingsAuthUser">Username</label>
-                        <input id="settingsAuthUser" autocomplete="username" placeholder="dashboard" />
-                    </div>
-                    <div class="field">
-                        <label for="settingsAuthPass">Password</label>
-                        <input
-                            id="settingsAuthPass"
-                            type="password"
-                            autocomplete="current-password"
-                            placeholder="••••••••"
-                        />
+                        <label for="setNetworkRefresh">Refresh every</label>
+                        <div class="settingsInline">
+                            <input
+                                id="setNetworkRefresh"
+                                type="number"
+                                min="30"
+                                max="86400"
+                                step="30"
+                                inputmode="numeric"
+                            />
+                            <span class="settingsUnit">seconds</span>
+                        </div>
+                        <div class="subtle">
+                            How often the LAN route and public IP are re-read. Between 30 seconds and 24 hours; the
+                            public IP lookup leaves your network, so slower is kinder.
+                        </div>
                     </div>
                 </div>
-                <div class="iconStatus" id="settingsAuthStatus" data-state="idle"></div>
-                <div class="subtle">
-                    Kept in this browser only — it is never written to the shared settings, the same as the Uptime Kuma
-                    login.
+
+                <div class="settingsSection">
+                    <h3>Fixed at deployment</h3>
+                    <div class="subtle">
+                        Set in your Compose file, because the dashboard needs them before it can start:
+                        <b>KUMA_PORT</b>, <b>STATUS_SLUG</b> and <b>STORAGE_MOUNT</b>.
+                    </div>
                 </div>
+
+                <div class="iconStatus" id="settingsStatus" data-state="idle"></div>
                 <div class="row">
-                    <button class="pill" id="btnSettingsAuthCancel">Cancel</button>
-                    <button class="pill primary" id="btnSettingsAuthSave">Sign in</button>
+                    <button class="pill" id="btnSettingsClose">Close</button>
+                    <button class="pill primary" id="btnSettingsSave">Save</button>
                 </div>
             </div>
         </div>
@@ -428,7 +448,7 @@
                 <path d="M12 5l-7 7h4v7h6v-7h4z"></path>
             </svg>
         </button>
-        <script src="/config.js?v=1.2.0"></script>
-        <script src="./assets/js/app.js?v=1.2.0" defer></script>
+        <script src="/config.js?v=1.2.1"></script>
+        <script src="./assets/js/app.js?v=1.2.1" defer></script>
     </body>
 </html>

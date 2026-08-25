@@ -3,6 +3,41 @@
 All notable changes to Service Dash are recorded here. This project follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.1] — 2026-08-25
+
+### Added
+
+- **Uptime Kuma's login now gates settings changes**, replacing the separate password. A new `kuma-auth` service answers
+  one question for nginx — is this browser really signed in? — by asking Kuma itself, which verifies the token against
+  its own secret, checks the user is still active, and rejects tokens issued before a password change. Reading settings
+  stays open; anything that is not an explicit yes is a no.
+- **A settings page**, opened from the gear in the top bar. Settings apply to every browser and device; changing them
+  asks for a Kuma sign-in. It holds how often the network addresses are re-read, which the `network-info` service now
+  reads from the shared document and picks up on its next pass, so `NETWORK_INFO_REFRESH_SECONDS` is optional and only
+  a starting value.
+- **Service URLs, and the host's LAN and WAN addresses, are hidden until you sign in**, shown as a blurred mask. While
+  locked the addresses are not requested at all, so they never reach the browser.
+- **The icon picker now searches the whole selfh.st catalogue** — around 2,900 icons rather than the 48 built in — and
+  automatic matching uses it too, so a service the curated list never knew about (Frigate, Scrypted, and most of what a
+  homelab actually runs) gets its real icon. The index is proxied at `/icon-index` so the page keeps `connect-src
+  'self'`, cached for a day, and a host with no internet falls back to the built-in list.
+
+### Removed
+
+- **`SHARED_SETTINGS`, `SHARED_SETTINGS_USER` and `SHARED_SETTINGS_PASSWORD_FILE`.** Settings are always shared and
+  always gated on a Kuma login, so there is nothing to switch on and no password to create.
+- **`SERVICE_ICONS`.** Icons are matched from the full catalogue and edited per card in the browser.
+
+### Fixed
+
+- **CPU, RAM and load now appear immediately instead of waiting for chart discovery.** Every page load re-read the
+  host's entire Netdata chart list, and the whole metrics panel stayed blank until that finished — on a busy host,
+  several seconds, every refresh. Those three feeds do not depend on discovery, so they are painted on the first tick;
+  storage and network still wait, rather than briefly showing the wrong volume or interface.
+- **A saved network interface that no longer exists falls back to Auto.** When a container is recreated its `veth`
+  interface disappears; the dropdown reset itself but the poller kept requesting the dead chart, so the network panel
+  stayed broken and Netdata logged a 404 every two seconds.
+
 ## [1.2.0] — 2026-08-25
 
 ### Added
@@ -105,6 +140,7 @@ Housekeeping for the first public release. No functional changes to the dashboar
 
 See the [release history](https://github.com/cvaghela/service-dash/releases).
 
+[1.2.1]: https://github.com/cvaghela/service-dash/releases/tag/v1.2.1
 [1.2.0]: https://github.com/cvaghela/service-dash/releases/tag/v1.2.0
 [1.1.1]: https://github.com/cvaghela/service-dash/releases/tag/v1.1.1
 [1.1.0]: https://github.com/cvaghela/service-dash/releases/tag/v1.1.0
