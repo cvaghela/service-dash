@@ -69,7 +69,15 @@ server {
     location = /_kuma-auth {
         internal;
 
-        proxy_pass http://kuma-auth:2371/validate;
+        # Looked up at request time, via Docker's embedded resolver. A literal
+        # upstream here is resolved when the config loads, so a validator that
+        # is missing or not yet up stops nginx from starting at all and takes
+        # the whole dashboard down with it. Resolving per request keeps the
+        # dashboard serving and fails just this subrequest, which auth_request
+        # turns into a refused write — the same answer as an explicit "no".
+        resolver 127.0.0.11 valid=30s ipv6=off;
+        set $kuma_auth_upstream "kuma-auth";
+        proxy_pass http://$kuma_auth_upstream:2371/validate;
         proxy_pass_request_body off;
         proxy_set_header Content-Length "";
         proxy_set_header X-Kuma-Token $http_x_kuma_token;

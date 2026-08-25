@@ -42,8 +42,11 @@ services:
       KUMA_URL: "http://host.docker.internal:3001"
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    # Must share a network with service-dash: nginx reaches this by service name.
     networks:
-      - default
+      service-dash-network:
+        aliases:
+          - kuma-auth
     read_only: true
     security_opt:
       - no-new-privileges:true

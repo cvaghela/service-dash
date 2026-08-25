@@ -34,9 +34,15 @@ jobs:
           docker compose -f docker-compose.casaos.yml config --quiet
           docker compose -f docker-compose.yml -f docker-compose.build.yml config --quiet
           node --check assets/js/app.js
+          node --check kuma-auth/server.js
           sh -n entrypoint.sh
           sh -n install-linux.sh
           sh -n network-info.sh
+
+      - name: Check nginx upstreams are reachable from the dashboard
+        run: |
+          python3 -m pip install --quiet pyyaml
+          python3 scripts/check-compose-networks.py
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4
