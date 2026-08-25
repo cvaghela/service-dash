@@ -3,6 +3,66 @@
 All notable changes to Service Dash are recorded here. This project follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.2] — 2026-08-25
+
+A fix release. Anyone running the CasaOS Compose file from 1.2.1 needs this
+one: that stack could not start.
+
+### Fixed
+
+- **The CasaOS stack failed to start.** `kuma-auth` was placed on the implicit
+  `default` network while everything else sits on `service-dash-network`. Two
+  separate bridges means Docker's DNS never resolves the name, so nginx exited
+  with `host not found in upstream "kuma-auth"` and the dashboard sat in a
+  restart loop. The file is valid YAML and `docker compose config` accepts it,
+  which is why validation missed it; `scripts/check-compose-networks.py` now
+  cross-references every nginx upstream against each Compose file's networks and
+  runs in CI.
+- **A missing validator no longer takes the whole dashboard down.** nginx looks
+  `kuma-auth` up per request through Docker's resolver instead of at config-load
+  time, so a validator that is stopped or slow to start fails only its own
+  subrequest — which `auth_request` turns into a refused write, the same answer
+  as an explicit no. The dashboard keeps serving.
+- **Cards no longer flicker every poll.** The fifteen-second poll rebuilt both
+  chip rows from `innerHTML` and rewrote every card's status, uptime, URLs,
+  active row and container figures whether or not anything had changed. Since
+  `.card` carries a `backdrop-filter`, each pointless write cost a real repaint.
+  Idle over 35 seconds, card mutations drop from 899 to 189.
+- **CPU and RAM no longer vanish and return.** A single missed Netdata sample
+  blanked the reading; the last good value is held for 20 seconds before giving
+  way to `—`, and the bars hold with their figures rather than emptying beneath
+  them.
+- **Scrolling.** The scroll handler was not passive, so the browser had to wait
+  to see whether it would call `preventDefault` before it could scroll, and it
+  wrote a class on every event.
+- **Icons rendered as words on a host with no internet.** Material Symbols were
+  styled entirely by Google's stylesheet, so a host that cannot reach
+  `fonts.googleapis.com` got no rule at all and every icon showed its raw
+  ligature — `stacked_line_chart` printed in a panel heading. The icons are now
+  hidden when the font genuinely fails to load.
+- **Security headers reached only one endpoint.** They were declared inside
+  `location /`, which is a sibling of every other location rather than their
+  parent, so `add_header` never applied to `/config.js`, `/assets/`,
+  `/settings/state.json`, `/icon-index` or the JSON endpoints. `nosniff` and
+  `Referrer-Policy` are now declared per block. The Kuma and Netdata proxies are
+  deliberately excluded, since they serve third-party UIs.
+
+### Changed
+
+- **Service URLs and the LAN and WAN addresses swapped their two states.**
+  Signed out they read `URL Locked` / `IP Locked` rather than sitting behind a
+  blur, because there is nothing to reveal — the value is never requested.
+  Signed in, the real value is covered until hovered or focused, which is what
+  the addresses already did and now applies to every card link. A signed-in
+  monitor that simply has no URL reads `No URL`.
+- **The network caption** now reads "Auto detected from the host network!".
+
+### Performance
+
+- Per-card elements are resolved once when the card is built rather than
+  re-queried on every poll, and the clock builds its `Intl` formatters once
+  instead of once a second.
+
 ## [1.2.1] — 2026-08-25
 
 ### Added
@@ -140,6 +200,7 @@ Housekeeping for the first public release. No functional changes to the dashboar
 
 See the [release history](https://github.com/cvaghela/service-dash/releases).
 
+[1.2.2]: https://github.com/cvaghela/service-dash/releases/tag/v1.2.2
 [1.2.1]: https://github.com/cvaghela/service-dash/releases/tag/v1.2.1
 [1.2.0]: https://github.com/cvaghela/service-dash/releases/tag/v1.2.0
 [1.1.1]: https://github.com/cvaghela/service-dash/releases/tag/v1.1.1

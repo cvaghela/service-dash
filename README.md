@@ -478,6 +478,25 @@ docker compose up -d --force-recreate service-dash
 
 Static assets are cached for seven days, so a browser hard refresh or cache clear may be required.
 
+## Upgrading from 1.2.1
+
+**If you deployed 1.2.1 on CasaOS, your stack could not start** — `kuma-auth` was on the wrong network, so nginx exited
+with `host not found in upstream "kuma-auth"` and the dashboard restart-looped. Fixing it needs a one-line Compose edit,
+not just a new image: give `kuma-auth` the same network as everything else.
+
+```yaml
+  kuma-auth:
+    image: ghcr.io/cvaghela/service-dash-kuma-auth:1.2.2
+    # …
+    networks:                      # replaces `- default`
+      service-dash-network:
+        aliases:
+          - kuma-auth
+```
+
+The `docker-compose.casaos.yml` in this release already has it. Everything else in 1.2.2 arrives with the images and
+needs no configuration change; the standard `docker-compose.yml` was never affected.
+
 ## Upgrading from 1.2.0
 
 This release **changes the Compose file**, so pulling the image alone is not enough.
@@ -571,7 +590,7 @@ Turning the setting back off leaves the document in the volume untouched and ret
 
 ## Update and rollback
 
-The current release is **1.2.1**; the Compose files in this repository reference the matching `1.2.1` images.
+The current release is **1.2.2**; the Compose files in this repository reference the matching `1.2.2` images.
 
 Download the appropriate Compose file from the desired release—`docker-compose.yml` for standard Docker/ZimaOS or `docker-compose.casaos.yml` for the CasaOS UI—then run:
 
