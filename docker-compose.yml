@@ -112,15 +112,15 @@ services:
 volumes:
   networkinfo:
   settings:
+  netdataconfig:
+  netdatalib:
+  netdatacache:
 
 secrets:
   settings_password:
     # Only read when SHARED_SETTINGS is "on". Keep this file out of version
-    # control — add it to .gitignore if you create it here.
+    # control — it is already listed in .gitignore.
     file: ./settings-password.txt
-  netdataconfig:
-  netdatalib:
-  netdatacache:
 
 x-casaos:
   architectures:
