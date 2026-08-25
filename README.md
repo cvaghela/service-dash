@@ -13,6 +13,9 @@ service-dash/
 │   ├── img/service-dash-icon.png
 │   └── js/app.js
 ├── .dockerignore
+├── .gitignore
+├── CHANGELOG.md
+├── LICENSE
 ├── Dockerfile
 ├── Dockerfile.network-info
 ├── docker-compose.build.yml
@@ -195,7 +198,7 @@ The public Compose file uses registry images and can be pasted directly into a c
 
 The frontend expects same-origin paths `/kuma` and `/netdata`. Nginx maps `/kuma` to the configured Uptime Kuma service and reaches the included Netdata Agent directly over the stack's private Docker network. Netdata port `19999` is not published on the ZimaBoard.
 
-All installation settings live directly in the Compose file used for the installation (`docker-compose.yml`, or `docker-compose.casaos.yml` on CasaOS); no `.env` file is supported or required. These settings contain no Uptime Kuma credentials. Do not add a Kuma password or token to Compose; the optional URL-unlock login remains a browser-only action.
+All installation settings live directly in the Compose file used for the installation (`docker-compose.yml`, or `docker-compose.casaos.yml` on CasaOS); no `.env` file is supported or required. These settings contain no Uptime Kuma credentials. Do not add a Kuma password or token to Compose; the optional status-page login remains a browser-only action.
 
 | Compose setting | Purpose | Default value |
 | --- | --- | --- |
@@ -204,6 +207,7 @@ All installation settings live directly in the Compose file used for the install
 | `STATUS_SLUG` | Final path segment of the published Kuma status-page URL | `homelab` |
 | `STORAGE_MOUNT` | Initial storage mount for browsers without a saved dropdown selection | `auto` |
 | `SERVICE_ICONS` | Per-service icon overrides, as a JSON object keyed by card name | `{}` |
+| `NETWORK_INFO_REFRESH_SECONDS` | How often the LAN route and WAN address are re-read. Set on the `network-info` service, and required — the helper exits if it is removed | `600` |
 
 ### Container CPU and RAM
 
@@ -246,7 +250,7 @@ environment:
 - Names are matched case-insensitively, and a paired `Plex` / `Plex local` set is covered by the single entry `Plex`.
 - Any image URL works. A relative path such as `/icons/plex.png` is served from the dashboard container, so icons can be
   bind-mounted and kept entirely local.
-- An empty value — `{"Plex":""}` — pins that card back to its category emoji.
+- An empty value — `{"Plex":""}` — disables the automatic match for that card and shows the bundled Service Dash mark.
 - An override always beats the automatic match, and a per-browser choice made with the pencil button beats `SERVICE_ICONS`.
 - A link that cannot be loaded falls back to the bundled Service Dash mark, and the icon editor says so rather than failing quietly.
 
@@ -408,7 +412,7 @@ Static assets are cached for seven days, so a browser hard refresh or cache clea
 
 ## Update and rollback
 
-The current release is **1.1.0**; the Compose files in this repository reference the matching `1.1.0` images.
+The current release is **1.1.1**; the Compose files in this repository reference the matching `1.1.1` images.
 
 Download the appropriate Compose file from the desired release—`docker-compose.yml` for standard Docker/ZimaOS or `docker-compose.casaos.yml` for the CasaOS UI—then run:
 
@@ -447,3 +451,14 @@ Contributors can build the two Service Dash images from source without changing 
 ```sh
 docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
 ```
+
+## License
+
+Service Dash is free software, licensed under the
+[GNU General Public License v3.0](LICENSE) or, at your option, any later version.
+
+You may run, study, modify, and redistribute it. If you distribute a modified version, you must release your changes
+under the GPLv3 as well. Running a modified copy on your own server without distributing the software is not
+distribution, and carries no such obligation.
+
+This program is distributed WITHOUT ANY WARRANTY; see sections 15 and 16 of the license for details.
