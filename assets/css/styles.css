@@ -646,8 +646,32 @@ html {
     align-items: start;
 }
 @media (max-width: 967px) {
+    /* minmax(0, 1fr), not 1fr: an auto-minimum track floors at the content's
+       min-content width, which is what pushed the whole layout wider than the
+       screen on narrow phones. */
     .app {
-        grid-template-columns: 1fr;
+        grid-template-columns: minmax(0, 1fr);
+    }
+    .side-stack,
+    .main {
+        min-width: 0;
+    }
+}
+
+/* Galaxy Fold cover screen and other ultra-narrow devices: reclaim the gutter. */
+@media (max-width: 400px) {
+    .app {
+        width: calc(100% - 16px);
+        gap: 12px;
+    }
+}
+
+@media (max-width: 340px) {
+    /* Below this the label and the select cannot share a line without forcing
+       the sidebar wider than the screen, so the label sits above it. */
+    .net-iface {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 4px;
     }
 }
 /* Galaxy Fold outer screen / ultra-narrow phones */
@@ -855,6 +879,39 @@ html {
     font-size: 22px; /* lock emoji size */
     line-height: 1;
 }
+.logoGlyph,
+.logoImg {
+    grid-area: 1 / 1;
+}
+.logoImg {
+    display: none;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    padding: 7px;
+}
+/* Swapped in by JS once the brand image loads; the glyph stays as the fallback.
+   The image is the mark, so the tile drops its glass frame entirely and lets the
+   artwork fill the square. */
+.logo.has-image {
+    background: none;
+    border: 0;
+    box-shadow: none;
+}
+.logo.has-image .logoImg {
+    padding: 0;
+}
+.logo.has-image .logoGlyph {
+    display: none;
+}
+.logo.has-image .logoImg {
+    display: block;
+}
+/* No gloss over real artwork — the sheen belongs to the glyph tile. */
+.logo.has-image::after {
+    display: none;
+}
+
 .logo::after {
     content: "";
     position: absolute;
@@ -936,7 +993,7 @@ html {
         line-height: 1.25;
     }
     #subtitle #kumaConn::before {
-        content: "• status: ";
+        content: "• Status: ";
         color: var(--muted);
     }
 
@@ -949,6 +1006,22 @@ html {
     #subtitle #urlState::before {
         content: "• URLs: ";
         color: var(--muted);
+    }
+
+    /* Line 5 — the badge had no label here, so it read as a bare "REALTIME". */
+    #subtitle .data-source-badge {
+        display: block;
+        margin-left: 0;
+        font-size: 12.5px;
+        line-height: 1.25;
+    }
+    #subtitle .data-source-badge::before {
+        content: "• Metrics: ";
+        color: var(--muted);
+        /* The badge itself is uppercase and tracked; its label should not be. */
+        text-transform: none;
+        letter-spacing: normal;
+        font-weight: 400;
     }
 }
 .actions {
@@ -968,6 +1041,30 @@ html {
     /* Brand takes full width on mobile */
     .brand {
         flex: 1 1 100%;
+        align-items: stretch;
+    }
+
+    /* Roughly the height of the title + status lines beside it, and always
+       square. Sized from the container width rather than stretched to the text:
+       stretching fed back into the text width, which grew the text taller, which
+       grew the mark wider, until the top bar overflowed on narrow phones. */
+    .brand .logo {
+        width: min(28vw, 120px);
+        height: auto;
+        min-width: 0;
+        min-height: 0;
+        max-width: none;
+        max-height: none;
+        aspect-ratio: 1;
+        align-self: center;
+        flex: 0 0 auto;
+    }
+
+    /* The text block takes whatever is left and is allowed to shrink below its
+       content width, otherwise brand + mark overflow the bar on narrow phones. */
+    .brand > div {
+        flex: 1 1 0;
+        min-width: 0;
     }
 
     /* Actions become a neat grid */
@@ -1256,40 +1353,43 @@ html {
 }
 .metric-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 10px;
+    grid-template-columns: 1fr;
+    gap: 0;
 }
+/* Rows inside the panel rather than boxes inside a box inside a card. Every
+   metric now reads in the same order: name and value, bar, then detail. */
 .metric {
-    padding: 10px;
-    border-radius: 16px;
-    border: 1px solid var(--stroke);
-    background: rgb(255, 255, 255, 0.06);
+    padding: 12px 0;
     position: relative;
-    overflow: hidden;
 }
-.metric-wide {
-    grid-column: 1 / -1;
+.metric + .metric {
+    border-top: 1px solid rgb(255, 255, 255, 0.08);
 }
-.metric::before {
-    content: "";
-    position: absolute;
-    inset: -40%;
-    background: radial-gradient(
-        circle at 30% 30%,
-        rgb(var(--accent-3) / 0.4),
-        rgb(var(--accent-1) / 0.14) 55%,
-        transparent 70%
-    );
-    transform: rotate(25deg);
-    opacity: 0.7;
-    pointer-events: none;
+.metric:first-child {
+    padding-top: 2px;
+}
+.metric:last-child {
+    padding-bottom: 2px;
+}
+[data-theme="light"] .metric + .metric {
+    border-top-color: rgb(0, 0, 0, 0.08);
 }
 .metric .label {
-    font-size: 11px;
-    color: var(--muted);
     display: flex;
+    align-items: baseline;
     justify-content: space-between;
     gap: 8px;
+    font-size: 10.5px;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--muted-2);
+}
+.metric .label b {
+    font-size: 15px;
+    letter-spacing: 0;
+    text-transform: none;
+    color: var(--text);
+    font-variant-numeric: tabular-nums;
 }
 .metric .label > span:last-child {
     color: var(--text);
@@ -1297,16 +1397,18 @@ html {
     text-align: right;
 }
 .metric-details {
-    position: relative;
-    z-index: 1;
     display: flex;
     align-items: center;
     flex-wrap: wrap;
-    gap: 5px 14px;
-    margin-top: 7px;
-    color: var(--muted);
+    gap: 4px 12px;
+    margin-top: 6px;
+    color: var(--muted-2);
     font-size: 10.5px;
     line-height: 1.3;
+}
+.metric-details b {
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
 }
 .metric-details b {
     margin-left: 3px;
@@ -1314,11 +1416,16 @@ html {
     font-weight: 700;
 }
 .metric-submetric {
-    position: relative;
-    z-index: 1;
-    margin-top: 11px;
-    padding-top: 9px;
-    border-top: 1px solid rgb(255, 255, 255, 0.1);
+    margin-top: 10px;
+}
+/* "1m Load" is a reading, not a column heading — uppercasing it gave "1M LOAD". */
+.metric-submetric .label {
+    text-transform: none;
+    letter-spacing: 0;
+    font-size: 11px;
+}
+.metric-submetric .label b {
+    font-size: 12px;
 }
 [data-theme="light"] .metric-submetric {
     border-top-color: rgb(0, 0, 0, 0.08);
@@ -1327,13 +1434,12 @@ html {
     height: 10px;
     margin-top: 10px;
 }
+/* A quiet control, not a second panel. */
 .storage-source-picker {
     position: relative;
     z-index: 2;
-    margin-top: 9px;
-    border: 1px solid var(--stroke);
-    border-radius: 11px;
-    background: rgb(0, 0, 0, 0.1);
+    margin-top: 8px;
+    border-radius: 10px;
 }
 [data-theme="light"] .storage-source-picker {
     background: rgb(255, 255, 255, 0.3);
@@ -1343,11 +1449,17 @@ html {
     align-items: center;
     justify-content: space-between;
     gap: 10px;
-    padding: 7px 9px;
-    color: var(--muted);
+    padding: 5px 0;
+    color: var(--muted-2);
     font-size: 10.5px;
     cursor: pointer;
     list-style: none;
+}
+.storage-source-picker summary b {
+    color: var(--muted);
+}
+.storage-source-picker[open] summary {
+    color: var(--text);
 }
 .storage-source-picker summary::-webkit-details-marker {
     display: none;
@@ -1406,12 +1518,18 @@ html {
     letter-spacing: 0.2px;
 }
 .bar {
-    margin-top: 10px;
-    height: 10px;
+    margin-top: 8px;
+    height: 8px;
     border-radius: 999px;
-    border: 1px solid var(--stroke);
-    background: rgb(0, 0, 0, 0.1);
+    border: 0;
+    background: rgb(255, 255, 255, 0.1);
     overflow: hidden;
+}
+.load-bar {
+    height: 5px;
+}
+[data-theme="light"] .bar {
+    background: rgb(0, 0, 0, 0.1);
 }
 [data-theme="light"] .bar {
     background: rgb(0, 0, 0, 0.06);
@@ -1456,17 +1574,27 @@ html {
         0 0 30px var(--accent-glow-2);
     transform: translateY(-1px);
 }
+/* Rows with a hairline, matching the host-metric rows above them. */
 .netline {
     display: flex;
-    align-items: center;
+    align-items: baseline;
     justify-content: space-between;
     gap: 10px;
-    font-size: 12px;
-    color: var(--muted);
-    padding: 8px 10px;
-    border-radius: 14px;
-    border: 1px solid var(--stroke);
-    background: rgb(255, 255, 255, 0.05);
+    padding: 10px 0;
+    font-size: 10.5px;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--muted-2);
+    border-top: 1px solid rgb(255, 255, 255, 0.08);
+}
+[data-theme="light"] .netline {
+    border-top-color: rgb(0, 0, 0, 0.08);
+}
+.netline .network-copy-value {
+    font-size: 13px;
+    letter-spacing: 0;
+    text-transform: none;
+    font-variant-numeric: tabular-nums;
 }
 .netline b,
 .network-copy-value {
@@ -1482,10 +1610,26 @@ html {
     background: transparent;
     font: inherit;
     cursor: pointer;
+    /* No hover underline — the blur clearing is the affordance. */
+    text-decoration: none;
 }
-.network-copy-value:hover {
-    text-decoration: underline;
-    text-underline-offset: 3px;
+/* Addresses are obscured until you actually look at them, so the dashboard can
+   sit on a screen without publishing its own IPs. Only applied once a real
+   address is present, so "detecting…" and "unavailable" stay readable. */
+.network-copy-value[data-copy-ip] {
+    filter: blur(5px);
+    transition: filter var(--t-med) ease;
+}
+.netline:hover .network-copy-value[data-copy-ip],
+.network-copy-value[data-copy-ip]:hover,
+.network-copy-value[data-copy-ip]:active,
+.network-copy-value[data-copy-ip]:focus-visible {
+    filter: none;
+}
+@media (prefers-reduced-motion: reduce) {
+    .network-copy-value[data-copy-ip] {
+        transition: none;
+    }
 }
 .network-copy-value:focus-visible {
     outline: 2px solid rgb(var(--accent-2) / 0.85);
@@ -1630,71 +1774,15 @@ html {
     display: grid;
     gap: 12px;
 }
-.group {
-    border-radius: var(--radius-xl);
-    border: 1px solid var(--stroke);
-    background: rgb(255, 255, 255, 0.05);
-    overflow: hidden;
-    position: relative;
-}
-.group::before {
-    content: "";
-    position: absolute;
-    inset: -2px;
-    background: radial-gradient(circle at 18% 10%, rgb(var(--accent-2) / 0.24), transparent 60%),
-        radial-gradient(circle at 82% 30%, rgb(var(--accent-1) / 0.2), transparent 58%),
-        radial-gradient(circle at 50% 120%, rgb(var(--accent-3) / 0.18), transparent 60%);
-    pointer-events: none;
-}
-.groupHead {
-    padding: 12px 12px 10px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-    cursor: pointer;
-    user-select: none;
-    position: relative;
-}
-.groupTitle {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    min-width: 0;
-}
-.groupTitle h2 {
-    margin: 0;
-    font-family: var(--font-head);
-    font-size: 15px;
-    letter-spacing: 0.2px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-.countPill {
-    font-size: 12px;
-    color: var(--muted);
-    border: 1px solid var(--stroke);
-    background: rgb(255, 255, 255, 0.06);
-    padding: 6px 10px;
-    border-radius: 999px;
-}
-.groupBody {
-    padding: 0 12px 12px;
-    position: relative;
-}
-.group[data-open="false"] .groupBody {
-    display: none;
-}
-.group[data-open="false"] .groupHead .chev {
-    transform: rotate(-90deg);
-}
 #groups {
     padding-top: 4px;
 }
 .cards {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
+    /* 1fr rows rather than auto: every row takes the height of the tallest card
+       on the page, so cards match across rows and not just within one. */
+    grid-auto-rows: 1fr;
     gap: 14px;
     margin-top: 10px;
 }
@@ -1715,6 +1803,10 @@ html {
     }
 }
 .card {
+    /* Column layout so the footer can sit at the bottom of every card, however
+       tall the row makes it. */
+    display: flex;
+    flex-direction: column;
     border-radius: 22px;
     border: 1px solid var(--stroke);
     background: linear-gradient(180deg, rgb(255, 255, 255, 0.11), rgb(255, 255, 255, 0.06));
@@ -1773,54 +1865,67 @@ html {
     pointer-events: none;
     transition: opacity var(--t-med) ease;
 }
-.card:hover {
+.cardWrap {
+    position: relative;
+    /* flex, not block: the card has to stretch to the wrapper's full height or
+       it stops matching its neighbours in the row. */
+    display: flex;
+    min-width: 0;
+    transition: transform var(--t-med) ease;
+}
+.cardWrap > .card {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+/* The card itself is hidden by the filter; the wrapper has to go with it or it
+   would keep holding a slot in the grid. */
+.cardWrap:has(> .card.is-filtered-out) {
+    display: none;
+}
+.cardWrap:hover {
     transform: translateY(-4px) scale(1.02);
+}
+@media (prefers-reduced-motion: reduce) {
+    .cardWrap {
+        transition: none;
+    }
+}
+.cardWrap:hover .card {
     border-color: rgb(255, 255, 255, 0.26);
     box-shadow:
         0 28px 85px var(--accent-glow-2),
         0 18px 55px var(--accent-glow);
 }
-.card:hover::before {
+.cardWrap:hover .card::before {
     opacity: 0.6;
 }
-.card:hover::after {
+.cardWrap:hover .card::after {
     opacity: 0.58;
 }
 .card:active {
     transform: translateY(-1px) scale(1.005);
 }
+.card {
+    padding: 14px;
+    gap: 12px;
+}
+/* Identity row: icon, name, and one quiet line of context. */
 .cardTop {
     display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 10px;
-}
-.svc {
-    display: flex;
     align-items: center;
-    gap: 10px;
-    min-width: 0;
+    gap: 12px;
 }
-.svcIcon {
-    width: 44px;
-    height: 44px;
-    border-radius: 16px;
-    display: grid;
-    place-items: center;
-    font-size: 22px;
-    background: var(--g-icon);
-    border: 1px solid rgb(255, 255, 255, 0.2);
-    box-shadow: 0 16px 45px var(--accent-glow);
-    position: relative;
+.svcMeta {
+    margin-top: 3px;
+    font-size: 11.5px;
+    color: var(--muted);
+    white-space: nowrap;
     overflow: hidden;
+    text-overflow: ellipsis;
 }
-.svcIcon::after {
-    content: "";
-    position: absolute;
-    inset: -40%;
-    background: radial-gradient(circle at 30% 30%, rgb(255, 255, 255, 0.4), transparent 55%);
-    transform: rotate(25deg);
-    opacity: 0.55;
+.svcName {
+    flex: 1 1 auto;
+    min-width: 0;
 }
 .svcName {
     min-width: 0;
@@ -1834,14 +1939,158 @@ html {
     overflow: hidden;
     text-overflow: ellipsis;
 }
-.svcName small {
-    display: block;
-    margin-top: 2px;
-    color: var(--muted);
-    font-size: 12px;
-    white-space: nowrap;
+.svcIcon {
+    /* flex: 0 0 auto is load-bearing: inside .svc this tile would otherwise be
+       squeezed narrower by long URL text and stop being square. */
+    flex: 0 0 auto;
+    isolation: isolate;
+    width: 64px;
+    height: 64px;
+    aspect-ratio: 1;
+    border-radius: 20px;
+    display: grid;
+    place-items: center;
+    font-size: 26px;
+    /* Logos carry their own colour, so the tile is plain glass rather than the
+       neon gradient it used behind an emoji. */
+    background: rgb(255, 255, 255, 0.08);
+    border: 1px solid rgb(255, 255, 255, 0.2);
+    box-shadow: 0 16px 45px var(--accent-glow);
+    position: relative;
     overflow: hidden;
-    text-overflow: ellipsis;
+}
+/* Small round pencil in the card's bottom-right corner. Hidden until the card is
+   hovered so it stays out of the way, but always visible on touch devices, which
+   have no hover to reveal it. */
+/* Sits on the card's top-left corner, half outside the edge. It lives in the
+   wrapper rather than the card because the card clips its own decorative wash. */
+.svcIconEdit {
+    position: absolute;
+    bottom: -9px;
+    left: -9px;
+    z-index: 3;
+    flex: 0 0 auto;
+    width: 24px;
+    height: 24px;
+    display: grid;
+    place-items: center;
+    padding: 0;
+    border-radius: 999px;
+    border: 1px solid var(--stroke-2);
+    /* Glass like the rest of the UI rather than a solid disc. */
+    background: rgb(255, 255, 255, 0.12);
+    backdrop-filter: blur(var(--blur-medium));
+    -webkit-backdrop-filter: blur(var(--blur-medium));
+    box-shadow: 0 6px 18px rgb(0, 0, 0, 0.28);
+    color: var(--text);
+    cursor: pointer;
+    /* Keeps the ligature name from spilling across the card if the icon font
+       fails to load. */
+    overflow: hidden;
+    opacity: 0;
+    transform: scale(0.85);
+    transition:
+        opacity var(--t-fast) ease,
+        transform var(--t-fast) ease,
+        color var(--t-fast) ease,
+        border-color var(--t-fast) ease;
+}
+.svcIconEdit .material-symbols-rounded {
+    font-size: 14px;
+    line-height: 1;
+}
+.cardWrap:hover .svcIconEdit,
+.svcIconEdit:focus-visible {
+    opacity: 1;
+    transform: scale(1);
+}
+.svcIconEdit:hover {
+    background: rgb(255, 255, 255, 0.2);
+    border-color: rgb(var(--accent-2) / 0.6);
+}
+.svcIconEdit:focus-visible {
+    outline: 2px solid rgb(var(--accent-2) / 0.85);
+    outline-offset: 2px;
+}
+@media (hover: none) {
+    .svcIconEdit {
+        opacity: 0.75;
+        transform: scale(1);
+    }
+}
+@media (prefers-reduced-motion: reduce) {
+    .svcIconEdit {
+        transition: none;
+    }
+}
+/* Icon editor modal */
+.iconEditRow {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-top: 6px;
+}
+.iconEditRow .field {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+.iconPreview {
+    flex: 0 0 auto;
+    width: 62px;
+    height: 62px;
+    border-radius: 18px;
+    display: grid;
+    place-items: center;
+    font-size: 28px;
+    background: rgb(255, 255, 255, 0.08);
+    border: 1px solid var(--stroke);
+    overflow: hidden;
+}
+.iconPreview img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    padding: 8px;
+    grid-area: 1 / 1;
+}
+.iconPreview span {
+    grid-area: 1 / 1;
+}
+.iconStatus {
+    margin-top: 10px;
+    font-size: 12.5px;
+    min-height: 18px;
+    color: var(--muted);
+}
+.iconStatus[data-state="ok"] {
+    color: var(--online);
+}
+.iconStatus[data-state="error"] {
+    color: var(--offline);
+}
+[data-theme="light"] .iconPreview {
+    background: rgb(0, 0, 0, 0.05);
+}
+[data-theme="light"] .svcIconEdit {
+    background: rgb(255, 255, 255, 0.65);
+    box-shadow: 0 6px 18px rgb(0, 0, 0, 0.12);
+}
+.svcIconImg {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    padding: 8px;
+}
+[data-theme="light"] .svcIcon {
+    background: rgb(0, 0, 0, 0.05);
+}
+.svcIcon::after {
+    content: "";
+    position: absolute;
+    inset: -40%;
+    background: radial-gradient(circle at 30% 30%, rgb(255, 255, 255, 0.4), transparent 55%);
+    transform: rotate(25deg);
+    opacity: 0.55;
 }
 .status-dot {
     display: inline-block;
@@ -1909,12 +2158,72 @@ html {
     background: rgb(255, 255, 255, 0.35);
     color: rgb(255, 255, 255, 0.35);
 }
-.metaRow {
+/* The button is pinned to the card corner instead of sitting in the flow, so a
+   card with no container stats does not spend a whole row on it. */
+.cardBottom {
     display: flex;
     align-items: center;
-    justify-content: space-between;
     gap: 10px;
-    margin-top: 10px;
+    margin-top: auto;
+}
+.cardBottom:has(.containerStats:not([hidden])) {
+    padding-top: 4px;
+}
+.containerStats {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+.containerStats[hidden] {
+    display: none;
+}
+
+/* Individual pills, matching the uptime and category pills on the same card. */
+.containerStat {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 6px;
+    font-size: 11.5px;
+    padding: 6px 10px;
+    border-radius: 999px;
+    border: 1px solid var(--stroke);
+    background: rgb(255, 255, 255, 0.06);
+    color: var(--muted);
+    white-space: nowrap;
+}
+.containerStat small {
+    font-size: 10.5px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted-2);
+}
+.containerStat b {
+    color: var(--text);
+    font-variant-numeric: tabular-nums;
+}
+.cardSettingField {
+    margin-top: 12px;
+}
+.cardSettingField select {
+    width: 100%;
+    padding: 10px 12px;
+    border-radius: 12px;
+    border: 1px solid var(--stroke);
+    background: rgb(0, 0, 0, 0.25);
+    color: var(--text);
+    outline: none;
+    text-overflow: ellipsis;
+}
+.cardSettingField select:focus {
+    border-color: rgb(var(--accent-2) / 0.55);
+    box-shadow: 0 0 0 3px rgb(var(--accent-2) / 0.16);
+}
+.cardSettingField .subtle {
+    margin-top: 6px;
+}
+[data-theme="light"] .cardSettingField select {
+    background: rgb(255, 255, 255, 0.7);
 }
 .tags {
     display: flex;
@@ -1956,21 +2265,6 @@ html {
     background: rgb(255, 255, 255, 0.06);
     padding: 6px 10px;
     border-radius: 999px;
-}
-.cardFooter {
-    margin-top: 10px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-    color: var(--muted);
-    font-size: 12px;
-}
-.hint {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    min-width: 0;
 }
 .hint .mini {
     width: 26px;
@@ -2292,24 +2586,54 @@ html {
     display: grid;
     gap: 6px;
 }
+.linkLines {
+    display: grid;
+    gap: 6px;
+}
+/* Borderless rows. Only the endpoint a click will actually open is tinted, which
+   replaces the old "Click to open (local)" line and says more than it did. */
 .linkLine {
     display: flex;
     align-items: center;
     gap: 8px;
     min-width: 0;
     padding: 6px 8px;
-    border-radius: 14px;
-    border: 1px solid var(--stroke);
-    background: rgb(255, 255, 255, 0.05);
+    border-radius: 10px;
+    border: 1px solid transparent;
+    transition:
+        background var(--t-fast) ease,
+        border-color var(--t-fast) ease;
 }
+/* Both endpoints read as glass rows, separated by hue rather than by one having
+   a border and the other not: local leans teal, external leans blue. The row a
+   click will open is the saturated one. */
+.linkLine[data-role="localLine"] {
+    background: rgb(var(--teal) / 0.05);
+    border-color: rgb(var(--teal) / 0.14);
+}
+.linkLine[data-role="externalLine"] {
+    background: rgb(var(--accent-2) / 0.05);
+    border-color: rgb(var(--accent-2) / 0.14);
+}
+.linkLine[data-role="localLine"][data-active="true"] {
+    background: rgb(var(--teal) / 0.12);
+    border-color: rgb(var(--teal) / 0.34);
+}
+.linkLine[data-role="externalLine"][data-active="true"] {
+    background: rgb(var(--accent-2) / 0.12);
+    border-color: rgb(var(--accent-2) / 0.34);
+}
+.linkLine[data-active="true"] .linkUrl {
+    color: var(--text);
+}
+/* A label, not a chip — the row no longer needs a badge inside a badge. */
 .linkBadge {
-    font-size: 11px;
-    padding: 3px 8px;
-    border-radius: 999px;
-    border: 1px solid var(--stroke);
-    background: rgb(255, 255, 255, 0.06);
-    color: var(--muted);
+    font-size: 10.5px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted-2);
     flex: 0 0 auto;
+    min-width: 46px;
 }
 .miniDot {
     width: 8px;
@@ -2336,6 +2660,7 @@ html {
 }
 
 .linkUrl {
+    flex: 1 1 auto;
     min-width: 0;
     white-space: nowrap;
     overflow: hidden;
@@ -2346,10 +2671,20 @@ html {
 .linkMeta {
     margin-left: auto;
     font-variant-numeric: tabular-nums;
-    font-size: 11.5px;
-    color: var(--muted);
+    font-size: 11px;
+    color: var(--text);
     white-space: nowrap;
     flex: 0 0 auto;
+    padding: 3px 8px;
+    border-radius: 999px;
+    border: 1px solid rgb(255, 255, 255, 0.16);
+    background: rgb(255, 255, 255, 0.1);
+    backdrop-filter: blur(var(--blur-medium));
+    -webkit-backdrop-filter: blur(var(--blur-medium));
+}
+[data-theme="light"] .linkMeta {
+    border-color: rgb(0, 0, 0, 0.1);
+    background: rgb(255, 255, 255, 0.55);
 }
 /* Date & Time Card */
 .datetime-card {
@@ -2496,35 +2831,38 @@ html {
 /* Desktop: keep the entire left column (Date/Time + Metrics) pinned.
    If it exceeds viewport height, allow the left column to scroll internally. */
 @media (min-width: 967px) {
-    /* Default: pinned, NOT a scroll container (prevents any clipping) */
+    /* Pinned, and bounded to the space actually on screen. Without a height
+       limit this column could never scroll internally, so the bottom of a tall
+       sidebar was unreachable. */
     .side-stack {
-        position: sticky;
-        top: calc(16px + env(safe-area-inset-top) + var(--topbar-h, 0px) + 18px);
+        --side-stack-top: calc(16px + env(safe-area-inset-top) + var(--topbar-h, 0px) + 18px);
 
-        overflow: auto;
-        overscroll-behavior: contain;
-        scrollbar-gutter: stable;
+        position: sticky;
+        top: var(--side-stack-top);
+        max-height: calc(100vh - var(--side-stack-top) - 18px);
+
+        /* No overscroll-behavior here on purpose: "contain" stops the wheel from
+           chaining on to the page once this column has nothing left to scroll,
+           which reads as scrolling being dead while the pointer is over it. */
+        overflow-y: auto;
+        scroll-padding-bottom: 24px;
+
+        /* Scrolls, but shows no scrollbar of its own — this column is pinned
+           right beside the page's own scrollbar and a second one reads as
+           clutter. */
+        scrollbar-width: none;
+        -ms-overflow-style: none;
     }
 
-    /* ✅ critical: inner gutter so cards/glow never hit the clipping edge */
-    padding: 14px 12px 56px 12px;
-
-    /* helps “last card” not look cut off when you stop scrolling */
-    scroll-padding-bottom: 56px;
-
-    /* optional, but makes the scroll area feel intentional */
-    border-radius: 18px;
+    /* The stack is a column flexbox, so a bounded height would otherwise shrink
+       the panels to fit instead of letting the column scroll. */
+    .side-stack > * {
+        flex: 0 0 auto;
+    }
 
     .side-stack::-webkit-scrollbar {
-        width: 10px;
-    }
-    .side-stack::-webkit-scrollbar-thumb {
-        background: rgb(255, 255, 255, 0.12);
-        border: 1px solid rgb(255, 255, 255, 0.14);
-        border-radius: 999px;
-    }
-    .side-stack::-webkit-scrollbar-track {
-        background: transparent;
+        width: 0;
+        height: 0;
     }
 
     /* One sticky thing per column: disable per-panel sticky so the stack stays together */
@@ -2532,31 +2870,26 @@ html {
         position: relative;
         top: 0;
     }
-
-    /* Subtle scrollbars that fit the glass theme */
-    .side-stack.is-scroll::-webkit-scrollbar {
-        width: 10px;
-    }
-    .side-stack.is-scroll::-webkit-scrollbar-thumb {
-        background: rgb(255, 255, 255, 0.12);
-        border: 1px solid rgb(255, 255, 255, 0.14);
-        border-radius: 999px;
-    }
-    .side-stack.is-scroll::-webkit-scrollbar-track {
-        background: transparent;
-    }
 }
 
 /* Network: interface picker + sparkline */
 .net-controls {
+    padding-bottom: 4px;
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr;
     gap: 12px;
     margin-bottom: 10px;
 }
 
 .net-controls .net-iface {
     min-width: 0; /* critical: allows shrinking inside grid */
+}
+.net-iface span {
+    white-space: nowrap;
+    color: var(--muted-2);
+    font-size: 10.5px;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
 }
 
 .net-controls .net-spark {
@@ -2567,28 +2900,21 @@ html {
     width: 100%;
 }
 
+/* No pill around the control — the select carries its own affordance. */
 .net-iface {
     display: grid;
     grid-template-columns: auto 1fr;
     align-items: center;
     gap: 10px;
-    padding: 8px 10px;
-    border: 1px solid var(--stroke);
-    border-radius: 14px;
-    background: rgb(255, 255, 255, 0.06);
-    min-width: 0; /* critical so grid can shrink */
+    min-width: 0;
 }
 
-.net-iface span {
-    white-space: nowrap;
-    color: var(--muted);
-    font-size: 12px;
-}
 
 .net-iface select {
     width: 100%;
     min-width: 0;
-    padding: 8px 10px;
+    text-overflow: ellipsis;
+    padding: 8px 6px;
     border-radius: 12px;
     border: 1px solid var(--stroke);
     background: rgb(0, 0, 0, 0.25);
@@ -3000,40 +3326,25 @@ body.mobile-topbar-open .mobile-menu-icon span:nth-child(3) {
         opacity 120ms ease;
 }
 .data-source-badge {
-    margin-left: 5px;
-    padding: 5px 5px;
-    border-radius: 15px;
+    /* Plain coloured text like the other subtitle values — the pill's rounded
+       border read as brackets around the word. */
     font-size: 0.72rem;
     letter-spacing: 0.08em;
     text-transform: uppercase;
-    opacity: 0.9;
-    background: rgba(255, 255, 255, 0.08);
+    font-weight: 600;
     color: var(--pending);
-    border: 1px solid rgb(var(--amber) / 0.28);
-    transition:
-        color var(--t-fast),
-        border-color var(--t-fast),
-        background var(--t-fast),
-        box-shadow var(--t-fast);
+    cursor: help;
+    transition: color var(--t-fast);
 }
 
 .data-source-badge[data-state="healthy"] {
     color: var(--online);
-    border-color: rgb(var(--green) / 0.34);
-    background: rgb(var(--green) / 0.1);
-    box-shadow: 0 0 14px rgb(var(--green) / 0.12);
 }
 
 .data-source-badge[data-state="partial"] {
     color: var(--pending);
-    border-color: rgb(var(--amber) / 0.34);
-    background: rgb(var(--amber) / 0.1);
-    box-shadow: 0 0 14px rgb(var(--amber) / 0.1);
 }
 
 .data-source-badge[data-state="offline"] {
     color: var(--offline);
-    border-color: rgb(var(--red) / 0.36);
-    background: rgb(var(--red) / 0.1);
-    box-shadow: 0 0 14px rgb(var(--red) / 0.12);
 }

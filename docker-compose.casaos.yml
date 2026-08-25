@@ -2,7 +2,7 @@ name: service-dash
 
 services:
   service-dash:
-    image: ghcr.io/cvaghela/service-dash:1.0.3
+    image: ghcr.io/cvaghela/service-dash:1.1.0
     container_name: service-dash
     ports:
       - "8888:80"
@@ -10,6 +10,9 @@ services:
       KUMA_PORT: "3001"
       STATUS_SLUG: "homelab"
       STORAGE_MOUNT: "auto"
+      # Optional: override the auto-picked icon for a service, by its card name.
+      # An empty value keeps that card on its category emoji.
+      SERVICE_ICONS: '{}'
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
@@ -28,7 +31,7 @@ services:
     restart: unless-stopped
 
   network-info:
-    image: ghcr.io/cvaghela/service-dash-network-info:1.0.3
+    image: ghcr.io/cvaghela/service-dash-network-info:1.1.0
     container_name: service-dash-network-info
     network_mode: host
     read_only: true

@@ -7,6 +7,11 @@ const RUNTIME_CONFIG = window.__DASHBOARD_CONFIG__ || {};
 const KUMA_BASE = "/kuma";
 const STATUS_SLUG = String(RUNTIME_CONFIG.statusSlug || "homelab");
 const STORAGE_MOUNT = String(RUNTIME_CONFIG.storageMount || "auto").trim();
+// Per-service icon overrides from SERVICE_ICONS in the Compose file. These are
+// the server-wide default; anything the user sets in the browser beats them.
+const ICON_OVERRIDES = parseIconOverrides(RUNTIME_CONFIG.iconOverrides);
+const ICON_STORAGE_KEY = "serviceIcons";
+let BROWSER_ICON_OVERRIDES = loadBrowserIconOverrides();
 const POLL_MS = 15000;
 
 const EP_STATUS = `${KUMA_BASE}/api/status-page/${encodeURIComponent(STATUS_SLUG)}`;
@@ -56,6 +61,14 @@ let ND_UNIT_DISK = "GiB";
 let ND_DISK_MOUNT = "/";
 let ND_DISK_OPTIONS = [];
 let ND_SELECTED_DISKS = [];
+
+// Per-container stats, from Netdata's cgroup charts (cgroup_NAME.cpu is a
+// percentage, cgroup_NAME.mem_usage is MiB). Polled far more slowly than the
+// host metrics — a mapped card costs two extra queries per tick.
+let ND_CONTAINERS = [];
+const CONTAINER_POLL_MS = 10000;
+const CONTAINER_STORAGE_KEY = "serviceContainers";
+let SERVICE_CONTAINERS = loadServiceContainers();
 
 // Accent presets (persisted)
 const ACCENTS = [
@@ -108,6 +121,67 @@ const KEYWORDS = [
     { regex: /backup|borg|restic|syncthing/i, category: "backup" },
 ];
 
+// Real app icons from https://github.com/selfhst/icons, matched by service name.
+// Anything unmatched (or any host without internet) keeps the category emoji.
+const SERVICE_ICON_BASE = "https://cdn.jsdelivr.net/gh/selfhst/icons/png";
+// Shipped inside the image, so the last-resort icon can never itself fail to
+// load — that is the whole point of a fallback.
+const FALLBACK_ICON = "assets/img/service-dash-icon.png";
+// Brand mark in the top bar. Defaults to the bundled Service Dash icon, so it
+// needs no internet access; point it at any image URL to use your own. Falls
+// back to the ⚡ glyph if the image cannot be loaded.
+const BRAND_LOGO = FALLBACK_ICON;
+const SERVICE_ICONS = [
+    { regex: /zimaos/i, slug: "zimaos" },
+    { regex: /casaos/i, slug: "casaos" },
+    { regex: /home\s*assistant|hass/i, slug: "home-assistant" },
+    { regex: /jellyseerr/i, slug: "jellyseerr" },
+    { regex: /overseerr/i, slug: "overseerr" },
+    { regex: /jellyfin/i, slug: "jellyfin" },
+    { regex: /\bemby\b/i, slug: "emby" },
+    { regex: /\bplex\b/i, slug: "plex" },
+    { regex: /tautulli/i, slug: "tautulli" },
+    { regex: /prowlarr/i, slug: "prowlarr" },
+    { regex: /radarr/i, slug: "radarr" },
+    { regex: /sonarr/i, slug: "sonarr" },
+    { regex: /lidarr/i, slug: "lidarr" },
+    { regex: /readarr/i, slug: "readarr" },
+    { regex: /bazarr/i, slug: "bazarr" },
+    { regex: /\bombi\b/i, slug: "ombi" },
+    { regex: /sabnzbd/i, slug: "sabnzbd" },
+    { regex: /qbittorrent/i, slug: "qbittorrent" },
+    { regex: /otter\s*wiki/i, slug: "an-otter-wiki" },
+    { regex: /bookstack/i, slug: "bookstack" },
+    { regex: /stirling/i, slug: "stirling-pdf" },
+    { regex: /mealie/i, slug: "mealie" },
+    { regex: /grafana/i, slug: "grafana" },
+    { regex: /prometheus/i, slug: "prometheus" },
+    { regex: /uptime\s*kuma/i, slug: "uptime-kuma" },
+    { regex: /netdata/i, slug: "netdata" },
+    { regex: /portainer/i, slug: "portainer" },
+    { regex: /nextcloud/i, slug: "nextcloud" },
+    { regex: /syncthing/i, slug: "syncthing" },
+    { regex: /minio/i, slug: "minio" },
+    { regex: /synology/i, slug: "synology" },
+    { regex: /node[-\s]?red/i, slug: "node-red" },
+    { regex: /mosquitto|mqtt/i, slug: "mosquitto" },
+    { regex: /zigbee2mqtt/i, slug: "zigbee2mqtt" },
+    { regex: /esphome/i, slug: "esphome" },
+    { regex: /it[-\s]?tools/i, slug: "it-tools" },
+    { regex: /vaultwarden|bitwarden/i, slug: "vaultwarden" },
+    { regex: /adguard/i, slug: "adguard-home" },
+    { regex: /traefik/i, slug: "traefik" },
+    { regex: /nginx\s*proxy\s*manager|\bnpm\b/i, slug: "nginx-proxy-manager" },
+    { regex: /immich/i, slug: "immich" },
+    { regex: /paperless/i, slug: "paperless-ngx" },
+    { regex: /audiobookshelf/i, slug: "audiobookshelf" },
+    { regex: /navidrome/i, slug: "navidrome" },
+    { regex: /duplicati/i, slug: "duplicati" },
+    { regex: /restic/i, slug: "restic" },
+    { regex: /homarr/i, slug: "homarr" },
+    { regex: /heimdall/i, slug: "heimdall" },
+];
+
 const CATEGORY_META = {
     media: { icon: "🎬", label: "Media" },
     monitoring: { icon: "📡", label: "Monitoring" },
@@ -138,7 +212,6 @@ const state = {
     statusFilter: "all",
     categoryFilter: "all",
     query: "",
-    groupsOpen: {},
 
     pageData: null,
     heartbeat: null,
@@ -157,7 +230,6 @@ const state = {
     // render caching
     domBuilt: false,
     cardElById: new Map(),
-    groupElByName: new Map(),
 };
 
 const els = {
@@ -170,6 +242,18 @@ const els = {
     btnLogout: document.getElementById("btnLogout"),
 
     overlay: document.getElementById("overlay"),
+    iconOverlay: document.getElementById("iconOverlay"),
+    iconServiceName: document.getElementById("iconServiceName"),
+    iconUrlInput: document.getElementById("iconUrlInput"),
+    iconPreviewImg: document.getElementById("iconPreviewImg"),
+    iconPreviewEmoji: document.getElementById("iconPreviewEmoji"),
+    iconPreview: document.getElementById("iconPreview"),
+    iconStatus: document.getElementById("iconStatus"),
+    containerSelect: document.getElementById("containerSelect"),
+    containerHint: document.getElementById("containerHint"),
+    btnIconSave: document.getElementById("btnIconSave"),
+    btnIconCancel: document.getElementById("btnIconCancel"),
+    btnIconDefault: document.getElementById("btnIconDefault"),
     btnCancel: document.getElementById("btnCancel"),
     btnConnect: document.getElementById("btnConnect"),
 
@@ -195,6 +279,7 @@ const els = {
     memVal: document.getElementById("memVal"),
     memTotal: document.getElementById("memTotal"),
     diskVal: document.getElementById("diskVal"),
+    diskUsed: document.getElementById("diskUsed"),
     diskFree: document.getElementById("diskFree"),
     diskTotal: document.getElementById("diskTotal"),
     diskMount: document.getElementById("diskMount"),
@@ -207,15 +292,11 @@ const els = {
     // Network panel
     lan: document.getElementById("lan"),
     wan: document.getElementById("wan"),
-    netRx: document.getElementById("netRx"),
-    netTx: document.getElementById("netTx"),
     loadVal: document.getElementById("loadVal"),
     loadBar: document.getElementById("loadBar"),
-    netTotal: document.getElementById("netTotal"),
     netIface: document.getElementById("netIface"),
     netSpark: document.getElementById("netSpark"),
     netSparkMeta: document.getElementById("netSparkMeta"),
-    netCap: document.getElementById("netCap"),
 
     toast: document.getElementById("toast"),
     toastMsg: document.getElementById("toastMsg"),
@@ -225,29 +306,41 @@ const els = {
 
     // Collapsible metrics sidebar
     metricsSidebar: document.getElementById("metricsSidebar"),
-    btnMetricsSidebarToggle: document.getElementById("btnMetricsSidebarToggle"),
 };
 
 window.__dataSource = window.__dataSource || { netdataOk: false, lastNetdataAt: 0 };
 window.__kuma = window.__kuma || { ok: false, status: "boot", at: null, error: null };
 
-function setDataSource(isRealtime, detail = "") {
+// Feed names as the tooltip should read them, in dashboard order.
+const NETDATA_FEED_LABELS = {
+    cpu: "CPU",
+    ram: "RAM",
+    disk: "Storage",
+    network: "Network",
+    load: "Load",
+    power: "CPU power",
+    temperature: "CPU temperature",
+};
+
+function setDataSource(isRealtime, { feeds = [], allCoreFeedsLive = false } = {}) {
     window.__dataSource.netdataOk = !!isRealtime;
     window.__dataSource.lastNetdataAt = isRealtime ? Date.now() : window.__dataSource.lastNetdataAt;
 
-    // Optional: log once per switch (helps debugging)
+    // Log once per switch (helps debugging)
     if (setDataSource._prev !== window.__dataSource.netdataOk) {
         setDataSource._prev = window.__dataSource.netdataOk;
         console.info(`[data] source = ${window.__dataSource.netdataOk ? "REALTIME (Netdata)" : "OFFLINE"}`);
     }
 
-    // Optional: add a tiny badge to the title if you want (safe/no layout impact)
     const el = document.querySelector("[data-role='dataSourceBadge']");
-    if (el) {
-        el.textContent = window.__dataSource.netdataOk ? `REALTIME${detail ? ` ${detail}` : ""}` : "OFFLINE";
-        el.dataset.state = !window.__dataSource.netdataOk ? "offline" : detail === "5/5" ? "healthy" : "partial";
-        el.title = window.__netdata?.last?.error || window.__netdata?.last?.status || "Netdata metrics status";
-    }
+    if (!el) return;
+
+    el.textContent = window.__dataSource.netdataOk ? "REALTIME" : "OFFLINE";
+    el.dataset.state = !window.__dataSource.netdataOk ? "offline" : allCoreFeedsLive ? "healthy" : "partial";
+    // Hovering the badge should say which feed is doing what, not just x/5.
+    el.title = feeds.length
+        ? feeds.join("\n")
+        : window.__netdata?.last?.error || window.__netdata?.last?.status || "Netdata metrics status";
 }
 
 /* =========================
@@ -298,7 +391,6 @@ function initGlobalHaptics() {
         ".chip",
         ".tag",
         ".pill",
-        ".groupHead",
         ".action",
         ".clickable",
         "[data-action]",
@@ -394,72 +486,6 @@ function openUrlNow(url) {
         return true;
     }
 }
-function openLocalThenFallback(localUrl, externalUrl, timeoutMs = 1200) {
-    const local = normalizeMaybeUrl(localUrl || "");
-    const ext = normalizeMaybeUrl(externalUrl || "");
-
-    if (!local && ext) {
-        openUrlNow(ext);
-        return "external";
-    }
-    if (!ext && local) {
-        openUrlNow(local);
-        return "local";
-    }
-    if (!local && !ext) return "";
-
-    // Touch: we can't fallback cleanly after navigating away
-    if (isTouch) {
-        openUrlNow(local);
-        return "local";
-    }
-
-    const w = window.open(local, "_blank", "noopener,noreferrer");
-    if (!w) {
-        window.open(ext, "_blank", "noopener,noreferrer");
-        return "external";
-    }
-
-    setTimeout(() => {
-        try {
-            if (w.closed) window.open(ext, "_blank", "noopener,noreferrer");
-        } catch {}
-    }, timeoutMs);
-
-    return "local";
-}
-function isPrivateIPv4(host) {
-    // 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16
-    const m = String(host || "").match(/^(\d+)\.(\d+)\.(\d+)\.(\d+)$/);
-    if (!m) return false;
-    const a = Number(m[1]),
-        b = Number(m[2]);
-    if (a === 10) return true;
-    if (a === 192 && b === 168) return true;
-    if (a === 172 && b >= 16 && b <= 31) return true;
-    return false;
-}
-
-function isHomeNetworkLikelyFromLocalUrl(localUrl) {
-    const local = normalizeMaybeUrl(localUrl || "");
-    if (!local) return false;
-
-    try {
-        const u = new URL(local);
-        const host = (u.hostname || "").toLowerCase();
-
-        // Local-ish hostnames indicate “home”
-        if (host === "localhost") return true;
-        if (host.endsWith(".local")) return true;
-        if (isPrivateIPv4(host)) return true;
-
-        return false;
-    } catch {
-        // If URL parsing fails, fall back to old behavior (rare)
-        return false;
-    }
-}
-
 function isLocalishName(name) {
     // Accept: "Plex local", "Plex (local)", "Plex - local", "Plex.local"
     const n = safeStr(name).trim().toLowerCase();
@@ -487,85 +513,6 @@ function baseServiceKey(name) {
     n = n.replace(/\s+/g, " ").trim();
 
     return n;
-}
-
-async function probeUrlReachable(url, timeoutMs = 1200) {
-    if (!url) return false;
-    try {
-        const ctrl = new AbortController();
-        const t = setTimeout(() => ctrl.abort(), timeoutMs);
-
-        // no-cors: we only care if the network path works (resolve vs reject)
-        await fetch(url, {
-            method: "GET",
-            mode: "no-cors",
-            cache: "no-store",
-            signal: ctrl.signal,
-        });
-
-        clearTimeout(t);
-        return true;
-    } catch {
-        return false;
-    }
-}
-
-// Small in-memory cache so we don't probe on every click
-const _reachCache = new Map(); // url -> { ok: boolean, ts: number }
-const REACH_TTL_MS = 30_000;
-
-async function isReachableCached(url, timeoutMs = 900) {
-    const u = normalizeMaybeUrl(url);
-    if (!u) return false;
-
-    const now = Date.now();
-    const cached = _reachCache.get(u);
-    if (cached && now - cached.ts < REACH_TTL_MS) return cached.ok;
-
-    const ok = await probeUrlReachable(u, timeoutMs);
-    _reachCache.set(u, { ok, ts: now });
-    return ok;
-}
-
-// Prefer local only if it can be reached; otherwise fallback to external.
-async function chooseSmartUrlAsync(localUrl, externalUrl) {
-    const local = normalizeMaybeUrl(localUrl || "");
-    const ext = normalizeMaybeUrl(externalUrl || "");
-
-    if (!local && ext) return { choice: "external", url: ext };
-    if (!ext && local) return { choice: "local", url: local };
-    if (!local && !ext) return { choice: "none", url: "" };
-
-    // If local looks like LAN/localhost/.local, prefer it.
-    // (Probing HTTP from an HTTPS page may be blocked, but navigation is allowed.)
-    if (isHomeNetworkLikelyFromLocalUrl(local)) {
-        return { choice: "local", url: local };
-    }
-
-    // Otherwise, probe local quickly. If reachable, use it; else fall back.
-    const okLocal = await probeUrlReachable(local, 900);
-    return okLocal ? { choice: "local", url: local } : { choice: "external", url: ext };
-}
-
-function chooseSmartUrl(localUrl, externalUrl) {
-    const local = normalizeMaybeUrl(localUrl || "");
-    const ext = normalizeMaybeUrl(externalUrl || "");
-
-    if (!local && ext) return { choice: "external", url: ext };
-    if (!ext && local) return { choice: "local", url: local };
-    if (!local && !ext) return { choice: "none", url: "" };
-
-    const pageIsHttps = location.protocol === "https:";
-    const localIsHttp = /^http:\/\//i.test(local);
-
-    // CRITICAL: On mobile (and many browsers), HTTPS page -> HTTP resource is blocked.
-    // So in mixed-content case, default to EXTERNAL.
-    if (pageIsHttps && localIsHttp) {
-        return { choice: "external", url: ext };
-    }
-
-    // Otherwise prefer local (and you can later add probing if desired)
-    return { choice: "local", url: local };
 }
 
 const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
@@ -935,6 +882,14 @@ async function initNetdataCharts() {
     window.__netdata.charts.disk = ND_CHART_DISK;
     // net is set later after detection
 
+    // ---- Containers ----
+    // A container is usable only if it publishes both charts we need.
+    ND_CONTAINERS = Object.keys(charts)
+        .filter((id) => /^cgroup_.+\.cpu$/.test(id))
+        .map((id) => id.slice("cgroup_".length, -".cpu".length))
+        .filter((name) => charts[`cgroup_${name}.mem_usage`])
+        .sort((a, b) => a.localeCompare(b));
+
     // ---- Network ----
     const netIds = Object.keys(charts)
         .filter((id) => id.startsWith("net."))
@@ -989,7 +944,6 @@ async function initNetdataCharts() {
     };
 
     populateNetIfaceSelect();
-    populateNetCapSelect();
     ensureNetSparkBars();
 }
 
@@ -1326,9 +1280,10 @@ function applyHostMetricsFromNetdata(cpuNd, ramNd, diskNd, loadNd, powerNd, temp
     }
 
     const diskPct = validDiskSamples && totalBytes > 0 ? (usedBytes / totalBytes) * 100 : null;
-    const usedLabel = formatStorageBytes(validDiskSamples ? usedBytes : null);
-    const diskLabel = diskPct == null ? "—" : `${diskPct.toFixed(0)}% (${usedLabel} used)`;
-    setMetric(els.diskVal, els.diskBar, diskPct, diskLabel);
+    // The used figure lives in the details line, so the headline value stays a
+    // bare percentage like the other two metrics.
+    setMetric(els.diskVal, els.diskBar, diskPct, diskPct == null ? "—" : `${diskPct.toFixed(0)}%`);
+    if (els.diskUsed) els.diskUsed.textContent = formatStorageBytes(validDiskSamples ? usedBytes : null);
     if (els.diskFree) els.diskFree.textContent = formatStorageBytes(validDiskSamples ? freeBytes : null);
     if (els.diskTotal) els.diskTotal.textContent = formatStorageBytes(validDiskSamples ? totalBytes : null);
     if (els.diskMount && diskNd?.kind === "diskBundle" && diskNd.errors?.length) {
@@ -1436,9 +1391,6 @@ function applyNetworkFromNetdata(netNd) {
 
     const total = (hasRx ? rxNum : 0) + (hasTx ? txNum : 0);
 
-    if (els.netRx) els.netRx.textContent = hasRx ? formatRateKbps(rxNum) : "—";
-    if (els.netTx) els.netTx.textContent = hasTx ? formatRateKbps(txNum) : "—";
-    if (els.netTotal) els.netTotal.textContent = hasAny ? formatRateKbps(total) : "—";
 
     // Legend values (NO optional-chaining assignment)
     const meta = els.netSparkMeta;
@@ -1501,20 +1453,12 @@ function applyNetworkFromNetdata(netNd) {
         }
 
         const latest = _netSpark[_netSpark.length - 1] ?? 0;
-        let ratio = 0;
-
-        if (_netCapMbps !== "auto") {
-            const capMbps = Number(_netCapMbps);
-            const capKbps = Number.isFinite(capMbps) && capMbps > 0 ? capMbps * 1000 : 0;
-            ratio = capKbps > 0 ? latest / capKbps : 0;
-        } else {
-            ratio = latest / max;
-        }
+        const ratio = latest / max;
 
         const sec = document.getElementById("secNetwork");
         if (sec) {
             const warmAt = 0.7;
-            const hotAt = _netCapMbps !== "auto" ? 0.9 : 0.88;
+            const hotAt = 0.88;
             const state = ratio >= hotAt ? "hot" : ratio >= warmAt ? "warm" : "cool";
             sec.setAttribute("data-net-state", state);
         }
@@ -1527,13 +1471,35 @@ const NET_SPARK_N = 30;
 const _netSpark = []; // last N totals
 const _netSparkRx = []; // rx history (Kb/s)
 const _netSparkTx = []; // tx history (Kb/s)
-let _netCapMbps = "auto"; // "auto" or number as string ("1000")
 
-let _netdataFailStreak = 0;
 let _netSparkHoverIdx = -1;
 let _netSparkLastPulseAt = 0;
 
+function describeNetdataFeeds(results, sampleDetails) {
+    const optionalCharts = { power: ND_CHART_CPU_POWER, temperature: ND_CHART_CPU_TEMP };
+
+    return Object.keys(NETDATA_FEED_LABELS).map((key, index) => {
+        const detail = sampleDetails[index] || {};
+        const rejected = results[index]?.status === "rejected";
+        let status;
+
+        if (key in optionalCharts && !optionalCharts[key]) status = "no sensor on this host";
+        else if (detail.usable) {
+            status = Number.isFinite(detail.ageSeconds) ? `live (${detail.ageSeconds.toFixed(0)}s ago)` : "live";
+        } else if (rejected) status = "unavailable";
+        else status = "no fresh sample";
+
+        return `${NETDATA_FEED_LABELS[key]}: ${status}`;
+    });
+}
+
+// A slow host can take longer than NETDATA_POLL_MS to answer. Without this guard
+// the interval stacks overlapping ticks that all race to write the same elements.
+let _netdataTickInFlight = false;
+
 async function tickNetdata() {
+    if (_netdataTickInFlight) return;
+    _netdataTickInFlight = true;
     try {
         await initNetdataCharts();
 
@@ -1581,7 +1547,6 @@ async function tickNetdata() {
         applyHostMetricsFromNetdata(cpuNd, ramNd, diskNd, loadNd, powerNd, temperatureNd);
         if (netNd) applyNetworkFromNetdata(netNd);
 
-        _netdataFailStreak = 0;
         window.__netdata.last = {
             ok: true,
             status: `${liveCount}/5 fresh metric feeds`,
@@ -1594,9 +1559,11 @@ async function tickNetdata() {
                 ])
             ),
         };
-        setDataSource(true, `${liveCount}/5`);
+        setDataSource(true, {
+            feeds: describeNetdataFeeds(results, sampleDetails),
+            allCoreFeedsLive: liveCount === 5,
+        });
     } catch (e) {
-        _netdataFailStreak++;
         window.__netdata.last = {
             ok: false,
             status: "tick failed",
@@ -1634,8 +1601,70 @@ async function tickNetdata() {
             const tip = els.netSpark.querySelector('[data-role="netSparkTip"]');
             if (tip) tip.classList.remove("show");
         }
-        setDataSource(false);
+        setDataSource(false, { feeds: [`Netdata: unreachable — ${String(e?.message || e)}`] });
+    } finally {
+        _netdataTickInFlight = false;
     }
+}
+
+let _containerTickInFlight = false;
+
+async function tickContainerStats() {
+    if (_containerTickInFlight || document.visibilityState === "hidden") return;
+    if (!_netdataChartsReady || !ND_CONTAINERS.length) return;
+
+    _containerTickInFlight = true;
+    try {
+        // One request pair per mapped card, and only for cards actually mapped.
+        const targets = state.services
+            .map((service) => ({ service, container: containerForService(service.name).container }))
+            .filter((target) => target.container && ND_CONTAINERS.includes(target.container));
+
+        await Promise.allSettled(
+            targets.map(async ({ service, container }) => {
+                const [cpu, mem] = await Promise.allSettled([
+                    fetchNetdataChartOnce(`cgroup_${container}.cpu`),
+                    fetchNetdataChartOnce(`cgroup_${container}.mem_usage`),
+                ]);
+
+                const cpuNd = cpu.status === "fulfilled" ? cpu.value : null;
+                const memNd = mem.status === "fulfilled" ? mem.value : null;
+
+                // cgroup.cpu is split across user/system; mem_usage across ram/swap.
+                const cpuPct = sumNdRowExcluding(cpuNd, ["time"]);
+                const ramMib = getNdValue(memNd, "ram");
+
+                applyContainerStats(service, {
+                    container,
+                    cpuPct: Number.isFinite(cpuPct) ? cpuPct : null,
+                    ramMib: Number.isFinite(ramMib) ? ramMib : null,
+                });
+            })
+        );
+    } catch (error) {
+        console.warn("Container stats tick failed", error);
+    } finally {
+        _containerTickInFlight = false;
+    }
+}
+
+function applyContainerStats(service, stats) {
+    const card = state.cardElById.get(String(service.id));
+    const row = card?.querySelector('[data-role="containerStats"]');
+    if (!row) return;
+
+    if (stats.cpuPct == null && stats.ramMib == null) {
+        row.hidden = true;
+        return;
+    }
+
+    const cpuEl = row.querySelector('[data-role="containerCpu"]');
+    const ramEl = row.querySelector('[data-role="containerRam"]');
+    if (cpuEl) cpuEl.textContent = stats.cpuPct == null ? "—" : `${stats.cpuPct.toFixed(1)}%`;
+    if (ramEl) ramEl.textContent = stats.ramMib == null ? "—" : `${Math.round(stats.ramMib)} MB`;
+
+    row.hidden = false;
+    row.title = `Docker container: ${stats.container}`;
 }
 
 const pad2 = (x) => String(x).padStart(2, "0"); // (can keep; used elsewhere or safe to leave)
@@ -1674,7 +1703,6 @@ function savePrefs() {
         linkMode: state.linkMode,
         statusFilter: state.statusFilter,
         categoryFilter: state.categoryFilter,
-        groupsOpen: state.groupsOpen,
         query: state.query,
         notes: els.notes.value || "",
         calendarOpen: document.getElementById("secCalendar")?.getAttribute("data-open") === "true",
@@ -1695,7 +1723,6 @@ function loadPrefs() {
         if (p.linkMode === "local" || p.linkMode === "external") state.linkMode = p.linkMode;
         if (p.statusFilter) state.statusFilter = p.statusFilter;
         if (p.categoryFilter) state.categoryFilter = p.categoryFilter;
-        if (p.groupsOpen && typeof p.groupsOpen === "object") state.groupsOpen = p.groupsOpen;
         if (typeof p.query === "string") state.query = p.query;
         if (typeof p.notes === "string") els.notes.value = p.notes;
         if (typeof p.calendarOpen === "boolean") {
@@ -1729,12 +1756,29 @@ function setLinkMode(mode) {
     updateLinkModeUI();
 }
 
+// Which endpoint a click will open is shown on the row itself, rather than as a
+// separate line of text repeating what the toggle already says.
+function markActiveEndpoint(card) {
+    const hasLocal = !!card.dataset.localId;
+    const hasExternal = !!card.dataset.externalId;
+    const preferred = state.linkMode === "external" ? "external" : "local";
+
+    let active = "";
+    if (preferred === "local") active = hasLocal ? "local" : hasExternal ? "external" : "";
+    else active = hasExternal ? "external" : hasLocal ? "local" : "";
+
+    for (const kind of ["local", "external"]) {
+        const row = card.querySelector(`[data-role="${kind}Line"]`);
+        if (!row) continue;
+        row.dataset.active = String(active === kind);
+        row.title = active === kind ? "Clicking the card opens this link" : "";
+    }
+}
+
 function updateCardHintsInPlace() {
     for (const s of state.services) {
         const card = state.cardElById.get(String(s.id));
-        if (!card) continue;
-        const hint = card.querySelector('[data-role="hint"]');
-        if (hint) hint.textContent = `Click to open (${state.linkMode})`;
+        if (card) markActiveEndpoint(card);
     }
 }
 
@@ -1770,7 +1814,6 @@ function ensureNetSparkBars() {
             legend.className = "net-spark-legend";
 
             // IMPORTANT:
-            // - NO ids here (indexv2.html already has #netRx/#netTx/#netTotal)
             // - use data-role hooks only
             legend.innerHTML = `
 
@@ -1919,28 +1962,20 @@ function hide() {
     bars().forEach((b) => b.classList.remove("is-hover"));
 }
 
-els.netSpark.addEventListener(
-    "pointermove",
-    (e) => {
+// These run at module scope, so an absent #netSpark would throw before
+// initialLoad() is ever reached and take the whole dashboard down with it.
+if (els.netSpark) {
+    const showFromPointer = (e) => {
         if (!_netSpark.length) return;
         const idx = idxFromX(e.clientX);
         showAt(idx, e.clientX);
-    },
-    { passive: true }
-);
+    };
 
-els.netSpark.addEventListener("pointerleave", hide, { passive: true });
-
-// Tap to show (mobile)
-els.netSpark.addEventListener(
-    "pointerdown",
-    (e) => {
-        if (!_netSpark.length) return;
-        const idx = idxFromX(e.clientX);
-        showAt(idx, e.clientX);
-    },
-    { passive: true }
-);
+    els.netSpark.addEventListener("pointermove", showFromPointer, { passive: true });
+    els.netSpark.addEventListener("pointerleave", hide, { passive: true });
+    // Tap to show (mobile)
+    els.netSpark.addEventListener("pointerdown", showFromPointer, { passive: true });
+}
 
 function populateNetIfaceSelect() {
     if (!els.netIface) return;
@@ -1970,30 +2005,6 @@ function populateNetIfaceSelect() {
             _netSelectedChart = els.netIface.value || "auto";
             try {
                 localStorage.setItem("netIface", _netSelectedChart);
-            } catch {}
-        },
-        { passive: true }
-    );
-}
-
-function populateNetCapSelect() {
-    if (!els.netCap) return;
-
-    try {
-        _netCapMbps = localStorage.getItem("netCapMbps") || "auto";
-    } catch {}
-
-    // Ensure the UI reflects saved value
-    const allowed = new Set(["auto", "100", "1000", "2500", "10000"]);
-    if (!allowed.has(_netCapMbps)) _netCapMbps = "auto";
-    els.netCap.value = _netCapMbps;
-
-    els.netCap.addEventListener(
-        "change",
-        () => {
-            _netCapMbps = els.netCap.value || "auto";
-            try {
-                localStorage.setItem("netCapMbps", _netCapMbps);
             } catch {}
         },
         { passive: true }
@@ -2041,6 +2052,138 @@ function detectCategory(name) {
 
 function iconFor(category) {
     return CATEGORY_META[category]?.icon || "✨";
+}
+
+function parseIconOverrides(raw) {
+    const overrides = new Map();
+    let source = raw;
+
+    if (typeof source === "string") {
+        try {
+            source = JSON.parse(source || "{}");
+        } catch (error) {
+            // Never let a typo in Compose take the dashboard down with it.
+            console.warn("SERVICE_ICONS is not valid JSON; ignoring icon overrides", error);
+            return overrides;
+        }
+    }
+
+    if (source && typeof source === "object") {
+        for (const [service, url] of Object.entries(source)) {
+            overrides.set(safeStr(service).trim().toLowerCase(), safeStr(url).trim());
+        }
+    }
+
+    return overrides;
+}
+
+function loadBrowserIconOverrides() {
+    try {
+        const stored = JSON.parse(localStorage.getItem(ICON_STORAGE_KEY) || "{}");
+        return parseIconOverrides(stored);
+    } catch {
+        return new Map();
+    }
+}
+
+function saveBrowserIconOverrides() {
+    try {
+        localStorage.setItem(ICON_STORAGE_KEY, JSON.stringify(Object.fromEntries(BROWSER_ICON_OVERRIDES)));
+    } catch {}
+}
+
+// The icon this service would get with no override at all.
+function autoServiceIconUrl(name) {
+    const match = SERVICE_ICONS.find((entry) => entry.regex.test(safeStr(name)));
+    return match ? `${SERVICE_ICON_BASE}/${match.slug}.png` : "";
+}
+
+function iconOverrideFor(name) {
+    const key = safeStr(name).trim().toLowerCase();
+    const baseKey = baseServiceKey(name);
+
+    // Browser first, then the Compose default. An empty string is a real value
+    // here — it is how a card is pinned back to its category emoji.
+    const browser = BROWSER_ICON_OVERRIDES.get(key) ?? BROWSER_ICON_OVERRIDES.get(baseKey);
+    if (browser !== undefined) return { source: "browser", url: browser };
+
+    const configured = ICON_OVERRIDES.get(key) ?? ICON_OVERRIDES.get(baseKey);
+    if (configured !== undefined) return { source: "compose", url: configured };
+
+    return { source: "auto", url: autoServiceIconUrl(name) };
+}
+
+function loadServiceContainers() {
+    try {
+        const stored = JSON.parse(localStorage.getItem(CONTAINER_STORAGE_KEY) || "{}");
+        const map = new Map();
+        for (const [service, container] of Object.entries(stored)) {
+            map.set(safeStr(service).trim().toLowerCase(), safeStr(container).trim());
+        }
+        return map;
+    } catch {
+        return new Map();
+    }
+}
+
+function saveServiceContainers() {
+    try {
+        localStorage.setItem(CONTAINER_STORAGE_KEY, JSON.stringify(Object.fromEntries(SERVICE_CONTAINERS)));
+    } catch {}
+}
+
+const normalizeForMatch = (value) => safeStr(value).toLowerCase().replace(/[^a-z0-9]/g, "");
+
+// Kuma monitor names and container names are different vocabularies, so this
+// only claims a match when they genuinely agree. Everything else is left to the
+// per-card picker.
+function autoContainerFor(name) {
+    const wanted = normalizeForMatch(baseServiceKey(name));
+    if (!wanted) return "";
+    return (
+        ND_CONTAINERS.find((container) => normalizeForMatch(container) === wanted) ||
+        ND_CONTAINERS.find((container) => normalizeForMatch(container).includes(wanted)) ||
+        ""
+    );
+}
+
+function containerForService(name) {
+    // "" is a real choice here: it means "show no stats for this card".
+    const chosen = SERVICE_CONTAINERS.get(baseServiceKey(name));
+    if (chosen !== undefined) return { source: "chosen", container: chosen };
+    return { source: "auto", container: autoContainerFor(name) };
+}
+
+function serviceIconUrl(name) {
+    return iconOverrideFor(name).url;
+}
+
+// Used at build time and again after an edit, so both paths behave identically.
+// Every card shows an image: the resolved icon if there is one, otherwise the
+// bundled Service Dash mark. A broken link falls back to the same mark.
+function renderCardIcon(card, name) {
+    const tile = card.querySelector(".svcIcon");
+    if (!tile) return;
+
+    const url = serviceIconUrl(name) || FALLBACK_ICON;
+    tile.innerHTML = "";
+
+    const img = document.createElement("img");
+    img.className = "svcIconImg";
+    img.alt = "";
+    img.decoding = "async";
+
+    img.addEventListener("error", () => {
+        // One retry with the bundled mark, then stop — no infinite loop if the
+        // fallback itself is somehow missing.
+        if (img.dataset.fallbackApplied === "true") return;
+        img.dataset.fallbackApplied = "true";
+        img.src = FALLBACK_ICON;
+    });
+
+    tile.appendChild(img);
+    img.src = url;
+    if (url === FALLBACK_ICON) img.dataset.fallbackApplied = "true";
 }
 
 function statusForIdFromHeartbeat(id) {
@@ -2132,103 +2275,6 @@ function updateAuthButtons() {
     // Hide Unlock URLs once authenticated
     els.btnAuth.style.display = authed ? "none" : "flex";
 }
-
-/* =========================
-               MOCK DATA (fallback demo)
-               ========================= */
-const MOCK_STATUS_PAGE = {
-    publicGroupList: [
-        {
-            name: "Media Services",
-            monitorList: [
-                { id: 1, name: "Plex", type: "http" },
-                { id: 2, name: "Overseerr", type: "http" },
-                { id: 4, name: "Jellyfin", type: "http" },
-                { id: 5, name: "Sonarr", type: "http" },
-                { id: 6, name: "Radarr", type: "http" },
-            ],
-        },
-        {
-            name: "Monitoring",
-            monitorList: [
-                { id: 7, name: "Uptime Kuma", type: "http" },
-                { id: 8, name: "Grafana", type: "http" },
-                { id: 9, name: "Prometheus", type: "http" },
-                { id: 10, name: "Tautulli", type: "http" },
-            ],
-        },
-        {
-            name: "Storage & Sync",
-            monitorList: [
-                { id: 3, name: "ZimaOS NAS", type: "http" },
-                { id: 11, name: "Nextcloud", type: "http" },
-                { id: 12, name: "Syncthing", type: "http" },
-                { id: 13, name: "MinIO S3", type: "http" },
-            ],
-        },
-        {
-            name: "Smart Home & Automation",
-            monitorList: [
-                { id: 14, name: "Home Assistant", type: "http" },
-                { id: 15, name: "MQTT Broker", type: "tcp" },
-                { id: 16, name: "Node-RED", type: "http" },
-            ],
-        },
-        {
-            name: "Docs & Tools",
-            monitorList: [
-                { id: 17, name: "BookStack Wiki", type: "http" },
-                { id: 18, name: "IT-Tools", type: "http" },
-                { id: 19, name: "PDF Toolbox", type: "http" },
-            ],
-        },
-    ],
-};
-
-const MOCK_HEARTBEAT = {
-    heartbeatList: {
-        1: { status: 1 },
-        2: { status: 1 },
-        3: { status: 0 },
-        4: { status: 1 },
-        5: { status: 2 },
-        6: { status: 1 },
-        7: { status: 1 },
-        8: { status: 1 },
-        9: { status: 1 },
-        10: { status: 3 },
-        11: { status: 1 },
-        12: { status: 1 },
-        13: { status: 2 },
-        14: { status: 1 },
-        15: { status: 1 },
-        16: { status: 0 },
-        17: { status: 1 },
-        18: { status: 1 },
-        19: { status: 2 },
-    },
-    uptimeList: {
-        1: 99.8,
-        2: 100,
-        3: 87.5,
-        4: 99.1,
-        5: 96.4,
-        6: 98.8,
-        7: 100,
-        8: 99.9,
-        9: 99.7,
-        10: 94.2,
-        11: 99.3,
-        12: 99.9,
-        13: 97.0,
-        14: 99.6,
-        15: 100,
-        16: 88.1,
-        17: 99.0,
-        18: 100,
-        19: 97.9,
-    },
-};
 
 /* =========================
          KUMA FETCH
@@ -2575,11 +2621,6 @@ function buildServicesFromKuma() {
     }
 
     state.services = services;
-
-    // Ensure group open state exists for each CATEGORY section
-    for (const s of services) {
-        if (state.groupsOpen[s.group] == null) state.groupsOpen[s.group] = true;
-    }
 }
 
 /* =========================
@@ -2618,11 +2659,9 @@ function computeCounts(visibleServices) {
 
 function renderChipsWithCounts() {
     const qLower = safeStr(state.query).trim().toLowerCase();
-    const servicesBySearch = state.services.filter((s) => {
-        if (!qLower) return true;
-        const hay = [s.name, s.url || "", s.category, s.group, s.type, s.id].join(" ").toLowerCase();
-        return hay.includes(qLower);
-    });
+    // Must use the same haystack as serviceMatchesFilters(), otherwise the chip
+    // counts and the visible cards disagree — most visibly when searching a URL.
+    const servicesBySearch = state.services.filter((s) => serviceMatchesFilters(s, qLower, "all", "all"));
     const counts = computeCounts(servicesBySearch);
 
     const statuses = ["all", "online", "offline", "pending", "maintenance"];
@@ -2685,7 +2724,6 @@ function buildDomOnceIfNeeded() {
     if (state.domBuilt) return;
     els.groups.innerHTML = "";
     state.cardElById.clear();
-    state.groupElByName.clear();
 
     // Flat grid (no category/group sections)
     const cardsEl = document.createElement("div");
@@ -2700,6 +2738,11 @@ function buildDomOnceIfNeeded() {
         const category = s.category;
         const icon = s.icon;
         const name = s.name;
+
+        // The card clips its own decorative wash with overflow:hidden, so the
+        // settings button lives in an unclipped wrapper alongside it.
+        const wrap = document.createElement("div");
+        wrap.className = "cardWrap";
 
         const card = document.createElement("article");
         card.className = "card";
@@ -2719,40 +2762,33 @@ function buildDomOnceIfNeeded() {
 
         card.innerHTML = `
               <div class="cardTop">
-                <div class="svc">
-                  <div class="svcIcon" aria-hidden="true">${escapeHtml(icon)}</div>
-                  <div class="svcName">
-                    <b title="${escapeAttr(name)}">${escapeHtml(name)}</b>
-                    <div class="linkLines">
-                      <div class="linkLine">
-                        <span class="linkBadge">Local</span>
-                        <span class="miniDot" data-role="localDot" data-status="pending"></span>
-                        <span class="linkUrl" data-role="localUrlText">URL locked 🔒</span>
-                        <span class="linkMeta" data-role="localUp">—</span>
-                      </div>
-                      <div class="linkLine">
-                        <span class="linkBadge">External</span>
-                        <span class="miniDot" data-role="externalDot" data-status="pending"></span>
-                        <span class="linkUrl" data-role="externalUrlText">URL locked 🔒</span>
-                        <span class="linkMeta" data-role="externalUp">—</span>
-                      </div>
-                    </div>
-                  </div>
+                <div class="svcIcon" aria-hidden="true"></div>
+                <div class="svcName">
+                  <b title="${escapeAttr(name)}">${escapeHtml(name)}</b>
+                  <div class="svcMeta">${escapeHtml((CATEGORY_META[category] || CATEGORY_META.other).label)}</div>
                 </div>
                 <div class="statusDot" data-role="statusDot" data-status="pending" title="Pending"></div>
               </div>
 
-              <div class="metaRow">
-                <div class="tags">
-                  <span class="tag" title="Category"><span class="dot"></span><strong>${escapeHtml((CATEGORY_META[category] || CATEGORY_META.other).label)}</strong></span>
+              <div class="linkLines">
+                <div class="linkLine" data-role="localLine">
+                  <span class="miniDot" data-role="localDot" data-status="pending"></span>
+                  <span class="linkBadge">Local</span>
+                  <span class="linkUrl" data-role="localUrlText">URL locked 🔒</span>
+                  <span class="linkMeta" data-role="localUp">—</span>
                 </div>
-                <span class="uptime" title="Overall uptime (prefers external)" data-role="uptime">—</span>
+                <div class="linkLine" data-role="externalLine">
+                  <span class="miniDot" data-role="externalDot" data-status="pending"></span>
+                  <span class="linkBadge">External</span>
+                  <span class="linkUrl" data-role="externalUrlText">URL locked 🔒</span>
+                  <span class="linkMeta" data-role="externalUp">—</span>
+                </div>
               </div>
 
-              <div class="cardFooter">
-                <div class="hint">
-                  <div class="mini">↗</div>
-                  <span data-role="hint">Click to open</span>
+              <div class="cardBottom">
+                <div class="containerStats" data-role="containerStats" hidden>
+                  <span class="containerStat"><small>CPU</small><b data-role="containerCpu">—</b></span>
+                  <span class="containerStat"><small>RAM</small><b data-role="containerRam">—</b></span>
                 </div>
               </div>
             `;
@@ -2816,7 +2852,8 @@ function buildDomOnceIfNeeded() {
             let pressTimer = null;
             let didLongPress = false;
 
-            const start = () => {
+            const start = (event) => {
+                if (event.target.closest?.('[data-role="iconEdit"]')) return;
                 didLongPress = false;
                 pressTimer = setTimeout(() => {
                     didLongPress = true;
@@ -2869,7 +2906,31 @@ function buildDomOnceIfNeeded() {
             );
         }
 
-        cardsEl.appendChild(card);
+        renderCardIcon(card, name);
+
+
+        // A service with only a local (or only an external) monitor should not
+        // show an empty row for the endpoint it does not have.
+        if (!card.dataset.localId) card.querySelector('[data-role="localLine"]')?.remove();
+        if (!card.dataset.externalId) card.querySelector('[data-role="externalLine"]')?.remove();
+        markActiveEndpoint(card);
+
+        const editButton = document.createElement("button");
+        editButton.className = "svcIconEdit";
+        editButton.type = "button";
+        editButton.dataset.role = "iconEdit";
+        editButton.title = "Card settings";
+        editButton.setAttribute("aria-label", `Card settings for ${name}`);
+        editButton.innerHTML = '<span class="material-symbols-rounded" aria-hidden="true">edit</span>';
+        editButton.addEventListener("click", (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            openIconEditor(s);
+        });
+
+        wrap.appendChild(card);
+        wrap.appendChild(editButton);
+        cardsEl.appendChild(wrap);
         state.cardElById.set(s.id, card);
     }
 
@@ -2905,8 +2966,7 @@ function updateCardUrlsInPlace() {
         if (localText) localText.textContent = localUrl ? localUrl : "URL locked 🔒";
         if (extText) extText.textContent = extUrl ? extUrl : "URL locked 🔒";
 
-        const hint = card.querySelector('[data-role="hint"]');
-        if (hint) hint.textContent = `Click to open (${state.linkMode === "local" ? "local" : "external"})`;
+        markActiveEndpoint(card);
     }
 }
 
@@ -2955,9 +3015,7 @@ function updateStatusesInPlace() {
         const eup = card.querySelector('[data-role="externalUp"]');
         if (eup) eup.textContent = extUp == null ? "—" : `${Number(extUp).toFixed(1)}%`;
 
-        // Overall pill
-        const ut = card.querySelector('[data-role="uptime"]');
-        if (ut) ut.textContent = s.uptime == null ? "—" : `${Number(s.uptime).toFixed(1)}%`;
+
     }
 }
 
@@ -2966,27 +3024,13 @@ function applyFiltersAndCounts() {
     const statusFilter = state.statusFilter;
     const categoryFilter = state.categoryFilter;
 
-    const groupVisibleCounts = new Map();
-
     for (const s of state.services) {
         const card = state.cardElById.get(String(s.id));
         if (!card) continue;
 
-        const url = card.dataset.url || "";
-        const matches = serviceMatchesFilters({ ...s, url }, qLower, statusFilter, categoryFilter);
+        const matches = serviceMatchesFilters(s, qLower, statusFilter, categoryFilter);
 
         card.classList.toggle("is-filtered-out", !matches);
-
-        if (matches) {
-            groupVisibleCounts.set(s.group, (groupVisibleCounts.get(s.group) || 0) + 1);
-        }
-    }
-
-    for (const [gName, groupEl] of state.groupElByName.entries()) {
-        const n = groupVisibleCounts.get(gName) || 0;
-        const pill = groupEl.querySelector('[data-role="groupCount"]');
-        if (pill) pill.textContent = `${n} shown`;
-        groupEl.style.display = n ? "" : "none";
     }
 
     renderChipsWithCounts();
@@ -3010,7 +3054,8 @@ function tickMockMetrics() {
     const mockDiskTotal = 1024 ** 4;
     const mockDiskUsed = mockDiskTotal * (disk / 100);
     const mockDiskFree = mockDiskTotal - mockDiskUsed;
-    els.diskVal.textContent = `${disk.toFixed(0)}% (${formatStorageBytes(mockDiskUsed)} used)`;
+    els.diskVal.textContent = `${disk.toFixed(0)}%`;
+    if (els.diskUsed) els.diskUsed.textContent = formatStorageBytes(mockDiskUsed);
     if (els.cpuWatts) els.cpuWatts.textContent = `${(10 + cpu / 8).toFixed(1)} W`;
     if (els.cpuTemp) els.cpuTemp.textContent = `${(38 + cpu / 4).toFixed(1)} °C`;
     if (els.memTotal) els.memTotal.textContent = "8.00 GB";
@@ -3061,9 +3106,6 @@ function tickMockNetwork() {
     const tx = clamp(140 + 120 * Math.cos(t / 2.6) + 90 * Math.sin(t / 1.1), 3, 1600);
     const total = rx + tx;
 
-    if (els.netRx) els.netRx.textContent = formatRateKbps(rx);
-    if (els.netTx) els.netTx.textContent = formatRateKbps(tx);
-    if (els.netTotal) els.netTotal.textContent = formatRateKbps(total);
 
     // Update legend values
     if (els.netSparkMeta) {
@@ -3127,31 +3169,167 @@ function wireSections() {
     }
 }
 
-function wireMetricsSidebarCollapse() {
-    if (!els.metricsSidebar || !els.btnMetricsSidebarToggle) return;
+/* =========================
+               ICON EDITOR
+               ========================= */
+let _iconEditTarget = null;
+// null = nothing to check, true = image loaded, false = it failed.
+let _iconPreviewOk = null;
 
-    const iconEl = els.btnMetricsSidebarToggle.querySelector(".material-symbols-rounded");
-
-    const apply = (collapsed) => {
-        els.metricsSidebar.setAttribute("data-collapsed", String(!!collapsed));
-        els.btnMetricsSidebarToggle.setAttribute("aria-expanded", String(!collapsed));
-        els.btnMetricsSidebarToggle.setAttribute("title", collapsed ? "Expand" : "Collapse");
-        els.btnMetricsSidebarToggle.setAttribute(
-            "aria-label",
-            collapsed ? "Expand metrics sidebar" : "Collapse metrics sidebar"
-        );
-        if (iconEl) iconEl.textContent = collapsed ? "chevron_left" : "expand_more";
-    };
-
-    // Ensure icon/ARIA matches any persisted attribute applied during loadPrefs()
-    apply(els.metricsSidebar.getAttribute("data-collapsed") === "true");
-
-    els.btnMetricsSidebarToggle.addEventListener("click", () => {
-        const collapsed = els.metricsSidebar.getAttribute("data-collapsed") === "true";
-        apply(!collapsed);
-        savePrefs();
-    });
+function setIconStatus(state, message) {
+    if (!els.iconStatus) return;
+    els.iconStatus.dataset.state = state;
+    els.iconStatus.textContent = message;
 }
+
+function updateIconPreview() {
+    if (!els.iconPreviewImg) return;
+
+    const url = safeStr(els.iconUrlInput?.value).trim();
+    els.iconPreviewImg.style.display = "none";
+    els.iconPreview?.classList.remove("has-image");
+
+    if (!url) {
+        _iconPreviewOk = null;
+        setIconStatus("idle", "No link — this card will show the default Service Dash icon.");
+        els.iconPreviewImg.src = FALLBACK_ICON;
+        return;
+    }
+
+    _iconPreviewOk = null;
+    setIconStatus("checking", "Loading image…");
+    els.iconPreviewImg.src = url;
+}
+
+function openIconEditor(service) {
+    if (!els.iconOverlay) return;
+
+    _iconEditTarget = service;
+    const current = iconOverrideFor(service.name);
+
+    if (els.iconServiceName) els.iconServiceName.textContent = service.name;
+    if (els.iconUrlInput) els.iconUrlInput.value = current.url;
+    updateIconPreview();
+    populateContainerSelect(service);
+
+    els.iconOverlay.classList.add("show");
+    els.iconOverlay.setAttribute("aria-hidden", "false");
+    setTimeout(() => els.iconUrlInput?.focus(), 60);
+}
+
+function populateContainerSelect(service) {
+    const select = els.containerSelect;
+    if (!select) return;
+
+    const resolved = containerForService(service.name);
+    const auto = autoContainerFor(service.name);
+
+    select.innerHTML = "";
+    const autoOption = document.createElement("option");
+    autoOption.value = "__auto__";
+    autoOption.textContent = auto ? `Auto — ${auto}` : "Auto — no match found";
+    select.appendChild(autoOption);
+
+    const noneOption = document.createElement("option");
+    noneOption.value = "";
+    noneOption.textContent = "None (hide stats)";
+    select.appendChild(noneOption);
+
+    for (const container of ND_CONTAINERS) {
+        const option = document.createElement("option");
+        option.value = container;
+        option.textContent = container;
+        select.appendChild(option);
+    }
+
+    select.value = resolved.source === "auto" ? "__auto__" : resolved.container;
+    select.disabled = ND_CONTAINERS.length === 0;
+
+    if (els.containerHint) {
+        els.containerHint.textContent = ND_CONTAINERS.length
+            ? "Shows this container\u2019s CPU and RAM on the card."
+            : "No containers reported by Netdata on this host.";
+    }
+}
+
+function closeIconEditor() {
+    if (!els.iconOverlay) return;
+    _iconEditTarget = null;
+    els.iconOverlay.classList.remove("show");
+    els.iconOverlay.setAttribute("aria-hidden", "true");
+}
+
+function applyContainerChoice(service) {
+    const select = els.containerSelect;
+    if (!select) return;
+
+    const key = baseServiceKey(service.name);
+    if (select.value === "__auto__") SERVICE_CONTAINERS.delete(key);
+    else SERVICE_CONTAINERS.set(key, select.value);
+    saveServiceContainers();
+
+    // Hide immediately if the card no longer maps anywhere; otherwise the next
+    // tick fills it in.
+    if (!containerForService(service.name).container) {
+        const row = state.cardElById.get(String(service.id))?.querySelector('[data-role="containerStats"]');
+        if (row) row.hidden = true;
+    }
+    tickContainerStats();
+}
+
+function applyIconEdit(url) {
+    const service = _iconEditTarget;
+    if (!service) return;
+
+    applyContainerChoice(service);
+
+    const key = baseServiceKey(service.name);
+    if (url === null) BROWSER_ICON_OVERRIDES.delete(key);
+    else BROWSER_ICON_OVERRIDES.set(key, safeStr(url).trim());
+    // Also clear any entry stored under the full display name.
+    if (url === null) BROWSER_ICON_OVERRIDES.delete(safeStr(service.name).trim().toLowerCase());
+
+    saveBrowserIconOverrides();
+
+    const card = state.cardElById.get(String(service.id));
+    if (card) renderCardIcon(card, service.name);
+
+    const failed = url !== null && safeStr(url).trim() !== "" && _iconPreviewOk === false;
+    closeIconEditor();
+
+    if (url === null) toast(`↩️ <b>${escapeHtml(service.name)}</b> • Icon reset to default`, 2000);
+    else if (failed) {
+        toast(`⚠️ <b>${escapeHtml(service.name)}</b> • Saved, but that image would not load — the card shows the default icon.`, 4200);
+    } else toast(`🖼️ <b>${escapeHtml(service.name)}</b> • Icon updated`, 2000);
+}
+
+els.iconUrlInput?.addEventListener("input", updateIconPreview);
+els.iconPreviewImg?.addEventListener("load", () => {
+    els.iconPreviewImg.style.display = "block";
+
+    // With an empty field the preview is showing the bundled default, so keep
+    // the "will use the default icon" message rather than claiming a load.
+    if (!safeStr(els.iconUrlInput?.value).trim()) return;
+
+    _iconPreviewOk = true;
+    setIconStatus("ok", "Image loaded.");
+});
+els.iconPreviewImg?.addEventListener("error", () => {
+    _iconPreviewOk = false;
+    els.iconPreviewImg.style.display = "none";
+    // Saying so beats silently falling back to the emoji and leaving the user
+    // wondering why nothing happened.
+    setIconStatus("error", "Could not load that image. Check the link, or that the host allows hotlinking. The card will show the default icon.");
+});
+els.btnIconSave?.addEventListener("click", () => applyIconEdit(els.iconUrlInput?.value ?? ""));
+els.btnIconDefault?.addEventListener("click", () => applyIconEdit(null));
+els.btnIconCancel?.addEventListener("click", closeIconEditor);
+els.iconOverlay?.addEventListener("click", (event) => {
+    if (event.target === els.iconOverlay) closeIconEditor();
+});
+els.iconUrlInput?.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") applyIconEdit(els.iconUrlInput.value);
+});
 
 /* =========================
                AUTH OVERLAY
@@ -3178,13 +3356,13 @@ async function loadKumaOrMock() {
     try {
         state.pageData = await fetchStatusPage();
         state.kumaConnected = true;
-        els.kumaConn.textContent = "connected";
+        els.kumaConn.textContent = "CONNECTED";
         els.kumaConn.style.color = "var(--online)";
         window.__kuma = { ok: true, status: "status page ready", at: new Date().toISOString(), error: null };
     } catch (e) {
         state.pageData = { publicGroupList: [] };
         state.kumaConnected = false;
-        els.kumaConn.textContent = "offline";
+        els.kumaConn.textContent = "OFFLINE";
         els.kumaConn.style.color = "var(--pending)";
         window.__kuma = {
             ok: false,
@@ -3206,9 +3384,8 @@ async function pollOnce(showToast) {
             state.kumaConnected = true;
             state.domBuilt = false;
             state.cardElById.clear();
-            state.groupElByName.clear();
-            els.groups.innerHTML = "";
-            els.kumaConn.textContent = "connected";
+                    els.groups.innerHTML = "";
+            els.kumaConn.textContent = "CONNECTED";
             els.kumaConn.style.color = "var(--online)";
         }
 
@@ -3231,7 +3408,7 @@ async function pollOnce(showToast) {
         }
     } catch (e) {
         state.kumaConnected = false;
-        els.kumaConn.textContent = "offline";
+        els.kumaConn.textContent = "OFFLINE";
         els.kumaConn.style.color = "var(--pending)";
         window.__kuma = {
             ok: false,
@@ -3301,14 +3478,29 @@ async function initialLoad() {
     });
 
     wireSections();
-    wireMetricsSidebarCollapse();
     els.notes.addEventListener("input", savePrefs);
     els.notes.addEventListener("input", () => autoResizeTextarea(els.notes));
     autoResizeTextarea(els.notes); // fit saved notes on load
 
-    // Sidebar metrics: Netdata (preferred) with graceful fallback to mock animation
+    // Sidebar metrics: Netdata (preferred) with graceful fallback to mock animation.
+    // A hidden tab cannot show the values, so skip the 2s poll while backgrounded
+    // and take one fresh sample the moment the tab is looked at again.
     tickNetdata();
-    setInterval(tickNetdata, NETDATA_POLL_MS);
+    setInterval(() => {
+        if (document.visibilityState === "hidden") return;
+        tickNetdata();
+    }, NETDATA_POLL_MS);
+
+    document.addEventListener(
+        "visibilitychange",
+        () => {
+            if (document.visibilityState === "visible") tickNetdata();
+        },
+        { passive: true }
+    );
+
+    // Container stats move slowly and cost a request pair per mapped card.
+    setInterval(tickContainerStats, CONTAINER_POLL_MS);
 
     // Network addresses change far less often than performance metrics.
     updateNetworkAddresses();
@@ -3316,6 +3508,15 @@ async function initialLoad() {
 
     // Accent cycler: click logo to switch
     els.logo?.addEventListener("click", cycleAccent);
+
+    // Brand mark: only replace the glyph once the image has actually loaded.
+    const logoImg = els.logo?.querySelector(".logoImg");
+    if (logoImg && BRAND_LOGO) {
+        logoImg.addEventListener("load", () => els.logo.classList.add("has-image"), { once: true });
+        logoImg.addEventListener("error", () => logoImg.remove(), { once: true });
+        logoImg.src = BRAND_LOGO;
+        if (logoImg.complete && logoImg.naturalWidth > 0) els.logo.classList.add("has-image");
+    }
 
     // keyboard shortcuts
     window.addEventListener("keydown", (e) => {
@@ -3329,6 +3530,7 @@ async function initialLoad() {
         }
         if (e.key === "Escape") {
             closeAuth();
+            closeIconEditor();
         }
         // ✅ Optional: press "T" to cycle accents
         if (e.key.toLowerCase() === "t" && !e.metaKey && !e.ctrlKey && !e.altKey) {
@@ -3351,10 +3553,10 @@ async function initialLoad() {
 
     // buttons
     els.btnTheme.addEventListener("click", () => setTheme(state.theme === "dark" ? "light" : "dark"));
-    els.btnRefresh.addEventListener("click", () => pollOnce(true));
     els.btnAuth.addEventListener("click", openAuth);
     els.btnLogout.addEventListener("click", doLogout);
     els.toastClose.addEventListener("click", () => els.toast.classList.remove("show"));
+    // One handler only — a second listener here made every click poll twice.
     els.btnRefresh.addEventListener("click", () => {
         els.btnRefresh.classList.add("spinning");
         pollOnce(true);

@@ -2,7 +2,7 @@
 
 This package deploys the framework-free dashboard and a bundled Netdata Agent as one self-contained Compose stack. Nginx proxies `/kuma/` to Uptime Kuma and `/netdata/` to the included Netdata service. No separate Netdata installation, build tools, or Node.js runtime are required.
 
-All application files are included in the image. The page optionally downloads Google Fonts when internet access is available; without them, it remains usable with fallback fonts, although some iconography may be less polished.
+All application files are included in the image. Two optional assets are fetched from the internet when it is available: Google Fonts, and service icons from [selfh.st/icons](https://github.com/selfhst/icons) via the jsDelivr CDN. Without either, the dashboard remains fully usable — text falls back to system fonts and service cards fall back to the bundled Service Dash mark.
 
 ## Package contents
 
@@ -10,6 +10,7 @@ All application files are included in the image. The page optionally downloads G
 service-dash/
 ├── assets/
 │   ├── css/styles.css
+│   ├── img/service-dash-icon.png
 │   └── js/app.js
 ├── .dockerignore
 ├── Dockerfile
@@ -202,6 +203,64 @@ All installation settings live directly in the Compose file used for the install
 | `KUMA_PORT` | HTTP port published by Uptime Kuma on the same Linux host | `3001` |
 | `STATUS_SLUG` | Final path segment of the published Kuma status-page URL | `homelab` |
 | `STORAGE_MOUNT` | Initial storage mount for browsers without a saved dropdown selection | `auto` |
+| `SERVICE_ICONS` | Per-service icon overrides, as a JSON object keyed by card name | `{}` |
+
+### Container CPU and RAM
+
+Where a service maps to a Docker container on the host, its card shows that container's current CPU percentage and RAM
+in MB. The figures come from the bundled Netdata Agent's per-container charts (`cgroup_NAME.cpu` and
+`cgroup_NAME.mem_usage`) through the existing `/netdata/` proxy — the Docker socket proxy stays restricted to read-only
+network metadata and is not involved.
+
+Service Dash matches a card to a container automatically only when the names genuinely agree. Uptime Kuma monitor names
+and container names are usually different, so most cards need to be pointed at their container once: hover the card,
+click the pencil on its icon, and choose from the **Docker container** list in **Card settings**. The list contains every
+container Netdata can see. **Auto** keeps name matching, **None** hides the stats for that card, and the choice is saved
+in that browser.
+
+Cards with no container mapped simply omit the row. Container stats refresh every 10 seconds rather than every 2, since
+each mapped card costs an extra pair of Netdata queries.
+
+### Service icons
+
+Service cards show a real application logo from [selfh.st/icons](https://github.com/selfhst/icons), matched automatically
+from the service name — `Radarr` finds the Radarr logo, `Home Assistant` finds Home Assistant, and so on.
+
+Icons load from `https://cdn.jsdelivr.net/gh/selfhst/icons/png/`. Any card whose service has no match, or whose icon fails
+to load for any reason, shows the bundled Service Dash mark instead. That fallback ships inside the image, so it works on
+a host with no internet access and can never itself fail to load.
+
+To change the icon for a card, hover it and click the small pencil button at the bottom-left corner of the tile. Paste any
+image link, and the card updates immediately. **Use default** returns to the automatically matched icon, and saving an
+empty link shows the bundled Service Dash mark instead. The choice is saved in that browser, so no redeploy or Compose edit is
+needed.
+
+For a server-wide default that applies to every browser and device — useful when the dashboard is shared — set
+`SERVICE_ICONS` to a JSON object keyed by the name shown on the card:
+
+```yaml
+environment:
+  SERVICE_ICONS: '{"LTT Catalog":"https://cdn.jsdelivr.net/gh/selfhst/icons/png/youtube.png","Plex":"/icons/plex.png"}'
+```
+
+- Names are matched case-insensitively, and a paired `Plex` / `Plex local` set is covered by the single entry `Plex`.
+- Any image URL works. A relative path such as `/icons/plex.png` is served from the dashboard container, so icons can be
+  bind-mounted and kept entirely local.
+- An empty value — `{"Plex":""}` — pins that card back to its category emoji.
+- An override always beats the automatic match, and a per-browser choice made with the pencil button beats `SERVICE_ICONS`.
+- A link that cannot be loaded falls back to the bundled Service Dash mark, and the icon editor says so rather than failing quietly.
+
+Precedence is: the icon picked in this browser, then `SERVICE_ICONS`, then the automatic match, then the bundled
+Service Dash mark.
+
+Recreate the container after changing it:
+
+```sh
+docker compose up -d --force-recreate service-dash
+```
+
+If the value is not valid JSON the dashboard logs a warning in the browser console and ignores the overrides; it does not
+break the page.
 
 ### Storage mount options
 
@@ -272,11 +331,13 @@ When placing this dashboard behind another reverse proxy, proxy the whole dashbo
 - The dashboard reads the Uptime Kuma status page selected by `STATUS_SLUG`; the built-in default is `homelab`.
 - Live status data is polled through `/kuma/api/status-page/...`.
 - Netdata host metrics are collected by the bundled Agent and read through `/netdata/api/v1/...`.
-- LAN displays only the host IP address; subnet, interface, and gateway details remain available in its tooltip. Click either the LAN or WAN address to copy it to the clipboard.
+- LAN displays only the host IP address; subnet, interface, and gateway details remain available in its tooltip. Both the LAN and WAN addresses stay blurred until you hover, focus, or tap them, so the dashboard can sit on a visible screen without publishing its own IPs. Click either one to copy it to the clipboard.
 - CPU shows live utilization, normalized 1-minute load, package power draw, and package temperature when the host exposes Intel RAPL and hardware sensor feeds. Load is shown as a percentage of logical CPU capacity with its raw value and CPU count, such as `32% (1.28 / 4)`. Missing optional sensors display `—` rather than mock values.
-- RAM shows utilization and total installed capacity in GB. Storage shows utilization with the used amount in parentheses, plus free and total capacity; capacity labels automatically scale between MB, GB, and TB.
+- RAM shows utilization and total installed capacity in GB. Storage shows utilization as a percentage, with used, free, and total capacity on the line beneath it; capacity labels automatically scale between MB, GB, and TB.
 - Storage auto-detection excludes container overlays and transient system mounts, preferring named persistent paths such as `/media/1TB-SSD-1` and `/var/lib/casaos_data`. Open the Sources dropdown to select one or several mounts. Multiple selections are converted to bytes and aggregated before Used, Free, Total, and percentage are calculated. The selection is saved in that browser. See **Storage mount options** above for server-wide initial-source configuration.
-- “Unlock URLs” loads Socket.IO through `/kuma/socket.io/`. Credentials are sent to your proxied Uptime Kuma instance; choosing “remember” stores the returned login token in that browser’s local storage.
+- Each service card shows its two endpoints, Local and External. The one a click will open is tinted; flipping the Local/External switch in the top bar moves that highlight. A service with only one endpoint shows only that row.
+- **Login** loads Socket.IO through `/kuma/socket.io/`. Credentials are sent to your proxied Uptime Kuma instance; choosing “remember” stores the returned login token in that browser’s local storage. Without it the dashboard still works, showing status and uptime with the URLs hidden.
+- Hover a card and click the pencil at its corner for **Card settings**: the icon link for that service, and the Docker container whose CPU and RAM the card should show. Both are saved in that browser.
 - Theme, accent, filters, and other client-side preferences may also persist in the browser.
 
 To find the correct slug, open the published status page in Uptime Kuma. For a URL ending in `/status/homelab`, use `STATUS_SLUG: "homelab"`—which is already the built-in default. If yours differs, edit `STATUS_SLUG` in `docker-compose.yml` and recreate the Service Dash container.
@@ -330,7 +391,7 @@ docker compose exec -T service-dash wget -q -O - http://127.0.0.1/network-info/s
 
 The `lan.address` value comes from the source address on the Linux host's default IPv4 route. If no internet route exists, the helper falls back to a global IPv4 address on a non-container host interface. WAN needs outbound HTTPS and DNS access; it remains `unavailable` if both public-IP providers cannot be reached. The dashboard deliberately does not substitute the browser URL for a missing LAN address. LAN and WAN values remain white even when network throughput changes the rest of the Network panel's state color.
 
-### “Unlock URLs” or login fails
+### Login or private URLs fail
 
 Confirm `/kuma/socket.io/socket.io.js` loads, WebSockets are allowed by any outer reverse proxy, browser blockers are not blocking Socket.IO, and the Uptime Kuma account/2FA token is correct.
 
@@ -346,6 +407,8 @@ docker compose up -d --force-recreate service-dash
 Static assets are cached for seven days, so a browser hard refresh or cache clear may be required.
 
 ## Update and rollback
+
+The current release is **1.1.0**; the Compose files in this repository reference the matching `1.1.0` images.
 
 Download the appropriate Compose file from the desired release—`docker-compose.yml` for standard Docker/ZimaOS or `docker-compose.casaos.yml` for the CasaOS UI—then run:
 

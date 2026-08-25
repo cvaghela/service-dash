@@ -25,7 +25,26 @@ case "$STORAGE_MOUNT" in
     *) echo "STORAGE_MOUNT must be auto or an absolute mount path beginning with /" >&2; exit 1 ;;
 esac
 
-printf 'window.__DASHBOARD_CONFIG__ = { statusSlug: "%s", storageMount: "%s" };\n' "$STATUS_SLUG" "$STORAGE_MOUNT" \
+# Optional per-service icon overrides, e.g.
+#   SERVICE_ICONS: '{"Plex":"https://example.com/plex.png","LTT Catalog":""}'
+# An empty string value keeps that card on its category emoji.
+# NB: ${SERVICE_ICONS:={}} does not work here — the shell ends the expansion at
+# the first brace, so the default has to be applied explicitly.
+SERVICE_ICONS="${SERVICE_ICONS:-}"
+[ -n "$SERVICE_ICONS" ] || SERVICE_ICONS='{}'
+SERVICE_ICONS="$(printf '%s' "$SERVICE_ICONS" | tr -d '\n\r')"
+
+case "$SERVICE_ICONS" in
+    '{'*'}') ;;
+    *) echo 'SERVICE_ICONS must be a JSON object, for example {"Plex":"https://example.com/plex.png"}' >&2; exit 1 ;;
+esac
+
+# Embedded as a JSON *string* and parsed in the browser, so a malformed value
+# degrades to "no overrides" instead of breaking config.js and the whole page.
+ESCAPED_SERVICE_ICONS="$(printf '%s' "$SERVICE_ICONS" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g')"
+
+printf 'window.__DASHBOARD_CONFIG__ = { statusSlug: "%s", storageMount: "%s", iconOverrides: "%s" };\n' \
+    "$STATUS_SLUG" "$STORAGE_MOUNT" "$ESCAPED_SERVICE_ICONS" \
     > /usr/share/nginx/html/config.js
 
 export KUMA_UPSTREAM
