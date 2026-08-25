@@ -478,6 +478,24 @@ docker compose up -d --force-recreate service-dash
 
 Static assets are cached for seven days, so a browser hard refresh or cache clear may be required.
 
+## Upgrading from 1.2.0
+
+This release **changes the Compose file**, so pulling the image alone is not enough.
+
+1. Add the new `kuma-auth` service and point `KUMA_URL` at the same Uptime Kuma as `KUMA_PORT`.
+2. Mount the `settings` volume read-only into `network-info` at `/settings`.
+3. Remove `SHARED_SETTINGS`, `SHARED_SETTINGS_USER`, `SHARED_SETTINGS_PASSWORD_FILE` and `SERVICE_ICONS`, and the
+   `settings_password` secret. They no longer exist, and the container ignores them.
+4. `NETWORK_INFO_REFRESH_SECONDS` is now optional; keep it as a starting value or drop it.
+
+Taking the release's `docker-compose.yml` wholesale and re-applying your `KUMA_PORT`, `STATUS_SLUG` and
+`STORAGE_MOUNT` is the least error-prone route.
+
+What changes for people using it: **saving settings now requires signing in to Uptime Kuma**, and anyone who can sign
+in there can change them for everyone. Any per-service icons previously set through `SERVICE_ICONS` are gone — set them
+per card instead, where the picker now searches the whole catalogue. Service URLs and the LAN and WAN addresses are
+hidden until you sign in.
+
 ## Upgrading from 1.1.1
 
 Pull the new image and recreate the container. **No configuration changes are required** — the existing
@@ -553,7 +571,7 @@ Turning the setting back off leaves the document in the volume untouched and ret
 
 ## Update and rollback
 
-The current release is **1.2.0**; the Compose files in this repository reference the matching `1.2.0` images.
+The current release is **1.2.1**; the Compose files in this repository reference the matching `1.2.1` images.
 
 Download the appropriate Compose file from the desired release—`docker-compose.yml` for standard Docker/ZimaOS or `docker-compose.casaos.yml` for the CasaOS UI—then run:
 
