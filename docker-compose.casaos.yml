@@ -2,7 +2,7 @@ name: service-dash
 
 services:
   service-dash:
-    image: ghcr.io/cvaghela/service-dash:1.2.1
+    image: ghcr.io/cvaghela/service-dash:1.2.2
     container_name: service-dash
     ports:
       - "8888:80"
@@ -35,15 +35,18 @@ services:
   # Answers one question for nginx: is this browser really signed in to Uptime
   # Kuma? Without it, saving settings would have to trust the browser's word.
   kuma-auth:
-    image: ghcr.io/cvaghela/service-dash-kuma-auth:1.2.1
+    image: ghcr.io/cvaghela/service-dash-kuma-auth:1.2.2
     container_name: service-dash-kuma-auth
     environment:
       # Must point at the same Uptime Kuma as KUMA_PORT above.
       KUMA_URL: "http://host.docker.internal:3001"
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    # Must share a network with service-dash: nginx reaches this by service name.
     networks:
-      - default
+      service-dash-network:
+        aliases:
+          - kuma-auth
     read_only: true
     security_opt:
       - no-new-privileges:true
@@ -56,7 +59,7 @@ services:
     restart: unless-stopped
 
   network-info:
-    image: ghcr.io/cvaghela/service-dash-network-info:1.2.1
+    image: ghcr.io/cvaghela/service-dash-network-info:1.2.2
     container_name: service-dash-network-info
     network_mode: host
     read_only: true
