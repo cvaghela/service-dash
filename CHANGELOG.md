@@ -3,7 +3,7 @@
 All notable changes to Service Dash are recorded here. This project follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.2.0] — 2026-08-25
 
 ### Added
 
@@ -105,5 +105,6 @@ Housekeeping for the first public release. No functional changes to the dashboar
 
 See the [release history](https://github.com/cvaghela/service-dash/releases).
 
+[1.2.0]: https://github.com/cvaghela/service-dash/releases/tag/v1.2.0
 [1.1.1]: https://github.com/cvaghela/service-dash/releases/tag/v1.1.1
 [1.1.0]: https://github.com/cvaghela/service-dash/releases/tag/v1.1.0

@@ -559,7 +559,7 @@ Turning the setting back off leaves the document in the volume untouched and ret
 
 ## Update and rollback
 
-The current release is **1.1.1**; the Compose files in this repository reference the matching `1.1.1` images.
+The current release is **1.2.0**; the Compose files in this repository reference the matching `1.2.0` images.
 
 Download the appropriate Compose file from the desired release—`docker-compose.yml` for standard Docker/ZimaOS or `docker-compose.casaos.yml` for the CasaOS UI—then run:
 

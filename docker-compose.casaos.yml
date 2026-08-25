@@ -2,7 +2,7 @@ name: service-dash
 
 services:
   service-dash:
-    image: ghcr.io/cvaghela/service-dash:1.1.1
+    image: ghcr.io/cvaghela/service-dash:1.2.0
     container_name: service-dash
     ports:
       - "8888:80"
@@ -52,7 +52,7 @@ services:
     restart: unless-stopped
 
   network-info:
-    image: ghcr.io/cvaghela/service-dash-network-info:1.1.1
+    image: ghcr.io/cvaghela/service-dash-network-info:1.2.0
     container_name: service-dash-network-info
     network_mode: host
     read_only: true
