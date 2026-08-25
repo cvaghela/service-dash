@@ -1118,6 +1118,41 @@ const METRIC_GRACE_MS = 20000;
 const _metricLastGood = new Map();
 
 // Records that a reading arrived, starting the grace window for it.
+// The per-poll update paths used to re-query the same handful of elements on
+// every card, every time: the status dot, both endpoint dots, both uptime
+// cells, both link rows and both URL spans. That is a tree walk per card per
+// poll for nodes that never move. They are resolved once, when the card is
+// built, and read from here afterwards.
+const _cardRefs = new Map();
+
+function cacheCardRefs(id, card) {
+    _cardRefs.set(String(id), {
+        card,
+        statusDot: card.querySelector('[data-role="statusDot"]'),
+        localDot: card.querySelector('[data-role="localDot"]'),
+        externalDot: card.querySelector('[data-role="externalDot"]'),
+        localUp: card.querySelector('[data-role="localUp"]'),
+        externalUp: card.querySelector('[data-role="externalUp"]'),
+        localLine: card.querySelector('[data-role="localLine"]'),
+        externalLine: card.querySelector('[data-role="externalLine"]'),
+        localUrlText: card.querySelector('[data-role="localUrlText"]'),
+        externalUrlText: card.querySelector('[data-role="externalUrlText"]'),
+        containerStats: card.querySelector('[data-role="containerStats"]'),
+        containerCpu: card.querySelector('[data-role="containerCpu"]'),
+        containerRam: card.querySelector('[data-role="containerRam"]'),
+    });
+}
+
+// Falls back to resolving on demand, so a card built by any path still works
+// rather than silently losing its updates.
+function cardRefs(id, card) {
+    const hit = _cardRefs.get(String(id));
+    if (hit && hit.card === card) return hit;
+    if (!card) return null;
+    cacheCardRefs(id, card);
+    return _cardRefs.get(String(id));
+}
+
 function markMetricGood(elVal) {
     const key = elVal?.id || elVal?.dataset?.role || null;
     if (key) _metricLastGood.set(key, { at: Date.now() });
@@ -1800,7 +1835,8 @@ async function tickContainerStats() {
 
 function applyContainerStats(service, stats) {
     const card = state.cardElById.get(String(service.id));
-    const row = card?.querySelector('[data-role="containerStats"]');
+    const refs = card ? cardRefs(service.id, card) : null;
+    const row = refs?.containerStats;
     if (!row) return;
 
     if (stats.cpuPct == null && stats.ramMib == null) {
@@ -1811,8 +1847,8 @@ function applyContainerStats(service, stats) {
     // These land every ten seconds on every card that maps to a container.
     // Rewriting an unchanged figure costs a style recalculation on a card that
     // carries a backdrop-filter, which is the periodic shimmer across the grid.
-    const cpuEl = row.querySelector('[data-role="containerCpu"]');
-    const ramEl = row.querySelector('[data-role="containerRam"]');
+    const cpuEl = refs.containerCpu;
+    const ramEl = refs.containerRam;
     if (cpuEl) setTextIfChanged(cpuEl, stats.cpuPct == null ? "—" : `${stats.cpuPct.toFixed(1)}%`);
     // cgroup mem_usage is reported in MiB; scale it like every other figure.
     if (ramEl) setTextIfChanged(ramEl, stats.ramMib == null ? "—" : formatBytes(stats.ramMib * 1024 ** 2));
@@ -1938,8 +1974,9 @@ function markActiveEndpoint(card) {
     if (preferred === "local") active = hasLocal ? "local" : hasExternal ? "external" : "";
     else active = hasExternal ? "external" : hasLocal ? "local" : "";
 
+    const refs = cardRefs(card.dataset.id, card);
     for (const kind of ["local", "external"]) {
-        const row = card.querySelector(`[data-role="${kind}Line"]`);
+        const row = kind === "local" ? refs.localLine : refs.externalLine;
         if (!row) continue;
         setDataIfChanged(row, "active", String(active === kind));
         setTitleIfChanged(row, active === kind ? "Clicking the card opens this link" : "");
@@ -3382,6 +3419,7 @@ function buildDomOnceIfNeeded() {
     if (state.domBuilt) return;
     els.groups.innerHTML = "";
     state.cardElById.clear();
+    _cardRefs.clear();
 
     // Flat grid (no category/group sections)
     const cardsEl = document.createElement("div");
@@ -3585,6 +3623,9 @@ function buildDomOnceIfNeeded() {
         wrap.appendChild(editButton);
         cardsEl.appendChild(wrap);
         state.cardElById.set(s.id, card);
+        // Cached after the unused endpoint rows are removed just above, so the
+        // cache never holds a detached node.
+        cacheCardRefs(s.id, card);
     }
 
     state.domBuilt = true;
@@ -3669,8 +3710,9 @@ function updateCardUrlsInPlace() {
         s._localUrl = localUrl || "";
         s._externalUrl = extUrl || "";
 
-        const localText = card.querySelector('[data-role="localUrlText"]');
-        const extText = card.querySelector('[data-role="externalUrlText"]');
+        const refs = cardRefs(s.id, card);
+        const localText = refs.localUrlText;
+        const extText = refs.externalUrlText;
 
         // Signed in with nothing to show is not the same as locked: the monitor
         // simply has no URL, and saying "locked" would send someone looking for
@@ -3717,24 +3759,21 @@ function updateStatusesInPlace() {
         // the card, and .card carries a backdrop-filter, so a whole grid of
         // pointless writes is seen as every card flickering at once.
 
+        const refs = cardRefs(s.id, card);
+
         // Big dot (overall)
-        const dot = card.querySelector('[data-role="statusDot"]');
-        if (dot) {
-            setDataIfChanged(dot, "status", s.status);
-            setTitleIfChanged(dot, s.status[0].toUpperCase() + s.status.slice(1));
+        if (refs.statusDot) {
+            setDataIfChanged(refs.statusDot, "status", s.status);
+            setTitleIfChanged(refs.statusDot, s.status[0].toUpperCase() + s.status.slice(1));
         }
 
         // Local row
-        setDataIfChanged(card.querySelector('[data-role="localDot"]'), "status", localStatus);
-
-        const lup = card.querySelector('[data-role="localUp"]');
-        if (lup) setTextIfChanged(lup, localUp == null ? "—" : `${Number(localUp).toFixed(1)}%`);
+        setDataIfChanged(refs.localDot, "status", localStatus);
+        if (refs.localUp) setTextIfChanged(refs.localUp, localUp == null ? "—" : `${Number(localUp).toFixed(1)}%`);
 
         // External row
-        setDataIfChanged(card.querySelector('[data-role="externalDot"]'), "status", extStatus);
-
-        const eup = card.querySelector('[data-role="externalUp"]');
-        if (eup) setTextIfChanged(eup, extUp == null ? "—" : `${Number(extUp).toFixed(1)}%`);
+        setDataIfChanged(refs.externalDot, "status", extStatus);
+        if (refs.externalUp) setTextIfChanged(refs.externalUp, extUp == null ? "—" : `${Number(extUp).toFixed(1)}%`);
 
 
     }
@@ -4331,6 +4370,7 @@ async function pollOnce(showToast) {
             state.kumaConnected = true;
             state.domBuilt = false;
             state.cardElById.clear();
+            _cardRefs.clear();
                     els.groups.innerHTML = "";
             els.kumaConn.textContent = "CONNECTED";
             els.kumaConn.style.color = "var(--online)";
@@ -4652,14 +4692,24 @@ scrollBtn.addEventListener("click", () => {
         renderCalendar(viewDate);
     });
 
+    // Built once. Constructing an Intl formatter loads locale data, and this
+    // runs once a second for a string that changes once a minute.
+    const clockFormat = new Intl.DateTimeFormat(undefined, {
+        hour: "numeric",
+        minute: "2-digit",
+    });
+    const dateFormat = new Intl.DateTimeFormat(undefined, {
+        weekday: "long",
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+    });
+
     function updateClock() {
         const now = new Date();
 
         // Build localized parts so AM/PM works and hides in 24h locales
-        const parts = new Intl.DateTimeFormat(undefined, {
-            hour: "numeric",
-            minute: "2-digit",
-        }).formatToParts(now);
+        const parts = clockFormat.formatToParts(now);
 
         const hour = parts.find((p) => p.type === "hour")?.value ?? "";
         const minute = parts.find((p) => p.type === "minute")?.value ?? "";
@@ -4679,31 +4729,26 @@ scrollBtn.addEventListener("click", () => {
                 clockTimeEl.classList.remove("minute-changed");
                 void clockTimeEl.offsetWidth; // reflow to restart keyframes
             }
-            clockTimeEl.textContent = timeStr;
+            if (clockTimeEl.textContent !== timeStr) clockTimeEl.textContent = timeStr;
             if (minuteChanged) clockTimeEl.classList.add("minute-changed");
         } else if (clockEl) {
             // fallback if you still reference clockEl somewhere
-            clockEl.textContent = timeStr;
+            if (clockEl.textContent !== timeStr) clockEl.textContent = timeStr;
         }
 
-        // Set AM/PM (hide if not provided, e.g., 24h locale)
+        // Set AM/PM (hide if not provided, e.g., 24h locale). Guarded like the
+        // time itself: this ran every second for a value that changes twice a
+        // day at most.
         if (clockMeridiemEl) {
-            if (!dayPeriod) {
-                clockMeridiemEl.textContent = "";
-                clockMeridiemEl.classList.add("is-hidden");
-            } else {
-                clockMeridiemEl.textContent = dayPeriod;
-                clockMeridiemEl.classList.remove("is-hidden");
-            }
+            const meridiem = dayPeriod || "";
+            if (clockMeridiemEl.textContent !== meridiem) clockMeridiemEl.textContent = meridiem;
+            clockMeridiemEl.classList.toggle("is-hidden", !dayPeriod);
         }
 
-        // Current date (unchanged)
-        dateEl.textContent = now.toLocaleDateString(undefined, {
-            weekday: "long",
-            year: "numeric",
-            month: "long",
-            day: "numeric",
-        });
+        // Current date. Same treatment: one formatter, and only written when
+        // the day actually turns over.
+        const dateStr = dateFormat.format(now);
+        if (dateEl.textContent !== dateStr) dateEl.textContent = dateStr;
     }
 
     function renderCalendar(date) {
@@ -4751,6 +4796,47 @@ scrollBtn.addEventListener("click", () => {
     updateClock();
     renderCalendar(viewDate);
     setInterval(updateClock, 1000);
+
+    // A homelab box with no route to fonts.gstatic.com would otherwise show
+    // every icon as its ligature word: "stacked_line_chart" in the middle of a
+    // heading. document.fonts.check() is no use here -- it reports true as soon
+    // as the text can be rendered in *some* font, which a fallback always can.
+    //
+    // Measure the ligature instead. With the icon font active, "settings"
+    // collapses to one glyph and is narrow; without it, eight characters are
+    // laid out in the fallback and the width matches the fallback exactly.
+    (async () => {
+        try {
+            if (!document.fonts) return;
+            await document.fonts.ready;
+
+            const measure = (family) => {
+                const probe = document.createElement("span");
+                probe.textContent = "settings";
+                probe.setAttribute("aria-hidden", "true");
+                probe.style.cssText =
+                    "position:absolute;left:-9999px;top:-9999px;visibility:hidden;" +
+                    "white-space:nowrap;font-size:48px;font-feature-settings:'liga';";
+                probe.style.fontFamily = family;
+                document.body.appendChild(probe);
+                const width = probe.getBoundingClientRect().width;
+                probe.remove();
+                return width;
+            };
+
+            // Same fallback in both, so any difference is the icon face itself.
+            const withIcons = measure('"Material Symbols Rounded", monospace');
+            const fallbackOnly = measure("monospace");
+
+            // A rendered ligature is dramatically narrower than eight glyphs.
+            // Identical widths mean the icon face never applied.
+            if (Math.abs(withIcons - fallbackOnly) > 1) return;
+
+            document.documentElement.classList.add("icons-unavailable");
+        } catch {
+            // Leave the icons alone: unchanged behaviour is the safe default.
+        }
+    })();
 })();
 
 function initMobileTopbarToggle() {

@@ -3536,3 +3536,35 @@ body.mobile-topbar-open .mobile-menu-icon span:nth-child(3) {
 .data-source-badge[data-state="offline"] {
     color: var(--offline);
 }
+
+/* Material Symbols are styled entirely by Google's stylesheet, so a host that
+   cannot reach fonts.googleapis.com gets no rule at all and every icon renders
+   as its raw ligature text -- "stacked_line_chart" sitting in the middle of a
+   panel heading. Declaring the family here keeps the icons correct whenever the
+   font file is available, and .icons-unavailable, set from script only when the
+   face genuinely failed to load, collapses them instead of showing the words.
+   Every one of these spans is aria-hidden, so hiding them costs nothing a
+   screen reader needed. */
+.material-symbols-rounded {
+    /* This file loads after Google's stylesheet and matches its selector, so
+       anything declared here overrides theirs. Only the structural resets are
+       repeated -- deliberately no font-variation-settings and no font-weight,
+       which are the axes the hosted stylesheet instances from the request in
+       index.html, and restating them here would quietly change how every icon
+       is weighted. */
+    font-family: "Material Symbols Rounded";
+    font-style: normal;
+    line-height: 1;
+    text-transform: none;
+    display: inline-block;
+    white-space: nowrap;
+    direction: ltr;
+    font-feature-settings: "liga";
+    -webkit-font-feature-settings: "liga";
+}
+.icons-unavailable .material-symbols-rounded {
+    /* Collapses the glyph box to nothing. The class is only ever set after the
+       font has definitively failed, so there is no late arrival to shift. */
+    font-size: 0 !important;
+    overflow: hidden;
+}

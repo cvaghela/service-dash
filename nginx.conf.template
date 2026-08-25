@@ -14,6 +14,14 @@ server {
     location = /healthz {
         access_log off;
         add_header Content-Type text/plain;
+        # Repeated rather than inherited: add_header only cascades from an
+        # enclosing block, and these locations are siblings of "location /",
+        # not children of it. A block that sets any add_header of its own also
+        # drops everything it would otherwise have inherited. Verified against
+        # nginx directly -- without these lines this response carries no
+        # security headers at all.
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header Referrer-Policy "no-referrer" always;
         return 200 "ok\n";
     }
 
@@ -21,6 +29,8 @@ server {
         try_files $uri =404;
         add_header Cache-Control "no-store";
         expires -1;
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header Referrer-Policy "no-referrer" always;
     }
 
     location = /docker-metadata/networks {
@@ -29,6 +39,8 @@ server {
         proxy_set_header Host $proxy_host;
         proxy_read_timeout 5s;
         add_header Cache-Control "no-store";
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header Referrer-Policy "no-referrer" always;
     }
 
     location /docker-metadata/networks/ {
@@ -37,6 +49,8 @@ server {
         proxy_set_header Host $proxy_host;
         proxy_read_timeout 5s;
         add_header Cache-Control "no-store";
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header Referrer-Policy "no-referrer" always;
     }
 
     # Settings are readable by anyone who can reach the dashboard, and writable
@@ -62,6 +76,8 @@ server {
         client_max_body_size 256k;
 
         add_header Cache-Control "no-store";
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header Referrer-Policy "no-referrer" always;
     }
 
     # Reachable only as an auth_request subrequest, never from outside. A
@@ -91,6 +107,8 @@ server {
         alias /var/run/network-info/status.json;
         default_type application/json;
         add_header Cache-Control "no-store";
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header Referrer-Policy "no-referrer" always;
     }
 
     location = /kuma {
@@ -159,6 +177,8 @@ server {
 
         default_type application/json;
         add_header Cache-Control "public, max-age=86400";
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header Referrer-Policy "no-referrer" always;
     }
 
     location /assets/ {
@@ -166,12 +186,16 @@ server {
         access_log off;
         expires 7d;
         add_header Cache-Control "public, max-age=604800";
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header Referrer-Policy "no-referrer" always;
     }
 
     location /samples/ {
         try_files $uri =404;
         access_log off;
         expires 1h;
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header Referrer-Policy "no-referrer" always;
     }
 
     location / {
