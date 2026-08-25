@@ -662,12 +662,25 @@ async function copyNetworkAddress(element, label) {
 }
 
 async function updateNetworkAddresses() {
+    // Locked like the service URLs: the request is not made at all until you
+    // are signed in, so the addresses never reach this browser to be read out
+    // of the page.
+    if (!state.socketAuthed) {
+        applyLockedValue(els.lan, null, "Sign in to Uptime Kuma to reveal the LAN address");
+        applyLockedValue(els.wan, null, "Sign in to Uptime Kuma to reveal the public IP");
+        delete els.lan?.dataset.copyIp;
+        delete els.wan?.dataset.copyIp;
+        return;
+    }
+
     if (els.lan) {
+        els.lan.classList.remove("is-locked");
         els.lan.textContent = "detecting…";
         delete els.lan.dataset.copyIp;
         els.lan.title = "Reading the ZimaOS host network";
     }
     if (els.wan) {
+        els.wan.classList.remove("is-locked");
         els.wan.textContent = "detecting…";
         delete els.wan.dataset.copyIp;
         els.wan.title = "Looking up the ZimaOS public IP";
@@ -2820,6 +2833,11 @@ function setUrlState(label) {
 function updateAuthButtons() {
     const authed = !!state.socketAuthed;
 
+    // Signing in reveals the addresses; signing out hides them again, without
+    // waiting for the next poll.
+    updateNetworkAddresses();
+    if (state.domBuilt) updateCardUrlsInPlace();
+
     // Show Logout only when authenticated
     els.btnLogout.style.display = authed ? "flex" : "none";
 
@@ -3325,13 +3343,13 @@ function buildDomOnceIfNeeded() {
                 <div class="linkLine" data-role="localLine">
                   <span class="miniDot" data-role="localDot" data-status="pending"></span>
                   <span class="linkBadge">Local</span>
-                  <span class="linkUrl" data-role="localUrlText">URL locked 🔒</span>
+                  <span class="linkUrl is-locked" data-role="localUrlText" aria-label="Hidden until you sign in to Uptime Kuma">••••••••••••</span>
                   <span class="linkMeta" data-role="localUp">—</span>
                 </div>
                 <div class="linkLine" data-role="externalLine">
                   <span class="miniDot" data-role="externalDot" data-status="pending"></span>
                   <span class="linkBadge">External</span>
-                  <span class="linkUrl" data-role="externalUrlText">URL locked 🔒</span>
+                  <span class="linkUrl is-locked" data-role="externalUrlText" aria-label="Hidden until you sign in to Uptime Kuma">••••••••••••</span>
                   <span class="linkMeta" data-role="externalUp">—</span>
                 </div>
               </div>
@@ -3483,6 +3501,25 @@ function buildDomOnceIfNeeded() {
     state.domBuilt = true;
 }
 
+// Anything only a signed-in user should read — service URLs, and the host's
+// LAN and WAN addresses — renders as a blurred mask until then. The real value
+// is never written into the DOM while locked: the blur is how it looks, not
+// what protects it, and a blurred string sitting in the markup would protect
+// nothing at all.
+const LOCKED_MASK = "••••••••••••";
+
+function applyLockedValue(el, value, lockedTitle, unlockedTitle) {
+    if (!el) return;
+
+    const locked = !value;
+    el.textContent = locked ? LOCKED_MASK : value;
+    el.classList.toggle("is-locked", locked);
+    // Blur says nothing to a screen reader, so the state is stated outright.
+    el.setAttribute("aria-label", locked ? "Hidden until you sign in to Uptime Kuma" : String(value));
+    el.title = locked ? lockedTitle : unlockedTitle || String(value);
+    return !locked;
+}
+
 function updateCardUrlsInPlace() {
     for (const s of state.services) {
         const card = state.cardElById.get(String(s.id));
@@ -3509,8 +3546,8 @@ function updateCardUrlsInPlace() {
         const localText = card.querySelector('[data-role="localUrlText"]');
         const extText = card.querySelector('[data-role="externalUrlText"]');
 
-        if (localText) localText.textContent = localUrl ? localUrl : "URL locked 🔒";
-        if (extText) extText.textContent = extUrl ? extUrl : "URL locked 🔒";
+        applyLockedValue(localText, localUrl, "Sign in to Uptime Kuma to reveal this URL");
+        applyLockedValue(extText, extUrl, "Sign in to Uptime Kuma to reveal this URL");
 
         markActiveEndpoint(card);
     }
