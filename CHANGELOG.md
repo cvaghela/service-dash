@@ -3,6 +3,25 @@
 All notable changes to Service Dash are recorded here. This project follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **The icon picker now searches the whole selfh.st catalogue** — around 2,900 icons rather than the 48 built in — and
+  automatic matching uses it too, so a service the curated list never knew about (Frigate, Scrypted, and most of what a
+  homelab actually runs) gets its real icon. The index is proxied at `/icon-index` so the page keeps `connect-src
+  'self'`, cached for a day, and a host with no internet falls back to the built-in list.
+
+### Fixed
+
+- **CPU, RAM and load now appear immediately instead of waiting for chart discovery.** Every page load re-read the
+  host's entire Netdata chart list, and the whole metrics panel stayed blank until that finished — on a busy host,
+  several seconds, every refresh. Those three feeds do not depend on discovery, so they are painted on the first tick;
+  storage and network still wait, rather than briefly showing the wrong volume or interface.
+- **A saved network interface that no longer exists falls back to Auto.** When a container is recreated its `veth`
+  interface disappears; the dropdown reset itself but the poller kept requesting the dead chart, so the network panel
+  stayed broken and Netdata logged a 404 every two seconds.
+
 ## [1.2.0] — 2026-08-25
 
 ### Added

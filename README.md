@@ -210,6 +210,10 @@ All installation settings live directly in the Compose file used for the install
 | `SHARED_SETTINGS` | `on` shares card settings, filters and notes across every browser and device. See **Shared settings** below | `off` |
 | `SHARED_SETTINGS_USER` | Username required to save a change when `SHARED_SETTINGS` is `on` | `dashboard` |
 | `SHARED_SETTINGS_PASSWORD_FILE` | Path to a file holding the password. Required when `SHARED_SETTINGS` is `on`; the container refuses to start without it | `/run/secrets/settings_password` |
+
+The dashboard also proxies the icon catalogue at `/icon-index`; nothing to configure, but it does mean the container
+makes one outbound request a day to `cdn.jsdelivr.net`. Without internet access the picker falls back to its built-in
+list and cards fall back to monograms.
 | `NETWORK_INFO_REFRESH_SECONDS` | How often the LAN route and WAN address are re-read. Set on the `network-info` service, and required — the helper exits if it is removed | `600` |
 
 ### Container CPU and RAM
@@ -304,7 +308,12 @@ should be served over HTTPS or bind-mounted into the container instead.
 Service cards show a real application logo from [selfh.st/icons](https://github.com/selfhst/icons), matched automatically
 from the service name — `Radarr` finds the Radarr logo, `Home Assistant` finds Home Assistant, and so on.
 
-Icons load from `https://cdn.jsdelivr.net/gh/selfhst/icons/png/`. Any card whose service has no match, or whose icon fails
+Icons load from `https://cdn.jsdelivr.net/gh/selfhst/icons/png/`, and the dashboard searches the **full selfh.st
+catalogue** — around 2,900 icons — not a fixed list. The catalogue index is proxied through the dashboard at
+`/icon-index` rather than fetched by the browser, which is what lets the page keep `connect-src 'self'` in its
+Content-Security-Policy. It is cached for a day, and a host with no internet simply falls back to the built-in list.
+
+Any card whose service has no match, or whose icon fails
 to load for any reason, shows a monogram instead: the service's initials over a gradient keyed to its name, so every card
 stays distinguishable. The monogram is drawn in the browser rather than fetched, so it works on a host with no internet
 access and can never itself fail to load.

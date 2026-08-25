@@ -1533,16 +1533,29 @@ async function tickNetdata() {
     if (_netdataTickInFlight) return;
     _netdataTickInFlight = true;
     try {
-        await initNetdataCharts();
+        // Discovery reads the host's whole chart list, which on a busy host is
+        // slow — and it runs again on every page load. CPU, RAM and load do not
+        // depend on it: their chart ids are right by default. So start discovery
+        // without waiting for it, and paint those three on the first tick
+        // instead of leaving the panel blank until the list arrives.
+        const discovery = initNetdataCharts().catch(() => {});
+        if (_netdataChartsReady) await discovery;
+
+        // Storage, network and the optional sensors DO depend on discovery —
+        // reading them early would show the wrong volume or interface for a
+        // moment. They fill in on the next tick.
+        const discovered = _netdataChartsReady;
 
         const results = await Promise.allSettled([
             fetchNetdataChartOnce(ND_CHART_CPU),
             fetchNetdataChartOnce(ND_CHART_RAM),
-            fetchSelectedDiskBundle(),
-            fetchNetdataChartOnce(_netSelectedChart === "auto" ? ND_CHART_NET : _netSelectedChart),
+            discovered ? fetchSelectedDiskBundle() : Promise.resolve(null),
+            discovered
+                ? fetchNetdataChartOnce(_netSelectedChart === "auto" ? ND_CHART_NET : _netSelectedChart)
+                : Promise.resolve(null),
             fetchNetdataChartOnce(ND_CHART_LOAD),
-            ND_CHART_CPU_POWER ? fetchNetdataChartOnce(ND_CHART_CPU_POWER) : Promise.resolve(null),
-            ND_CHART_CPU_TEMP ? fetchNetdataChartOnce(ND_CHART_CPU_TEMP) : Promise.resolve(null),
+            discovered && ND_CHART_CPU_POWER ? fetchNetdataChartOnce(ND_CHART_CPU_POWER) : Promise.resolve(null),
+            discovered && ND_CHART_CPU_TEMP ? fetchNetdataChartOnce(ND_CHART_CPU_TEMP) : Promise.resolve(null),
         ]);
 
         const rawValues = results.map((result) => (result.status === "fulfilled" ? result.value : null));
@@ -1581,7 +1594,9 @@ async function tickNetdata() {
 
         window.__netdata.last = {
             ok: true,
-            status: `${liveCount}/5 fresh metric feeds`,
+            status: _netdataChartsReady
+                ? `${liveCount}/5 fresh metric feeds`
+                : `${liveCount}/5 fresh metric feeds (discovering charts)`,
             at: new Date().toISOString(),
             error: null,
             samples: Object.fromEntries(
@@ -2064,8 +2079,19 @@ function populateNetIfaceSelect() {
     }
 
     // Apply saved value if it exists in list
+    // A saved interface can vanish — a container's veth goes away with it. The
+    // dropdown used to fall back to Auto while the poller kept requesting the
+    // dead chart, so the panel sat broken and Netdata logged a 404 every tick.
     const exists = _netSelectedChart === "auto" || _netChartChoices.some((c) => c.id === _netSelectedChart);
-    els.netIface.value = exists ? _netSelectedChart : "auto";
+    if (!exists) {
+        _netSelectedChart = "auto";
+        // Corrected locally only: a passive viewer should not be asked to sign
+        // in just because an interface disappeared.
+        try {
+            localStorage.setItem("netIface", "auto");
+        } catch {}
+    }
+    els.netIface.value = _netSelectedChart;
 
     els.netIface.addEventListener(
         "change",
@@ -2167,6 +2193,105 @@ function iconUrlForSlug(slug) {
 }
 
 /* =========================
+        ICON CATALOGUE
+========================= */
+// The list above is a curated head: it carries the aliases automatic matching
+// needs ("hass", "npm") and decides precedence. The full selfh.st catalogue is
+// ~2,900 icons, far more than any list worth hand-maintaining, so it is fetched
+// at runtime and searched alongside. nginx proxies it at /icon-index, which is
+// what keeps the page's connect-src on 'self'.
+const ICON_INDEX_URL = "/icon-index";
+const ICON_INDEX_CACHE_KEY = "iconIndex";
+const ICON_INDEX_TTL_MS = 24 * 60 * 60 * 1000;
+
+let ICON_INDEX = [];
+let _iconIndexPromise = null;
+
+function readCachedIconIndex() {
+    try {
+        const cached = JSON.parse(localStorage.getItem(ICON_INDEX_CACHE_KEY) || "null");
+        if (!cached || !Array.isArray(cached.entries)) return null;
+        if (!(Date.now() - Number(cached.savedAt) < ICON_INDEX_TTL_MS)) return null;
+        return cached.entries;
+    } catch {
+        return null;
+    }
+}
+
+function adoptIconIndex(entries) {
+    // Anything already in the curated list keeps its entry, so its aliases and
+    // ordering win over the generic catalogue row for the same icon.
+    const curated = new Set(SERVICE_ICONS.map((entry) => entry.slug));
+    ICON_INDEX = entries.filter((entry) => entry.slug && entry.label && !curated.has(entry.slug));
+    return ICON_INDEX;
+}
+
+// Called when the icon editor opens and once at startup. Never blocks anything:
+// a host with no internet keeps the curated list and the monograms.
+function loadIconIndex() {
+    if (_iconIndexPromise) return _iconIndexPromise;
+
+    const cached = readCachedIconIndex();
+    if (cached) {
+        adoptIconIndex(cached);
+        _iconIndexPromise = Promise.resolve(ICON_INDEX);
+        return _iconIndexPromise;
+    }
+
+    _iconIndexPromise = (async () => {
+        try {
+            const res = await fetch(ICON_INDEX_URL, { cache: "no-store" });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+            const payload = await res.json();
+            if (!Array.isArray(payload)) throw new Error("icon index is not a list");
+
+            const entries = payload
+                .filter((row) => row && row.PNG === "Yes")
+                .map((row) => ({ label: safeStr(row.Name).trim(), slug: safeStr(row.Reference).trim() }))
+                .filter((entry) => entry.label && entry.slug);
+
+            adoptIconIndex(entries);
+            try {
+                localStorage.setItem(
+                    ICON_INDEX_CACHE_KEY,
+                    JSON.stringify({ savedAt: Date.now(), entries })
+                );
+            } catch {}
+
+            return ICON_INDEX;
+        } catch (error) {
+            console.info("Icon catalogue unavailable; using the built-in list", error);
+            return [];
+        }
+    })();
+
+    return _iconIndexPromise;
+}
+
+// Cards render before the catalogue arrives, so any that fell back to a
+// monogram get another chance once it does. Cards with a real icon are left
+// alone — re-rendering them would flicker for no reason.
+function refreshMonogramCards() {
+    if (!ICON_INDEX.length || !state.services?.length) return;
+
+    for (const service of state.services) {
+        const card = state.cardElById.get(String(service.id));
+        const img = card?.querySelector(".svcIconImg");
+        if (!img || img.dataset.fallbackApplied !== "true") continue;
+        if (!serviceIconUrl(service.name)) continue;
+        renderCardIcon(card, service.name);
+    }
+}
+
+function indexIconEntryFor(name) {
+    if (!ICON_INDEX.length) return null;
+    const wanted = normalizeForMatch(baseServiceKey(name));
+    if (!wanted) return null;
+    return ICON_INDEX.find((entry) => normalizeForMatch(entry.label) === wanted) || null;
+}
+
+/* =========================
         MONOGRAM ICONS
 ========================= */
 // The last-resort icon for a card, drawn rather than fetched: the service's
@@ -2221,9 +2346,12 @@ function monogramIcon(name) {
     return uri;
 }
 
-// The catalogue entry a name matches on its own, before any override.
+// The catalogue entry a name matches on its own, before any override. The
+// curated list is checked first because its patterns encode aliases the plain
+// catalogue name cannot ("hass", "npm"); the full catalogue then covers
+// everything else, which is most of what a homelab actually runs.
 function serviceIconEntryFor(name) {
-    return SERVICE_ICONS.find((entry) => entry.regex.test(safeStr(name))) || null;
+    return SERVICE_ICONS.find((entry) => entry.regex.test(safeStr(name))) || indexIconEntryFor(name) || null;
 }
 
 // The icon this service would get with no override at all.
@@ -2244,7 +2372,7 @@ function searchIconCatalog(query) {
     if (!q) return [];
 
     const scored = [];
-    for (const entry of SERVICE_ICONS) {
+    for (const entry of [...SERVICE_ICONS, ...ICON_INDEX]) {
         const label = entry.label.toLowerCase();
         const slug = entry.slug.toLowerCase();
 
@@ -2252,10 +2380,11 @@ function searchIconCatalog(query) {
         if (label === q || slug === q) score = 100;
         else if (label.startsWith(q) || slug.startsWith(q)) score = 80;
         else if (label.includes(q) || slug.includes(q)) score = 60;
-        else if (entry.regex.test(q)) score = 40;
+        else if (entry.regex && entry.regex.test(q)) score = 40;
         else continue;
 
-        scored.push({ entry, score });
+        // A curated entry outranks the catalogue row it duplicates.
+        scored.push({ entry, score: entry.regex ? score + 5 : score });
     }
 
     return scored
@@ -3738,6 +3867,7 @@ function openIconEditor(service) {
 
     // An automatic match is shown by name rather than by URL: that is what the
     // picker reads, and it resolves back to the same icon on save.
+    loadIconIndex();
     _iconEditAutoLabel = current.source === "auto" ? (serviceIconEntryFor(service.name)?.label ?? "") : null;
     _iconPickedLabel = null;
     closeIconSuggest();
@@ -4132,6 +4262,10 @@ async function initialLoad() {
     // Everything above replayed stored state; from here on, a save means
     // somebody changed something.
     _sharedSettingsReady = true;
+
+    // Fetched in the background: cards are already on screen, and any showing a
+    // monogram are re-checked once the catalogue lands.
+    loadIconIndex().then(refreshMonogramCards);
 
     // Sidebar metrics: Netdata (preferred) with graceful fallback to mock animation.
     // A hidden tab cannot show the values, so skip the 2s poll while backgrounded
