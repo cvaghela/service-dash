@@ -39,6 +39,11 @@ const PORT = Number(process.env.PORT || 2371);
 const CACHE_TTL_MS = Math.max(0, Number(process.env.CACHE_TTL_SECONDS || 60)) * 1000;
 const VALIDATE_TIMEOUT_MS = Math.max(1000, Number(process.env.VALIDATE_TIMEOUT_MS || 5000));
 const TOKEN_HEADER = "x-kuma-token";
+// nginx checks every request to the settings document, because auth_request
+// cannot be made conditional. It forwards the caller's real method here so
+// reads stay open and only writes have to prove anything.
+const METHOD_HEADER = "x-original-method";
+const OPEN_METHODS = new Set(["GET", "HEAD"]);
 
 if (!KUMA_URL) {
     console.error("KUMA_URL is required, for example http://host.docker.internal:3001");
@@ -138,6 +143,13 @@ const server = http.createServer(async (req, res) => {
 
     if (path !== "/validate") {
         res.writeHead(404).end();
+        return;
+    }
+
+    // Reading the settings is open, exactly as reading the dashboard is.
+    const originalMethod = String(req.headers[METHOD_HEADER] || "").toUpperCase();
+    if (OPEN_METHODS.has(originalMethod)) {
+        res.writeHead(204).end();
         return;
     }
 

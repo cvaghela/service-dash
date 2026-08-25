@@ -25,9 +25,6 @@ const RUNTIME_CONFIG = window.__DASHBOARD_CONFIG__ || {};
 const KUMA_BASE = "/kuma";
 const STATUS_SLUG = String(RUNTIME_CONFIG.statusSlug || "homelab");
 const STORAGE_MOUNT = String(RUNTIME_CONFIG.storageMount || "auto").trim();
-// Per-service icon overrides from SERVICE_ICONS in the Compose file. These are
-// the server-wide default; anything the user sets in the browser beats them.
-const ICON_OVERRIDES = parseIconOverrides(RUNTIME_CONFIG.iconOverrides);
 const ICON_STORAGE_KEY = "serviceIcons";
 let BROWSER_ICON_OVERRIDES = loadBrowserIconOverrides();
 const POLL_MS = 15000;
@@ -239,6 +236,9 @@ const state = {
     socket: null,
     socketReady: false,
     socketAuthed: false,
+    // The Uptime Kuma session token, held in memory unless the user asked to be
+    // remembered. It is what proves a settings write is allowed.
+    kumaToken: "",
     monitorById: {},
 
     // derived
@@ -267,12 +267,6 @@ const els = {
     iconPreview: document.getElementById("iconPreview"),
     iconStatus: document.getElementById("iconStatus"),
     iconSuggest: document.getElementById("iconSuggest"),
-    settingsAuthOverlay: document.getElementById("settingsAuthOverlay"),
-    settingsAuthUser: document.getElementById("settingsAuthUser"),
-    settingsAuthPass: document.getElementById("settingsAuthPass"),
-    settingsAuthStatus: document.getElementById("settingsAuthStatus"),
-    btnSettingsAuthSave: document.getElementById("btnSettingsAuthSave"),
-    btnSettingsAuthCancel: document.getElementById("btnSettingsAuthCancel"),
     containerPicker: document.getElementById("containerPicker"),
     containerSummary: document.getElementById("containerSummary"),
     containerOptions: document.getElementById("containerOptions"),
@@ -2162,36 +2156,22 @@ function iconFor(category) {
     return CATEGORY_META[category]?.icon || "✨";
 }
 
-function parseIconOverrides(raw) {
-    const overrides = new Map();
-    let source = raw;
-
-    if (typeof source === "string") {
-        try {
-            source = JSON.parse(source || "{}");
-        } catch (error) {
-            // Never let a typo in Compose take the dashboard down with it.
-            console.warn("SERVICE_ICONS is not valid JSON; ignoring icon overrides", error);
-            return overrides;
-        }
-    }
-
-    if (source && typeof source === "object") {
-        for (const [service, url] of Object.entries(source)) {
-            overrides.set(safeStr(service).trim().toLowerCase(), safeStr(url).trim());
-        }
-    }
-
-    return overrides;
-}
-
 function loadBrowserIconOverrides() {
+    const overrides = new Map();
+
     try {
         const stored = JSON.parse(localStorage.getItem(ICON_STORAGE_KEY) || "{}");
-        return parseIconOverrides(stored);
+        if (!stored || typeof stored !== "object") return overrides;
+
+        for (const [service, url] of Object.entries(stored)) {
+            // "" is a real value: it pins a card to its monogram.
+            overrides.set(safeStr(service).trim().toLowerCase(), safeStr(url).trim());
+        }
     } catch {
         return new Map();
     }
+
+    return overrides;
 }
 
 function saveBrowserIconOverrides() {
@@ -2427,9 +2407,6 @@ function iconOverrideFor(name) {
     const browser = BROWSER_ICON_OVERRIDES.get(key) ?? BROWSER_ICON_OVERRIDES.get(baseKey);
     if (browser !== undefined) return { source: "browser", url: browser };
 
-    const configured = ICON_OVERRIDES.get(key) ?? ICON_OVERRIDES.get(baseKey);
-    if (configured !== undefined) return { source: "compose", url: configured };
-
     return { source: "auto", url: autoServiceIconUrl(name) };
 }
 
@@ -2482,56 +2459,23 @@ const SHARED_SETTINGS_URL = "/settings/state.json";
 // them and are never written to a document other devices can read.
 const SHARED_KEYS = ["serviceDashPrefs", "serviceIcons", "serviceContainers", "storageMounts", "netIface"];
 const SHARED_SAVE_DEBOUNCE_MS = 1200;
-// Writing the shared document is authenticated; reading it is not. The
-// credential lives in this browser and is deliberately absent from SHARED_KEYS
-// above — sending it to a document every other device can read would defeat the
-// point of asking for it.
-const SETTINGS_AUTH_KEY = "settingsAuth";
+// Writing the shared document is authenticated; reading it is not. There is no
+// separate password: the Uptime Kuma session already proves who you are, and
+// nginx checks the token with Kuma before allowing the write. The token stays
+// in this browser and is never written into the document every device reads.
+const SETTINGS_TOKEN_HEADER = "X-Kuma-Token";
 
+// Whether the deployment serves a settings document at all.
 let _sharedSettingsAvailable = false;
+// A failed write warns once, not once per keystroke.
 let _sharedSettingsWarned = false;
 let _sharedSaveTimer = null;
+// Likewise for the nudge to sign in.
 let _settingsAuthPrompted = false;
-// Boot applies the theme, accent and preferences it just read, and each of
-// those calls savePrefs(). Mirroring that straight back would write the
-// document nobody changed — and, now that writing is authenticated, would ask
-// every read-only visitor for a password just for opening the page.
+// Boot replays stored state and calls the same save paths; nothing is written
+// back until it has finished, so a read-only visitor is never nudged to sign in
+// merely for opening the page.
 let _sharedSettingsReady = false;
-
-function loadSettingsAuth() {
-    try {
-        const stored = JSON.parse(localStorage.getItem(SETTINGS_AUTH_KEY) || "null");
-        if (!stored || typeof stored.user !== "string" || typeof stored.pass !== "string") return null;
-        return stored;
-    } catch {
-        return null;
-    }
-}
-
-function saveSettingsAuth(user, pass) {
-    try {
-        localStorage.setItem(SETTINGS_AUTH_KEY, JSON.stringify({ user, pass }));
-    } catch {}
-}
-
-function clearSettingsAuth() {
-    try {
-        localStorage.removeItem(SETTINGS_AUTH_KEY);
-    } catch {}
-}
-
-function settingsAuthHeader() {
-    const auth = loadSettingsAuth();
-    if (!auth) return null;
-    try {
-        // btoa handles Latin-1 only, so widen to bytes first and a non-ASCII
-        // password still produces a valid header.
-        const bytes = new TextEncoder().encode(`${auth.user}:${auth.pass}`);
-        return `Basic ${btoa(String.fromCharCode(...bytes))}`;
-    } catch {
-        return null;
-    }
-}
 
 function collectSharedSettings() {
     const values = {};
@@ -2560,8 +2504,6 @@ function applySharedSettings(payload) {
 }
 
 async function loadSharedSettings() {
-    if (!RUNTIME_CONFIG.sharedSettings) return false;
-
     try {
         const res = await fetch(SHARED_SETTINGS_URL, { cache: "no-store" });
 
@@ -2599,8 +2541,7 @@ async function saveSharedSettings() {
     if (!_sharedSettingsAvailable) return;
 
     const headers = { "Content-Type": "application/json" };
-    const authorization = settingsAuthHeader();
-    if (authorization) headers.Authorization = authorization;
+    if (state.kumaToken) headers[SETTINGS_TOKEN_HEADER] = state.kumaToken;
 
     try {
         const res = await fetch(SHARED_SETTINGS_URL, {
@@ -2609,10 +2550,10 @@ async function saveSharedSettings() {
             body: JSON.stringify(collectSharedSettings()),
         });
 
-        // No credential yet, or the stored one is wrong: ask for it and retry
-        // rather than silently dropping the change.
+        // Not signed in, or Kuma no longer accepts the token: point at the
+        // Kuma login rather than silently dropping the change.
         if (res.status === 401) {
-            openSettingsAuth(authorization ? "Those details were not accepted. Try again." : "");
+            promptKumaSignIn();
             return;
         }
         if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
@@ -2631,65 +2572,19 @@ async function saveSharedSettings() {
 
 /* ---- shared settings unlock ---- */
 
-function openSettingsAuth(message) {
-    if (!els.settingsAuthOverlay) return;
-
-    // One prompt per session: a rejected password should not reopen the dialog
-    // on every keystroke in the notes field.
-    if (_settingsAuthPrompted && els.settingsAuthOverlay.classList.contains("show") === false && !message) return;
+// One nudge per session: a change made while signed out should say so once,
+// not reopen a dialog on every keystroke in the notes field.
+function promptKumaSignIn() {
+    if (_settingsAuthPrompted) return;
     _settingsAuthPrompted = true;
 
-    if (els.settingsAuthUser && !els.settingsAuthUser.value) {
-        els.settingsAuthUser.value = loadSettingsAuth()?.user || "dashboard";
-    }
-    if (els.settingsAuthPass) els.settingsAuthPass.value = "";
-    setSettingsAuthStatus(message ? "error" : "idle", message || "Changes are saved once you sign in.");
-
-    els.settingsAuthOverlay.classList.add("show");
-    els.settingsAuthOverlay.setAttribute("aria-hidden", "false");
-    setTimeout(() => els.settingsAuthPass?.focus(), 60);
+    toast(
+        "🔒 <b>Sign in to Uptime Kuma to save settings.</b> Changes stay in this browser until you do.",
+        5200
+    );
+    openAuth();
 }
 
-function closeSettingsAuth() {
-    if (!els.settingsAuthOverlay) return;
-    els.settingsAuthOverlay.classList.remove("show");
-    els.settingsAuthOverlay.setAttribute("aria-hidden", "true");
-    if (els.settingsAuthPass) els.settingsAuthPass.value = "";
-}
-
-function setSettingsAuthStatus(state, message) {
-    if (!els.settingsAuthStatus) return;
-    els.settingsAuthStatus.dataset.state = state;
-    els.settingsAuthStatus.textContent = message;
-}
-
-function submitSettingsAuth() {
-    const user = safeStr(els.settingsAuthUser?.value).trim();
-    const pass = safeStr(els.settingsAuthPass?.value);
-
-    if (!user || !pass) {
-        setSettingsAuthStatus("error", "Enter both a username and a password.");
-        return;
-    }
-
-    saveSettingsAuth(user, pass);
-    closeSettingsAuth();
-    // Retry the write that triggered the prompt; a wrong password reopens it.
-    saveSharedSettings();
-}
-
-els.btnSettingsAuthSave?.addEventListener("click", submitSettingsAuth);
-els.btnSettingsAuthCancel?.addEventListener("click", () => {
-    clearSettingsAuth();
-    closeSettingsAuth();
-    toast("🔒 <b>Not signed in.</b> Changes stay in this browser only.", 3600);
-});
-els.settingsAuthOverlay?.addEventListener("click", (event) => {
-    if (event.target === els.settingsAuthOverlay) closeSettingsAuth();
-});
-els.settingsAuthPass?.addEventListener("keydown", (event) => {
-    if (event.key === "Enter") submitSettingsAuth();
-});
 
 const normalizeForMatch = (value) => safeStr(value).toLowerCase().replace(/[^a-z0-9]/g, "");
 
@@ -2996,6 +2891,7 @@ async function autoReauthAndLoadUrls(reason) {
             await new Promise((resolve) => {
                 state.socket.emit("loginByToken", token, (res) => {
                     if (res?.ok) {
+                        state.kumaToken = token;
                         state.socketAuthed = true;
                         updateAuthButtons();
                         setUrlState("authenticated");
@@ -3005,6 +2901,7 @@ async function autoReauthAndLoadUrls(reason) {
                         resolve(true);
                     } else {
                         localStorage.removeItem("ml_token");
+                        state.kumaToken = "";
                         state.socketAuthed = false;
                         updateAuthButtons();
                         setUrlState("LOCKED");
@@ -3049,6 +2946,11 @@ async function doLogin({ username, password, token2fa, remember }) {
                     return;
                 }
 
+                // Held for this session either way: saving settings needs
+                // it, and asking for a Kuma login on every save would defeat
+                // the point of using that login. "Remember me" still decides
+                // whether it outlives the tab.
+                state.kumaToken = res.token || "";
                 if (remember && res.token) {
                     localStorage.setItem("ml_token", res.token);
                 } else if (!remember) {
@@ -3079,6 +2981,7 @@ function doLogout() {
     state.socket = null;
     state.socketReady = false;
     state.socketAuthed = false;
+    state.kumaToken = "";
     updateAuthButtons();
 
     localStorage.removeItem("ml_token");
@@ -4353,7 +4256,6 @@ async function initialLoad() {
         if (e.key === "Escape") {
             closeAuth();
             closeIconEditor();
-            closeSettingsAuth();
         }
         // ✅ Optional: press "T" to cycle accents
         if (e.key.toLowerCase() === "t" && !e.metaKey && !e.ctrlKey && !e.altKey) {

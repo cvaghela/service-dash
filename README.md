@@ -206,14 +206,11 @@ All installation settings live directly in the Compose file used for the install
 | `KUMA_PORT` | HTTP port published by Uptime Kuma on the same Linux host | `3001` |
 | `STATUS_SLUG` | Final path segment of the published Kuma status-page URL | `homelab` |
 | `STORAGE_MOUNT` | Initial storage mount for browsers without a saved dropdown selection | `auto` |
-| `SERVICE_ICONS` | Per-service icon overrides, as a JSON object keyed by card name | `{}` |
-| `SHARED_SETTINGS` | `on` shares card settings, filters and notes across every browser and device. See **Shared settings** below | `off` |
-| `SHARED_SETTINGS_USER` | Username required to save a change when `SHARED_SETTINGS` is `on` | `dashboard` |
-| `SHARED_SETTINGS_PASSWORD_FILE` | Path to a file holding the password. Required when `SHARED_SETTINGS` is `on`; the container refuses to start without it | `/run/secrets/settings_password` |
 
 The dashboard also proxies the icon catalogue at `/icon-index`; nothing to configure, but it does mean the container
 makes one outbound request a day to `cdn.jsdelivr.net`. Without internet access the picker falls back to its built-in
 list and cards fall back to monograms.
+| `KUMA_URL` | Where the `kuma-auth` service reaches Uptime Kuma. Must point at the same instance as `KUMA_PORT` | `http://host.docker.internal:3001` |
 | `NETWORK_INFO_REFRESH_SECONDS` | How often the LAN route and WAN address are re-read. Set on the `network-info` service, and required — the helper exits if it is removed | `600` |
 
 ### Container CPU and RAM
@@ -239,58 +236,33 @@ each mapped container costs an extra pair of Netdata queries — a card mapped t
 
 ### Shared settings
 
-Card settings, filters, the storage and network selections, and the notes panel are saved in the browser that made
-them. That is deliberate — the dashboard has no accounts — but it means a second browser, or a phone, starts from
-scratch.
+Card settings, filters, the storage and network selections, and the notes panel are shared by every browser and device.
+There is nothing to switch on and no password to set: **reading them is open, and saving a change requires being signed
+in to Uptime Kuma** — the login the dashboard already offers.
 
-Set `SHARED_SETTINGS: "on"` to keep those values in the `settings` volume instead. Every browser reads the same
-document on load and writes back on change, so a card renamed or remapped on a laptop looks the same on a phone.
+nginx cannot verify a Kuma token, and a browser claiming to be signed in proves nothing, so the question is put to Kuma
+itself. The `kuma-auth` service answers it: it emits Kuma's `loginByToken`, which verifies the token against Kuma's own
+secret, confirms the user is still active, and rejects tokens issued before a password change. Anything that is not an
+explicit yes is a no — an unreachable or slow Kuma means the write is refused.
 
-**Reading is open; saving requires a password.** Without that split, anyone who could reach the dashboard could rewrite
-what every browser and device shows — including the image URLs each viewer's browser then requests. Create the password
-file and turn the setting on:
+The token stays in the browser that signed in. It is never written into the document other devices read, and the
+validator stores answers by fingerprint rather than by token.
 
-```bash
-printf '%s' 'a-long-random-passphrase' > ./settings-password.txt
-chmod 600 ./settings-password.txt
-```
+Practical consequences:
 
-```yaml
-environment:
-  SHARED_SETTINGS: "on"
-  SHARED_SETTINGS_USER: "dashboard"
-  SHARED_SETTINGS_PASSWORD_FILE: "/run/secrets/settings_password"
-secrets:
-  - settings_password
-volumes:
-  - settings:/var/lib/service-dash
-```
+- **Anyone who can reach the dashboard can read the settings**, as they can already read the dashboard itself.
+- **Anyone who can sign in to your Uptime Kuma can change them for everyone.** Kuma's user list is the guest list.
+- **Last write wins.** No merge, no locking; changes made elsewhere appear on reload rather than live.
+- **If `kuma-auth` is down, shared settings become unavailable — reads included.** nginx checks every request to the
+  document and cannot be made to check only writes, so a validator outage takes reads with it. The dashboard falls back
+  to each browser's own copy and keeps working; the rest of the dashboard is unaffected.
+- The document is capped at 256 KB, and a failed write leaves the browser working from its own copy with a warning.
 
-The volume and the secret are already declared in `docker-compose.yml`; recreate the container after changing the
-setting. On CasaOS the values bind-mount to `/DATA/AppData/service-dash/settings`, and the password file to
-`/DATA/AppData/service-dash/settings-password`.
+### Values hidden until you sign in
 
-The password is read from a file rather than an environment variable so it stays out of `docker inspect` and the
-container's process environment. `SHARED_SETTINGS_PASSWORD` is accepted as a fallback but is not recommended. It must
-be at least 12 characters, and the container **refuses to start** if `SHARED_SETTINGS` is `on` with no password — the
-write endpoint is never exposed unauthenticated.
-
-The first time you change a setting, the dashboard asks for the username and password and stores them in that browser
-alone. Viewers who never change anything are never asked.
-
-Understand the remaining trade-offs:
-
-- **Anyone who can reach the dashboard can still read the settings**, as they can already read the dashboard itself.
-- **Uptime Kuma credentials and the settings password are never shared.** They stay in the browser that entered them
-  and are deliberately excluded from the document.
-- **Last write wins.** There is no merge and no locking. Two browsers changing different settings at the same time will
-  see one overwrite the other, and changes made elsewhere appear after a reload rather than live.
-- **The document is small and non-critical.** It is capped at 256 KB, and a failed write leaves the browser working
-  from its own copy with a warning rather than losing the change.
-- **Anyone who knows the password can change what every viewer sees.** Treat it as a shared admin password for the
-  dashboard, not a per-person login.
-
-With `SHARED_SETTINGS` off — the default — the endpoint returns 404 and nothing is ever written to the volume.
+Service URLs and the host's LAN and WAN addresses render as a blurred mask until you sign in to Uptime Kuma. While
+locked the addresses are not requested at all, so they never reach the browser — the blur is how it looks, not what
+protects it. Signing in reveals them; signing out hides them again immediately.
 
 ### Response headers
 

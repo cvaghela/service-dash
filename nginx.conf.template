@@ -3,6 +3,7 @@ map $http_upgrade $connection_upgrade {
     ''      close;
 }
 
+
 server {
     listen 80;
     server_name _;
@@ -38,9 +39,45 @@ server {
         add_header Cache-Control "no-store";
     }
 
-    # Shared settings: either a WebDAV endpoint or a flat 404, depending on
-    # SHARED_SETTINGS. The entrypoint writes whichever one applies.
-    include /etc/nginx/snippets/shared-settings.conf;
+    # Settings are readable by anyone who can reach the dashboard, and writable
+    # only by someone signed in to Uptime Kuma. nginx cannot verify a Kuma token
+    # and a browser claiming to be signed in proves nothing, so the question is
+    # put to Kuma itself through the validator below.
+    location = /settings/state.json {
+        root /var/lib/service-dash;
+
+        # auth_request takes a literal URI and cannot be made conditional, so
+        # every request is checked and the validator decides: reads pass, writes
+        # need a Kuma session.
+        auth_request /_kuma-auth;
+
+        # DELETE is not exposed: the dashboard never uses it.
+        dav_methods PUT;
+        create_full_put_path on;
+        dav_access user:rw group:rw all:r;
+
+        # Must sit on the same filesystem as the document — WebDAV writes a temp
+        # file and renames it, and rename cannot cross mounts.
+        client_body_temp_path /var/lib/service-dash/tmp;
+        client_max_body_size 256k;
+
+        add_header Cache-Control "no-store";
+    }
+
+    # Reachable only as an auth_request subrequest, never from outside. A
+    # validator that is down, slow, or unhappy means the write is refused.
+    location = /_kuma-auth {
+        internal;
+
+        proxy_pass http://kuma-auth:2371/validate;
+        proxy_pass_request_body off;
+        proxy_set_header Content-Length "";
+        proxy_set_header X-Kuma-Token $http_x_kuma_token;
+        # The subrequest is always a GET; this carries the real method.
+        proxy_set_header X-Original-Method $request_method;
+        proxy_connect_timeout 5s;
+        proxy_read_timeout 6s;
+    }
 
     location = /network-info/status {
         alias /var/run/network-info/status.json;

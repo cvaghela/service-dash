@@ -7,10 +7,22 @@ All notable changes to Service Dash are recorded here. This project follows
 
 ### Added
 
+- **Uptime Kuma's login now gates settings changes**, replacing the separate password. A new `kuma-auth` service answers
+  one question for nginx — is this browser really signed in? — by asking Kuma itself, which verifies the token against
+  its own secret, checks the user is still active, and rejects tokens issued before a password change. Reading settings
+  stays open; anything that is not an explicit yes is a no.
+- **Service URLs, and the host's LAN and WAN addresses, are hidden until you sign in**, shown as a blurred mask. While
+  locked the addresses are not requested at all, so they never reach the browser.
 - **The icon picker now searches the whole selfh.st catalogue** — around 2,900 icons rather than the 48 built in — and
   automatic matching uses it too, so a service the curated list never knew about (Frigate, Scrypted, and most of what a
   homelab actually runs) gets its real icon. The index is proxied at `/icon-index` so the page keeps `connect-src
   'self'`, cached for a day, and a host with no internet falls back to the built-in list.
+
+### Removed
+
+- **`SHARED_SETTINGS`, `SHARED_SETTINGS_USER` and `SHARED_SETTINGS_PASSWORD_FILE`.** Settings are always shared and
+  always gated on a Kuma login, so there is nothing to switch on and no password to create.
+- **`SERVICE_ICONS`.** Icons are matched from the full catalogue and edited per card in the browser.
 
 ### Fixed
 

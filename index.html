@@ -332,43 +332,6 @@
                 </div>
             </div>
         </div>
-        <!-- Shared settings unlock -->
-        <div class="overlay" id="settingsAuthOverlay" aria-hidden="true">
-            <div class="modal">
-                <div class="blob" style="top: -110px; left: -110px"></div>
-                <div class="blob b2" style="bottom: -120px; right: -140px"></div>
-                <h2>Sign in to save settings</h2>
-                <p>
-                    This dashboard shares its settings across every browser and device, so saving a change asks for the
-                    password set in <b>SHARED_SETTINGS_PASSWORD</b>. Reading needs nothing — only changes do.
-                </p>
-                <div class="grid2">
-                    <div class="field">
-                        <label for="settingsAuthUser">Username</label>
-                        <input id="settingsAuthUser" autocomplete="username" placeholder="dashboard" />
-                    </div>
-                    <div class="field">
-                        <label for="settingsAuthPass">Password</label>
-                        <input
-                            id="settingsAuthPass"
-                            type="password"
-                            autocomplete="current-password"
-                            placeholder="••••••••"
-                        />
-                    </div>
-                </div>
-                <div class="iconStatus" id="settingsAuthStatus" data-state="idle"></div>
-                <div class="subtle">
-                    Kept in this browser only — it is never written to the shared settings, the same as the Uptime Kuma
-                    login.
-                </div>
-                <div class="row">
-                    <button class="pill" id="btnSettingsAuthCancel">Cancel</button>
-                    <button class="pill primary" id="btnSettingsAuthSave">Sign in</button>
-                </div>
-            </div>
-        </div>
-
         <!-- Icon Editor -->
         <div class="overlay" id="iconOverlay" aria-hidden="true">
             <div class="modal iconModal">
