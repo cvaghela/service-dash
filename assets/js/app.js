@@ -664,27 +664,36 @@ async function copyNetworkAddress(element, label) {
     toast(`📋 <b>${label} IP copied:</b> ${escapeHtml(address)}`, 1800);
 }
 
+// LAN and WAN share the locked/private states with the card URLs. A real
+// address is blurred until pointed at; "detecting…" and "unavailable" are not
+// values worth hiding, so they show plainly.
+function setNetworkAddressText(el, text, isRealAddress) {
+    if (!el) return;
+    setTextIfChanged(el, text);
+    if (el.classList.contains("is-locked")) el.classList.remove("is-locked");
+    if (el.classList.contains("is-private") !== isRealAddress) el.classList.toggle("is-private", isRealAddress);
+    setAttrIfChanged(el, "aria-label", isRealAddress ? String(text) : `${text}`);
+}
+
 async function updateNetworkAddresses() {
     // Locked like the service URLs: the request is not made at all until you
     // are signed in, so the addresses never reach this browser to be read out
     // of the page.
     if (!state.socketAuthed) {
-        applyLockedValue(els.lan, null, "Sign in to Uptime Kuma to reveal the LAN address");
-        applyLockedValue(els.wan, null, "Sign in to Uptime Kuma to reveal the public IP");
+        applyLockedValue(els.lan, null, "Sign in to Uptime Kuma to reveal the LAN address", null, "IP Locked");
+        applyLockedValue(els.wan, null, "Sign in to Uptime Kuma to reveal the public IP", null, "IP Locked");
         delete els.lan?.dataset.copyIp;
         delete els.wan?.dataset.copyIp;
         return;
     }
 
     if (els.lan) {
-        els.lan.classList.remove("is-locked");
-        els.lan.textContent = "detecting…";
+        setNetworkAddressText(els.lan, "detecting…", false);
         delete els.lan.dataset.copyIp;
         els.lan.title = "Reading the ZimaOS host network";
     }
     if (els.wan) {
-        els.wan.classList.remove("is-locked");
-        els.wan.textContent = "detecting…";
+        setNetworkAddressText(els.wan, "detecting…", false);
         delete els.wan.dataset.copyIp;
         els.wan.title = "Looking up the ZimaOS public IP";
     }
@@ -700,14 +709,14 @@ async function updateNetworkAddresses() {
         const gateway = String(payload?.lan?.gateway || "").trim();
         if (els.lan) {
             if (isIpAddress(lanAddress)) {
-                els.lan.textContent = lanAddress;
+                setNetworkAddressText(els.lan, lanAddress, true);
                 els.lan.dataset.copyIp = lanAddress;
                 const interfaceLabel = lanInterface
                     ? friendlyNetworkInterfaceName(`net.${lanInterface}`)
                     : "Default host interface";
                 els.lan.title = `${interfaceLabel}${Number.isInteger(prefix) ? ` • Subnet /${prefix}` : ""}${gateway ? ` • Gateway ${gateway}` : ""} • Click to copy`;
             } else {
-                els.lan.textContent = "unavailable";
+                setNetworkAddressText(els.lan, "unavailable", false);
                 delete els.lan.dataset.copyIp;
                 els.lan.title = "No IPv4 address was found on the ZimaOS default route";
             }
@@ -716,11 +725,11 @@ async function updateNetworkAddresses() {
         const publicIp = String(payload?.wan?.address || "").trim();
         if (els.wan) {
             if (isIpAddress(publicIp)) {
-                els.wan.textContent = publicIp;
+                setNetworkAddressText(els.wan, publicIp, true);
                 els.wan.dataset.copyIp = publicIp;
                 els.wan.title = `Public IP • detected ${new Date().toLocaleTimeString()} • Click to copy`;
             } else {
-                els.wan.textContent = "unavailable";
+                setNetworkAddressText(els.wan, "unavailable", false);
                 delete els.wan.dataset.copyIp;
                 els.wan.title = "Public IP lookup unavailable";
             }
@@ -728,12 +737,12 @@ async function updateNetworkAddresses() {
     } catch (error) {
         const message = String(error?.message || error);
         if (els.lan) {
-            els.lan.textContent = "unavailable";
+            setNetworkAddressText(els.lan, "unavailable", false);
             delete els.lan.dataset.copyIp;
             els.lan.title = `Host LAN detection failed: ${message}`;
         }
         if (els.wan) {
-            els.wan.textContent = "unavailable";
+            setNetworkAddressText(els.wan, "unavailable", false);
             delete els.wan.dataset.copyIp;
             els.wan.title = `Public IP lookup failed: ${message}`;
         }
@@ -1099,10 +1108,52 @@ function getNdValue(nd, dimName) {
     return Number.isFinite(v) ? v : null;
 }
 
+// One missed sample should not blank a reading. Netdata is polled every two
+// seconds and any single fetch can fail or arrive stale -- a dropped packet, a
+// busy host, a chart that momentarily has no fresh row. Blanking on the first
+// miss is what makes CPU and RAM vanish and come back a few seconds later.
+// The last good reading is held instead, and only gives way to "—" once the
+// feed has genuinely been missing for this long.
+const METRIC_GRACE_MS = 20000;
+const _metricLastGood = new Map();
+
+// Records that a reading arrived, starting the grace window for it.
+function markMetricGood(elVal) {
+    const key = elVal?.id || elVal?.dataset?.role || null;
+    if (key) _metricLastGood.set(key, { at: Date.now() });
+}
+
+// True when a reading has been missing long enough to be worth showing as
+// unavailable, rather than holding the last good value a moment longer.
+function setMetricShouldBlank(elVal) {
+    if (!elVal) return false;
+    const key = elVal.id || elVal.dataset?.role || null;
+    if (!key) return true;
+    const held = _metricLastGood.get(key);
+    return !held || Date.now() - held.at >= METRIC_GRACE_MS;
+}
+
 function setMetric(elVal, elBar, pct, label) {
+    const key = elVal?.id || elVal?.dataset?.role || null;
+    const hasReading = Number.isFinite(Number(pct));
+    const now = Date.now();
+
+    if (!hasReading && key) {
+        const held = _metricLastGood.get(key);
+        // Inside the grace window, leave whatever is on screen exactly as it
+        // is: no write, no repaint, no flicker.
+        if (held && now - held.at < METRIC_GRACE_MS) return;
+    }
+    if (hasReading && key) _metricLastGood.set(key, { at: now });
+
     const p = clamp(Number(pct) || 0, 0, 100);
-    if (elVal) elVal.textContent = label ?? (Number.isFinite(pct) ? `${p.toFixed(0)}%` : "—");
-    if (elBar) elBar.style.width = `${p.toFixed(0)}%`;
+    const text = label ?? (hasReading ? `${p.toFixed(0)}%` : "—");
+    const width = `${p.toFixed(0)}%`;
+
+    // Writing an identical value still costs a style recalculation, and these
+    // run every two seconds.
+    if (elVal && elVal.textContent !== text) elVal.textContent = text;
+    if (elBar && elBar.style.width !== width) elBar.style.width = width;
 }
 
 function sumNdRowExcluding(nd, exclude = ["time"]) {
@@ -1345,6 +1396,7 @@ function applyHostMetricsFromNetdata(cpuNd, ramNd, diskNd, loadNd, powerNd, temp
         let normalizedLoadPercent = null;
 
         if (Number.isFinite(load1) && Number.isFinite(ND_CPU_COUNT) && ND_CPU_COUNT > 0) {
+            markMetricGood(els.loadVal);
             normalizedLoadPercent = (load1 / ND_CPU_COUNT) * 100;
             els.loadVal.textContent = `${normalizedLoadPercent.toFixed(0)}% (${load1.toFixed(2)} / ${ND_CPU_COUNT})`;
             els.loadVal.title = `1-minute load average ${load1.toFixed(2)} divided by ${ND_CPU_COUNT} logical CPUs`;
@@ -1355,10 +1407,11 @@ function applyHostMetricsFromNetdata(cpuNd, ramNd, diskNd, loadNd, powerNd, temp
                       ? "var(--pending)"
                       : "var(--online)";
         } else if (Number.isFinite(load1)) {
+            markMetricGood(els.loadVal);
             els.loadVal.textContent = `${load1.toFixed(2)} load`;
             els.loadVal.title = "Raw 1-minute system load; logical CPU count was unavailable";
             els.loadVal.style.color = "var(--text)";
-        } else {
+        } else if (setMetricShouldBlank(els.loadVal)) {
             els.loadVal.textContent = "—";
             els.loadVal.title = "Load data unavailable";
             els.loadVal.style.color = "var(--text)";
@@ -1366,8 +1419,14 @@ function applyHostMetricsFromNetdata(cpuNd, ramNd, diskNd, loadNd, powerNd, temp
 
         // A full bar means all logical CPUs are demanded. Values above 100%
         // remain visible in the label while the bar stays capped at full.
-        const loadPct = Number.isFinite(normalizedLoadPercent) ? Math.min(100, normalizedLoadPercent) : 0;
-        if (els.loadBar) els.loadBar.style.width = `${loadPct}%`;
+        // While a reading is being held through the grace window the bar is
+        // left where it is, so it cannot empty out under a figure that stayed.
+        if (Number.isFinite(normalizedLoadPercent)) {
+            const width = `${Math.min(100, normalizedLoadPercent)}%`;
+            if (els.loadBar && els.loadBar.style.width !== width) els.loadBar.style.width = width;
+        } else if (setMetricShouldBlank(els.loadVal)) {
+            if (els.loadBar && els.loadBar.style.width !== "0%") els.loadBar.style.width = "0%";
+        }
     }
 }
 
@@ -1649,12 +1708,14 @@ async function tickNetdata() {
             // (no fake data in prod)
         }
 
-        if (els.loadVal) {
+        // Held through the same grace window as the other readings: a single
+        // failed tick on a busy host should not empty the panel and refill it.
+        if (setMetricShouldBlank(els.loadVal)) {
             els.loadVal.textContent = "—";
             els.loadVal.title = "Load data unavailable";
             els.loadVal.style.color = "var(--text)";
+            if (els.loadBar) els.loadBar.style.width = "0%";
         }
-        if (els.loadBar) els.loadBar.style.width = "0%";
 
         document.getElementById("secNetwork")?.setAttribute("data-net-state", "cool");
 
@@ -1743,26 +1804,31 @@ function applyContainerStats(service, stats) {
     if (!row) return;
 
     if (stats.cpuPct == null && stats.ramMib == null) {
-        row.hidden = true;
+        if (!row.hidden) row.hidden = true;
         return;
     }
 
+    // These land every ten seconds on every card that maps to a container.
+    // Rewriting an unchanged figure costs a style recalculation on a card that
+    // carries a backdrop-filter, which is the periodic shimmer across the grid.
     const cpuEl = row.querySelector('[data-role="containerCpu"]');
     const ramEl = row.querySelector('[data-role="containerRam"]');
-    if (cpuEl) cpuEl.textContent = stats.cpuPct == null ? "—" : `${stats.cpuPct.toFixed(1)}%`;
+    if (cpuEl) setTextIfChanged(cpuEl, stats.cpuPct == null ? "—" : `${stats.cpuPct.toFixed(1)}%`);
     // cgroup mem_usage is reported in MiB; scale it like every other figure.
-    if (ramEl) ramEl.textContent = stats.ramMib == null ? "—" : formatBytes(stats.ramMib * 1024 ** 2);
+    if (ramEl) setTextIfChanged(ramEl, stats.ramMib == null ? "—" : formatBytes(stats.ramMib * 1024 ** 2));
 
-    row.hidden = false;
+    if (row.hidden) row.hidden = false;
 
     const containers = stats.containers ?? [];
     const missing = containers.length - (stats.liveCount ?? containers.length);
-    row.title =
+    setTitleIfChanged(
+        row,
         containers.length > 1
             ? `Combined across ${containers.length} containers: ${containers.join(", ")}` +
               (missing > 0 ? ` — ${missing} not reporting` : "")
-            : `Docker container: ${containers[0] ?? "—"}`;
-    row.dataset.containerCount = String(containers.length);
+            : `Docker container: ${containers[0] ?? "—"}`
+    );
+    setDataIfChanged(row, "containerCount", String(containers.length));
 }
 
 const pad2 = (x) => String(x).padStart(2, "0"); // (can keep; used elsewhere or safe to leave)
@@ -1875,8 +1941,8 @@ function markActiveEndpoint(card) {
     for (const kind of ["local", "external"]) {
         const row = card.querySelector(`[data-role="${kind}Line"]`);
         if (!row) continue;
-        row.dataset.active = String(active === kind);
-        row.title = active === kind ? "Clicking the card opens this link" : "";
+        setDataIfChanged(row, "active", String(active === kind));
+        setTitleIfChanged(row, active === kind ? "Clicking the card opens this link" : "");
     }
 }
 
@@ -3223,6 +3289,10 @@ function computeCounts(visibleServices) {
     return { byStatus, byCategory };
 }
 
+// The markup last written, so an unchanged chip row is not rebuilt.
+let _lastStatusChipMarkup = null;
+let _lastCategoryChipMarkup = null;
+
 function renderChipsWithCounts() {
     const qLower = safeStr(state.query).trim().toLowerCase();
     // Must use the same haystack as serviceMatchesFilters(), otherwise the chip
@@ -3231,7 +3301,7 @@ function renderChipsWithCounts() {
     const counts = computeCounts(servicesBySearch);
 
     const statuses = ["all", "online", "offline", "pending", "maintenance"];
-    els.statusChips.innerHTML = statuses
+    const statusMarkup = statuses
         .map((st) => {
             const label = st === "all" ? "All" : st[0].toUpperCase() + st.slice(1);
             const emoji =
@@ -3247,7 +3317,7 @@ function renderChipsWithCounts() {
     const list = ["all", ...cats];
     const allCatsCount = servicesBySearch.length;
 
-    els.categoryChips.innerHTML = list
+    const categoryMarkup = list
         .map((c) => {
             const meta = CATEGORY_META[c] || CATEGORY_META.other;
             const label = c === "all" ? "All Categories" : meta.label;
@@ -3258,6 +3328,28 @@ function renderChipsWithCounts() {
                   </div>`;
         })
         .join("");
+
+    // Rebuilding these every poll is what makes the whole header flicker and
+    // the layout settle again a moment later. The counts usually have not
+    // moved, so the markup is compared first and the DOM left alone when it
+    // matches -- which also keeps the existing chip listeners alive.
+    const statusChanged = _lastStatusChipMarkup !== statusMarkup;
+    const categoryChanged = _lastCategoryChipMarkup !== categoryMarkup;
+    if (!statusChanged && !categoryChanged) {
+        // Still reconcile the active chip: a filter can change without moving
+        // any count.
+        updateChipActiveStates();
+        return;
+    }
+
+    if (statusChanged) {
+        _lastStatusChipMarkup = statusMarkup;
+        els.statusChips.innerHTML = statusMarkup;
+    }
+    if (categoryChanged) {
+        _lastCategoryChipMarkup = categoryMarkup;
+        els.categoryChips.innerHTML = categoryMarkup;
+    }
 
     [...els.statusChips.querySelectorAll(".chip"), ...els.categoryChips.querySelectorAll(".chip")].forEach((ch) => {
         ch.addEventListener("click", () => {
@@ -3340,13 +3432,13 @@ function buildDomOnceIfNeeded() {
                 <div class="linkLine" data-role="localLine">
                   <span class="miniDot" data-role="localDot" data-status="pending"></span>
                   <span class="linkBadge">Local</span>
-                  <span class="linkUrl is-locked" data-role="localUrlText" aria-label="Hidden until you sign in to Uptime Kuma">••••••••••••</span>
+                  <span class="linkUrl is-locked" data-role="localUrlText" aria-label="Hidden until you sign in to Uptime Kuma">URL Locked</span>
                   <span class="linkMeta" data-role="localUp">—</span>
                 </div>
                 <div class="linkLine" data-role="externalLine">
                   <span class="miniDot" data-role="externalDot" data-status="pending"></span>
                   <span class="linkBadge">External</span>
-                  <span class="linkUrl is-locked" data-role="externalUrlText" aria-label="Hidden until you sign in to Uptime Kuma">••••••••••••</span>
+                  <span class="linkUrl is-locked" data-role="externalUrlText" aria-label="Hidden until you sign in to Uptime Kuma">URL Locked</span>
                   <span class="linkMeta" data-role="externalUp">—</span>
                 </div>
               </div>
@@ -3499,21 +3591,58 @@ function buildDomOnceIfNeeded() {
 }
 
 // Anything only a signed-in user should read — service URLs, and the host's
-// LAN and WAN addresses — renders as a blurred mask until then. The real value
-// is never written into the DOM while locked: the blur is how it looks, not
-// what protects it, and a blurred string sitting in the markup would protect
-// nothing at all.
-const LOCKED_MASK = "••••••••••••";
+// LAN and WAN addresses — has two states, and they protect against different
+// things.
+//
+// Signed out, there is no value to show: the request is never made, so nothing
+// reaches this browser to be read out of the page. That state says so in words
+// rather than hiding an empty string behind a blur, which would only look like
+// there was something to reveal.
+//
+// Signed in, the real value is present and is blurred until pointed at. That is
+// shoulder-surfing cover for a screen someone else can see, not a security
+// boundary — anyone signed in can reveal it, and that is the point.
+const LOCKED_LABEL = "URL Locked";
 
-function applyLockedValue(el, value, lockedTitle, unlockedTitle) {
+// Writing to the DOM when nothing changed still costs a style recalculation and
+// a repaint, and these run for every card on every poll. Blurred text repaints
+// expensively, so an unchanged card is left completely untouched.
+function setTextIfChanged(el, text) {
+    if (el.textContent !== text) el.textContent = text;
+}
+
+function setAttrIfChanged(el, name, value) {
+    if (el.getAttribute(name) !== value) el.setAttribute(name, value);
+}
+
+function setDataIfChanged(el, key, value) {
+    if (!el) return;
+    const next = String(value);
+    if (el.dataset[key] !== next) el.dataset[key] = next;
+}
+
+function setTitleIfChanged(el, title) {
+    if (el && el.title !== title) el.title = title;
+}
+
+function applyLockedValue(el, value, lockedTitle, unlockedTitle, lockedLabel) {
     if (!el) return;
 
     const locked = !value;
-    el.textContent = locked ? LOCKED_MASK : value;
-    el.classList.toggle("is-locked", locked);
-    // Blur says nothing to a screen reader, so the state is stated outright.
-    el.setAttribute("aria-label", locked ? "Hidden until you sign in to Uptime Kuma" : String(value));
-    el.title = locked ? lockedTitle : unlockedTitle || String(value);
+    const label = lockedLabel || LOCKED_LABEL;
+
+    setTextIfChanged(el, locked ? label : String(value));
+    // Two distinct looks: a plain "locked" label, or the real value under a
+    // blur that lifts on hover and on keyboard focus.
+    if (el.classList.contains("is-locked") !== locked) el.classList.toggle("is-locked", locked);
+    if (el.classList.contains("is-private") === locked) el.classList.toggle("is-private", !locked);
+
+    // A blur says nothing to a screen reader, and neither state should force
+    // one to guess: locked states say so, revealed ones read out the value.
+    setAttrIfChanged(el, "aria-label", locked ? "Hidden until you sign in to Uptime Kuma" : String(value));
+
+    const title = locked ? lockedTitle : unlockedTitle || String(value);
+    if (el.title !== title) el.title = title;
     return !locked;
 }
 
@@ -3529,12 +3658,12 @@ function updateCardUrlsInPlace() {
         const extUrl = extId ? urlForMonitor(extId) : null;
 
         // Store on card dataset (used by click + filtering)
-        card.dataset.localUrl = localUrl || "";
-        card.dataset.externalUrl = extUrl || "";
+        setDataIfChanged(card, "localUrl", localUrl || "");
+        setDataIfChanged(card, "externalUrl", extUrl || "");
 
         // Hidden flags
-        card.dataset.localUrlHidden = localUrl ? "false" : "true";
-        card.dataset.externalUrlHidden = extUrl ? "false" : "true";
+        setDataIfChanged(card, "localUrlHidden", localUrl ? "false" : "true");
+        setDataIfChanged(card, "externalUrlHidden", extUrl ? "false" : "true");
 
         // Also attach to service (for searching)
         s._localUrl = localUrl || "";
@@ -3543,8 +3672,16 @@ function updateCardUrlsInPlace() {
         const localText = card.querySelector('[data-role="localUrlText"]');
         const extText = card.querySelector('[data-role="externalUrlText"]');
 
-        applyLockedValue(localText, localUrl, "Sign in to Uptime Kuma to reveal this URL");
-        applyLockedValue(extText, extUrl, "Sign in to Uptime Kuma to reveal this URL");
+        // Signed in with nothing to show is not the same as locked: the monitor
+        // simply has no URL, and saying "locked" would send someone looking for
+        // a sign-in that would not help.
+        const emptyLabel = state.socketAuthed ? "No URL" : LOCKED_LABEL;
+        const emptyTitle = state.socketAuthed
+            ? "This monitor has no URL in Uptime Kuma"
+            : "Sign in to Uptime Kuma to reveal this URL";
+
+        applyLockedValue(localText, localUrl, emptyTitle, null, emptyLabel);
+        applyLockedValue(extText, extUrl, emptyTitle, null, emptyLabel);
 
         markActiveEndpoint(card);
     }
@@ -3574,26 +3711,30 @@ function updateStatusesInPlace() {
         s.status = (extId ? extStatus : null) || (localId ? localStatus : null) || "pending";
         s.uptime = (extId ? extUp : null) ?? (localId ? localUp : null) ?? null;
 
+        // Every write below is guarded. A status or uptime that has not moved
+        // since the last poll -- the usual case -- leaves the card completely
+        // untouched. Writing the same value back still invalidates style for
+        // the card, and .card carries a backdrop-filter, so a whole grid of
+        // pointless writes is seen as every card flickering at once.
+
         // Big dot (overall)
         const dot = card.querySelector('[data-role="statusDot"]');
         if (dot) {
-            dot.dataset.status = s.status;
-            dot.title = s.status[0].toUpperCase() + s.status.slice(1);
+            setDataIfChanged(dot, "status", s.status);
+            setTitleIfChanged(dot, s.status[0].toUpperCase() + s.status.slice(1));
         }
 
         // Local row
-        const ldot = card.querySelector('[data-role="localDot"]');
-        if (ldot) ldot.dataset.status = localStatus;
+        setDataIfChanged(card.querySelector('[data-role="localDot"]'), "status", localStatus);
 
         const lup = card.querySelector('[data-role="localUp"]');
-        if (lup) lup.textContent = localUp == null ? "—" : `${Number(localUp).toFixed(1)}%`;
+        if (lup) setTextIfChanged(lup, localUp == null ? "—" : `${Number(localUp).toFixed(1)}%`);
 
         // External row
-        const edot = card.querySelector('[data-role="externalDot"]');
-        if (edot) edot.dataset.status = extStatus;
+        setDataIfChanged(card.querySelector('[data-role="externalDot"]'), "status", extStatus);
 
         const eup = card.querySelector('[data-role="externalUp"]');
-        if (eup) eup.textContent = extUp == null ? "—" : `${Number(extUp).toFixed(1)}%`;
+        if (eup) setTextIfChanged(eup, extUp == null ? "—" : `${Number(extUp).toFixed(1)}%`);
 
 
     }
@@ -4468,13 +4609,21 @@ els.btnConnect.addEventListener("click", async () => {
 initialLoad();
 const scrollBtn = document.getElementById("scrollTopBtn");
 
-window.addEventListener("scroll", () => {
-    if (window.scrollY > 240) {
-        scrollBtn.classList.add("show");
-    } else {
-        scrollBtn.classList.remove("show");
-    }
-});
+// Passive: without it the browser must wait to see whether this handler calls
+// preventDefault() before it can scroll, which is felt directly as stutter.
+// The class is only touched when it actually changes -- toggling it on every
+// scroll event invalidates style for the whole subtree each frame.
+let _scrollBtnShown = false;
+window.addEventListener(
+    "scroll",
+    () => {
+        const shouldShow = window.scrollY > 240;
+        if (shouldShow === _scrollBtnShown) return;
+        _scrollBtnShown = shouldShow;
+        scrollBtn.classList.toggle("show", shouldShow);
+    },
+    { passive: true }
+);
 
 scrollBtn.addEventListener("click", () => {
     window.scrollTo({ top: 0, behavior: "smooth" });

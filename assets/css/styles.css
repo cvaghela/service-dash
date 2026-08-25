@@ -1641,22 +1641,13 @@ html {
     text-decoration: none;
 }
 /* Addresses are obscured until you actually look at them, so the dashboard can
-   sit on a screen without publishing its own IPs. Only applied once a real
-   address is present, so "detecting…" and "unavailable" stay readable. */
-.network-copy-value[data-copy-ip] {
-    filter: blur(5px);
-    transition: filter var(--t-med) ease;
-}
-.netline:hover .network-copy-value[data-copy-ip],
-.network-copy-value[data-copy-ip]:hover,
-.network-copy-value[data-copy-ip]:active,
-.network-copy-value[data-copy-ip]:focus-visible {
+   sit on a screen without publishing its own IPs. The cover itself now lives in
+   one place -- .is-private, further down -- which the script applies to a real
+   address and withholds from "detecting…" and "unavailable" so those stay
+   readable. Keeping a second filter: blur() here would both fight that rule and
+   put the expensive implementation back. */
+.network-copy-value[data-copy-ip]:active {
     filter: none;
-}
-@media (prefers-reduced-motion: reduce) {
-    .network-copy-value[data-copy-ip] {
-        transition: none;
-    }
 }
 .network-copy-value:focus-visible {
     outline: 2px solid rgb(var(--accent-2) / 0.85);
@@ -2255,18 +2246,59 @@ html {
 /* Values that stay hidden until you sign in to Uptime Kuma: service URLs and
    the host's LAN and WAN addresses. What is blurred is a placeholder, never the
    real value — the blur is presentation, not the protection. */
+/* Signed out: nothing to reveal, so it says so rather than teasing a blur. */
 .is-locked {
-    filter: blur(3.5px);
-    opacity: 0.75;
+    opacity: 0.6;
     user-select: none;
     cursor: default;
-    letter-spacing: 1px;
+    font-style: italic;
+    letter-spacing: 0.2px;
 }
-.is-locked::selection {
+
+/* Signed in: the real value, under shoulder-surfing cover that lifts on hover
+   or keyboard focus.
+
+   The blur is text-shadow rather than filter: blur(). A filter promotes every
+   element it touches to its own offscreen buffer and stacking context, and
+   these sit two-per-card across the whole grid -- enough of them to make
+   scrolling stutter. A transparent glyph with its own shadow paints in the
+   normal text pass and costs essentially nothing. */
+/* !important is deliberate. Several later rules -- .linkUrl,
+   .linkLine[data-active="true"] .linkUrl, .network-copy-value[data-copy-ip] --
+   set their own colour at equal or higher specificity, and any one of them
+   winning would leave the value plainly readable while still looking as though
+   it were covered. The reveal rules below carry it too, so they can win back. */
+.is-private {
+    color: transparent !important;
+    /* Also !important: #secNetwork .netline #lan sets text-shadow: none at ID
+       specificity, which would leave the address transparent with nothing drawn
+       in its place -- invisible rather than covered. */
+    text-shadow: 0 0 7px var(--text) !important;
+    user-select: none;
+    cursor: pointer;
+    transition:
+        text-shadow 0.14s ease,
+        color 0.14s ease;
+}
+.is-private:hover,
+.is-private:focus-visible,
+.linkLine:hover .is-private,
+.netline:hover .is-private {
+    color: var(--text) !important;
+    text-shadow: none !important;
+    user-select: text;
+}
+/* An active endpoint keeps its accent colour when revealed. */
+.linkLine[data-active="true"]:hover .is-private {
+    color: var(--accent, var(--text)) !important;
+}
+.is-locked::selection,
+.is-private::selection {
     background: transparent;
 }
 @media (prefers-reduced-motion: reduce) {
-    .is-locked {
+    .is-locked,
+    .is-private {
         transition: none;
     }
 }
