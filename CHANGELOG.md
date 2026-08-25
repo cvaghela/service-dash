@@ -3,6 +3,43 @@
 All notable changes to Service Dash are recorded here. This project follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Icon picker in Card settings.** Typing a service name lists matching icons with their artwork; arrow keys move,
+  Enter picks, Escape closes the list. Matching covers the icon's display name, its slug, and the keyword patterns
+  automatic matching already used, so `hass` finds Home Assistant. Pasting an image link works exactly as before.
+- **Several containers per card.** A card can be mapped to any number of Docker containers under **Mapped to**, and
+  their CPU percentages and RAM are added together into the figure the card already showed. The tooltip names what was
+  combined; a container that stops reporting is left out of the total rather than counted as zero.
+- **`SHARED_SETTINGS`.** Set it to `on` to keep card settings, filters, storage and network selections, and notes in the
+  `settings` volume instead of in each browser, so every browser and device sees the same dashboard. Off by default.
+  Reading the shared settings is open; saving a change requires `SHARED_SETTINGS_USER` and a password supplied through
+  `SHARED_SETTINGS_PASSWORD_FILE`, and the container refuses to start if the setting is on without one. Uptime Kuma
+  credentials and the settings password are never included in the shared document.
+- **A Content-Security-Policy on the dashboard document**, with `X-Content-Type-Options: nosniff` and
+  `Referrer-Policy: no-referrer`. Images are restricted to the dashboard itself, `data:` URIs, and HTTPS hosts, so a
+  hostile icon link cannot make a viewer's browser call plain-`http` LAN equipment.
+
+### Changed
+
+- **Cards with no icon now show a monogram** — the service's initials over a gradient keyed to its name — instead of the
+  bundled Service Dash mark. It is drawn in the browser, so it still needs no internet access, and unlike a single
+  shared mark it keeps every card distinguishable. The top-bar brand mark is unchanged.
+- Opening **Card settings** on an automatically matched card shows the icon's name rather than its CDN URL.
+- **Every byte figure now picks its own unit** — B, KB, MB, GB or TB — so a 40 MB container reads `40.0 MB` rather than
+  `0.04 GB`, and container RAM is no longer pinned to MB. Host RAM, storage and container RAM all share one formatter.
+- **The status dot sits in the card's top-right corner**, reporting the state of the whole card rather than riding along
+  the top row.
+- The icon editor's **Use default** button is now **Default icon**.
+
+### Fixed
+
+- Saving **Card settings** on an automatically matched card no longer converts the automatic match into a fixed
+  override pinned to whatever URL was current at the time.
+- Storage figures with no sample yet read `—` instead of `0.00 MB`, which reported an unread volume as an empty one.
+
 ## [1.1.1] — 2026-08-25
 
 Housekeeping for the first public release. No functional changes to the dashboard.

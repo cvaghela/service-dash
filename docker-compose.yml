@@ -17,6 +17,18 @@ services:
       # Optional: override the auto-picked icon for a service, by its card name.
       # An empty value keeps that card on its category emoji.
       SERVICE_ICONS: '{}'
+      # "on" shares card settings, filters and notes across every browser and
+      # device, by keeping them in the settings volume below instead of in each
+      # browser. Reading stays open; saving a change requires the password
+      # below, so a visitor cannot rewrite what everyone else sees.
+      SHARED_SETTINGS: "off"
+      SHARED_SETTINGS_USER: "dashboard"
+      # Required when SHARED_SETTINGS is "on" — the container refuses to start
+      # without it. A file keeps the secret out of `docker inspect`; create it
+      # with, for example:
+      #   printf '%s' 'a-long-random-passphrase' > ./settings-password.txt
+      #   chmod 600 ./settings-password.txt
+      SHARED_SETTINGS_PASSWORD_FILE: "/run/secrets/settings_password"
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
@@ -28,6 +40,10 @@ services:
         condition: service_healthy
     volumes:
       - networkinfo:/var/run/network-info:ro
+      # Holds shared card settings. Only written when SHARED_SETTINGS is "on".
+      - settings:/var/lib/service-dash
+    secrets:
+      - settings_password
     restart: unless-stopped
 
   network-info:
@@ -95,6 +111,13 @@ services:
 
 volumes:
   networkinfo:
+  settings:
+
+secrets:
+  settings_password:
+    # Only read when SHARED_SETTINGS is "on". Keep this file out of version
+    # control — add it to .gitignore if you create it here.
+    file: ./settings-password.txt
   netdataconfig:
   netdatalib:
   netdatacache:

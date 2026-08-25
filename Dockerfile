@@ -1,6 +1,6 @@
 FROM nginx:1.27-alpine
 
-RUN apk add --no-cache gettext
+RUN apk add --no-cache gettext openssl
 
 COPY index.html /usr/share/nginx/html/index.html
 COPY icon-favicon.png /usr/share/nginx/html/icon-favicon.png

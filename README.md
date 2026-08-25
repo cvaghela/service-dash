@@ -207,23 +207,97 @@ All installation settings live directly in the Compose file used for the install
 | `STATUS_SLUG` | Final path segment of the published Kuma status-page URL | `homelab` |
 | `STORAGE_MOUNT` | Initial storage mount for browsers without a saved dropdown selection | `auto` |
 | `SERVICE_ICONS` | Per-service icon overrides, as a JSON object keyed by card name | `{}` |
+| `SHARED_SETTINGS` | `on` shares card settings, filters and notes across every browser and device. See **Shared settings** below | `off` |
+| `SHARED_SETTINGS_USER` | Username required to save a change when `SHARED_SETTINGS` is `on` | `dashboard` |
+| `SHARED_SETTINGS_PASSWORD_FILE` | Path to a file holding the password. Required when `SHARED_SETTINGS` is `on`; the container refuses to start without it | `/run/secrets/settings_password` |
 | `NETWORK_INFO_REFRESH_SECONDS` | How often the LAN route and WAN address are re-read. Set on the `network-info` service, and required — the helper exits if it is removed | `600` |
 
 ### Container CPU and RAM
 
-Where a service maps to a Docker container on the host, its card shows that container's current CPU percentage and RAM
+Where a service maps to one or more Docker containers on the host, its card shows their current CPU percentage and RAM
 in MB. The figures come from the bundled Netdata Agent's per-container charts (`cgroup_NAME.cpu` and
 `cgroup_NAME.mem_usage`) through the existing `/netdata/` proxy — the Docker socket proxy stays restricted to read-only
 network metadata and is not involved.
 
 Service Dash matches a card to a container automatically only when the names genuinely agree. Uptime Kuma monitor names
 and container names are usually different, so most cards need to be pointed at their container once: hover the card,
-click the pencil on its icon, and choose from the **Docker container** list in **Card settings**. The list contains every
-container Netdata can see. **Auto** keeps name matching, **None** hides the stats for that card, and the choice is saved
-in that browser.
+click the pencil on its icon, and open **Mapped to** in **Card settings**. The list contains every container Netdata can
+see. **Match automatically** keeps name matching; clear it to choose containers yourself, and the choice is saved in that
+browser.
+
+A service that runs as several containers — an app with its own database, cache, or worker — can be mapped to all of
+them. Their CPU percentages and RAM are added together and shown as one figure, with the card's tooltip naming what was
+combined. A container that stops reporting is left out of the total rather than counted as zero, and the tooltip says how
+many are missing. Selecting no containers hides the row for that card.
 
 Cards with no container mapped simply omit the row. Container stats refresh every 10 seconds rather than every 2, since
-each mapped card costs an extra pair of Netdata queries.
+each mapped container costs an extra pair of Netdata queries — a card mapped to four containers costs eight.
+
+### Shared settings
+
+Card settings, filters, the storage and network selections, and the notes panel are saved in the browser that made
+them. That is deliberate — the dashboard has no accounts — but it means a second browser, or a phone, starts from
+scratch.
+
+Set `SHARED_SETTINGS: "on"` to keep those values in the `settings` volume instead. Every browser reads the same
+document on load and writes back on change, so a card renamed or remapped on a laptop looks the same on a phone.
+
+**Reading is open; saving requires a password.** Without that split, anyone who could reach the dashboard could rewrite
+what every browser and device shows — including the image URLs each viewer's browser then requests. Create the password
+file and turn the setting on:
+
+```bash
+printf '%s' 'a-long-random-passphrase' > ./settings-password.txt
+chmod 600 ./settings-password.txt
+```
+
+```yaml
+environment:
+  SHARED_SETTINGS: "on"
+  SHARED_SETTINGS_USER: "dashboard"
+  SHARED_SETTINGS_PASSWORD_FILE: "/run/secrets/settings_password"
+secrets:
+  - settings_password
+volumes:
+  - settings:/var/lib/service-dash
+```
+
+The volume and the secret are already declared in `docker-compose.yml`; recreate the container after changing the
+setting. On CasaOS the values bind-mount to `/DATA/AppData/service-dash/settings`, and the password file to
+`/DATA/AppData/service-dash/settings-password`.
+
+The password is read from a file rather than an environment variable so it stays out of `docker inspect` and the
+container's process environment. `SHARED_SETTINGS_PASSWORD` is accepted as a fallback but is not recommended. It must
+be at least 12 characters, and the container **refuses to start** if `SHARED_SETTINGS` is `on` with no password — the
+write endpoint is never exposed unauthenticated.
+
+The first time you change a setting, the dashboard asks for the username and password and stores them in that browser
+alone. Viewers who never change anything are never asked.
+
+Understand the remaining trade-offs:
+
+- **Anyone who can reach the dashboard can still read the settings**, as they can already read the dashboard itself.
+- **Uptime Kuma credentials and the settings password are never shared.** They stay in the browser that entered them
+  and are deliberately excluded from the document.
+- **Last write wins.** There is no merge and no locking. Two browsers changing different settings at the same time will
+  see one overwrite the other, and changes made elsewhere appear after a reload rather than live.
+- **The document is small and non-critical.** It is capped at 256 KB, and a failed write leaves the browser working
+  from its own copy with a warning rather than losing the change.
+- **Anyone who knows the password can change what every viewer sees.** Treat it as a shared admin password for the
+  dashboard, not a per-person login.
+
+With `SHARED_SETTINGS` off — the default — the endpoint returns 404 and nothing is ever written to the volume.
+
+### Response headers
+
+The dashboard sends a Content-Security-Policy on its own document, along with `X-Content-Type-Options: nosniff` and
+`Referrer-Policy: no-referrer`.
+
+The policy allows scripts and styles from the dashboard itself, fonts from Google Fonts, and images from the dashboard,
+`data:` URIs, and any **HTTPS** host. That last part is deliberate: a plain-`http` image URL cannot be loaded, which
+blocks a hostile icon link from making requests to LAN equipment out of each viewer's browser. Self-hosted icons still
+work over a relative path such as `/icons/plex.png`; an icon served from a plain-`http` host on your LAN does not, and
+should be served over HTTPS or bind-mounted into the container instead.
 
 ### Service icons
 
@@ -231,13 +305,14 @@ Service cards show a real application logo from [selfh.st/icons](https://github.
 from the service name — `Radarr` finds the Radarr logo, `Home Assistant` finds Home Assistant, and so on.
 
 Icons load from `https://cdn.jsdelivr.net/gh/selfhst/icons/png/`. Any card whose service has no match, or whose icon fails
-to load for any reason, shows the bundled Service Dash mark instead. That fallback ships inside the image, so it works on
-a host with no internet access and can never itself fail to load.
+to load for any reason, shows a monogram instead: the service's initials over a gradient keyed to its name, so every card
+stays distinguishable. The monogram is drawn in the browser rather than fetched, so it works on a host with no internet
+access and can never itself fail to load.
 
-To change the icon for a card, hover it and click the small pencil button at the bottom-left corner of the tile. Paste any
-image link, and the card updates immediately. **Use default** returns to the automatically matched icon, and saving an
-empty link shows the bundled Service Dash mark instead. The choice is saved in that browser, so no redeploy or Compose edit is
-needed.
+To change the icon for a card, hover it and click the small pencil button at the bottom-left corner of the tile. Type a
+service name to pick from the matching icons, or paste an image link of your own — either way the card updates
+immediately. **Default icon** returns to the automatically matched icon, and clearing the field shows the monogram. The
+choice is saved in that browser, so no redeploy or Compose edit is needed.
 
 For a server-wide default that applies to every browser and device — useful when the dashboard is shared — set
 `SERVICE_ICONS` to a JSON object keyed by the name shown on the card:
@@ -250,12 +325,11 @@ environment:
 - Names are matched case-insensitively, and a paired `Plex` / `Plex local` set is covered by the single entry `Plex`.
 - Any image URL works. A relative path such as `/icons/plex.png` is served from the dashboard container, so icons can be
   bind-mounted and kept entirely local.
-- An empty value — `{"Plex":""}` — disables the automatic match for that card and shows the bundled Service Dash mark.
+- An empty value — `{"Plex":""}` — disables the automatic match for that card and shows its monogram.
 - An override always beats the automatic match, and a per-browser choice made with the pencil button beats `SERVICE_ICONS`.
-- A link that cannot be loaded falls back to the bundled Service Dash mark, and the icon editor says so rather than failing quietly.
+- A link that cannot be loaded falls back to the monogram, and the icon editor says so rather than failing quietly.
 
-Precedence is: the icon picked in this browser, then `SERVICE_ICONS`, then the automatic match, then the bundled
-Service Dash mark.
+Precedence is: the icon picked in this browser, then `SERVICE_ICONS`, then the automatic match, then the monogram.
 
 Recreate the container after changing it:
 
@@ -341,7 +415,7 @@ When placing this dashboard behind another reverse proxy, proxy the whole dashbo
 - Storage auto-detection excludes container overlays and transient system mounts, preferring named persistent paths such as `/media/1TB-SSD-1` and `/var/lib/casaos_data`. Open the Sources dropdown to select one or several mounts. Multiple selections are converted to bytes and aggregated before Used, Free, Total, and percentage are calculated. The selection is saved in that browser. See **Storage mount options** above for server-wide initial-source configuration.
 - Each service card shows its two endpoints, Local and External. The one a click will open is tinted; flipping the Local/External switch in the top bar moves that highlight. A service with only one endpoint shows only that row.
 - **Login** loads Socket.IO through `/kuma/socket.io/`. Credentials are sent to your proxied Uptime Kuma instance; choosing “remember” stores the returned login token in that browser’s local storage. Without it the dashboard still works, showing status and uptime with the URLs hidden.
-- Hover a card and click the pencil at its corner for **Card settings**: the icon link for that service, and the Docker container whose CPU and RAM the card should show. Both are saved in that browser.
+- Hover a card and click the pencil at its corner for **Card settings**: the icon for that service, and the Docker containers whose CPU and RAM the card should show. Several containers can be mapped to one card, and their figures are added together. Both settings are saved in that browser.
 - Theme, accent, filters, and other client-side preferences may also persist in the browser.
 
 To find the correct slug, open the published status page in Uptime Kuma. For a URL ending in `/status/homelab`, use `STATUS_SLUG: "homelab"`—which is already the built-in default. If yours differs, edit `STATUS_SLUG` in `docker-compose.yml` and recreate the Service Dash container.
@@ -409,6 +483,79 @@ docker compose up -d --force-recreate service-dash
 ```
 
 Static assets are cached for seven days, so a browser hard refresh or cache clear may be required.
+
+## Upgrading from 1.1.1
+
+Pull the new image and recreate the container. **No configuration changes are required** — the existing
+`docker-compose.yml` from 1.1.1 works unchanged, every new setting defaults off, and no new volume, secret, or
+environment variable is needed to keep what you already have.
+
+```sh
+docker compose pull service-dash
+docker compose up -d --force-recreate service-dash
+```
+
+Existing per-browser customisations survive untouched: card icons, container mappings, storage and network selections,
+notes, theme, and accent. Container mappings written by 1.1.1 stored a single container name; they are now read as
+one-item lists automatically, with nothing to migrate by hand.
+
+### What looks different
+
+- Cards with no matching icon show a monogram — the service's initials over a gradient — instead of the bundled
+  Service Dash mark.
+- The status dot moved to the card's top-right corner.
+- Card settings has an icon picker: type a service name to choose from matching icons. Pasting a link still works.
+- **Use default** in that dialog is now **Default icon**.
+- Byte figures pick their own unit, so container RAM under a gigabyte reads in MB rather than always MB.
+
+### The one thing that can break
+
+The dashboard now sends a Content-Security-Policy that restricts images to itself, `data:` URIs, and HTTPS hosts. If
+any of your icons — in `SERVICE_ICONS` or picked per-browser — point at a **plain-`http`** address, they will stop
+loading and those cards fall back to a monogram.
+
+This is deliberate: it stops a hostile icon link from making each viewer's browser call LAN equipment. Fix an affected
+icon by serving it over HTTPS, or by bind-mounting the image into the container and using a relative path:
+
+```yaml
+volumes:
+  - ./icons:/usr/share/nginx/html/icons:ro
+environment:
+  SERVICE_ICONS: '{"Plex":"/icons/plex.png"}'
+```
+
+Icons from `https://` hosts, including the default `cdn.jsdelivr.net` artwork, are unaffected.
+
+### Turning on shared settings
+
+Settings stay per-browser unless you opt in, exactly as before. To share them across every browser and device, create
+the password file and set three values — see **Shared settings** above for the full detail:
+
+```sh
+printf '%s' 'a-long-random-passphrase' > ./settings-password.txt
+chmod 600 ./settings-password.txt
+```
+
+```yaml
+environment:
+  SHARED_SETTINGS: "on"
+  SHARED_SETTINGS_USER: "dashboard"
+  SHARED_SETTINGS_PASSWORD_FILE: "/run/secrets/settings_password"
+secrets:
+  - settings_password
+volumes:
+  - settings:/var/lib/service-dash
+```
+
+The container **refuses to start** if `SHARED_SETTINGS` is `on` and the password is missing, too short, or points at a
+directory rather than a file, so a misconfiguration fails loudly instead of leaving the write endpoint open.
+
+**Decide which browser seeds the shared settings.** When you first turn this on, the shared document does not exist
+yet and every browser keeps showing its own settings. The first browser to save a change publishes *its* settings to
+everyone, and other browsers adopt them on their next load — replacing what those browsers had. So make your first
+change from the browser whose setup you want to keep, before opening the dashboard elsewhere.
+
+Turning the setting back off leaves the document in the volume untouched and returns every browser to its own copy.
 
 ## Update and rollback
 
