@@ -140,64 +140,63 @@ const KEYWORDS = [
 ];
 
 // Real app icons from https://github.com/selfhst/icons, matched by service name.
-// Anything unmatched (or any host without internet) keeps the category emoji.
+// Anything unmatched (or any host without internet) falls back to the bundled mark.
+// `label` is what the card-settings icon picker lists, so it doubles as the
+// human name for the slug — keep one entry per icon.
 const SERVICE_ICON_BASE = "https://cdn.jsdelivr.net/gh/selfhst/icons/png";
-// Shipped inside the image, so the last-resort icon can never itself fail to
-// load — that is the whole point of a fallback.
-const FALLBACK_ICON = "assets/img/service-dash-icon.png";
 // Brand mark in the top bar. Defaults to the bundled Service Dash icon, so it
 // needs no internet access; point it at any image URL to use your own. Falls
 // back to the ⚡ glyph if the image cannot be loaded.
-const BRAND_LOGO = FALLBACK_ICON;
+const BRAND_LOGO = "assets/img/service-dash-icon.png";
 const SERVICE_ICONS = [
-    { regex: /zimaos/i, slug: "zimaos" },
-    { regex: /casaos/i, slug: "casaos" },
-    { regex: /home\s*assistant|hass/i, slug: "home-assistant" },
-    { regex: /jellyseerr/i, slug: "jellyseerr" },
-    { regex: /overseerr/i, slug: "overseerr" },
-    { regex: /jellyfin/i, slug: "jellyfin" },
-    { regex: /\bemby\b/i, slug: "emby" },
-    { regex: /\bplex\b/i, slug: "plex" },
-    { regex: /tautulli/i, slug: "tautulli" },
-    { regex: /prowlarr/i, slug: "prowlarr" },
-    { regex: /radarr/i, slug: "radarr" },
-    { regex: /sonarr/i, slug: "sonarr" },
-    { regex: /lidarr/i, slug: "lidarr" },
-    { regex: /readarr/i, slug: "readarr" },
-    { regex: /bazarr/i, slug: "bazarr" },
-    { regex: /\bombi\b/i, slug: "ombi" },
-    { regex: /sabnzbd/i, slug: "sabnzbd" },
-    { regex: /qbittorrent/i, slug: "qbittorrent" },
-    { regex: /otter\s*wiki/i, slug: "an-otter-wiki" },
-    { regex: /bookstack/i, slug: "bookstack" },
-    { regex: /stirling/i, slug: "stirling-pdf" },
-    { regex: /mealie/i, slug: "mealie" },
-    { regex: /grafana/i, slug: "grafana" },
-    { regex: /prometheus/i, slug: "prometheus" },
-    { regex: /uptime\s*kuma/i, slug: "uptime-kuma" },
-    { regex: /netdata/i, slug: "netdata" },
-    { regex: /portainer/i, slug: "portainer" },
-    { regex: /nextcloud/i, slug: "nextcloud" },
-    { regex: /syncthing/i, slug: "syncthing" },
-    { regex: /minio/i, slug: "minio" },
-    { regex: /synology/i, slug: "synology" },
-    { regex: /node[-\s]?red/i, slug: "node-red" },
-    { regex: /mosquitto|mqtt/i, slug: "mosquitto" },
-    { regex: /zigbee2mqtt/i, slug: "zigbee2mqtt" },
-    { regex: /esphome/i, slug: "esphome" },
-    { regex: /it[-\s]?tools/i, slug: "it-tools" },
-    { regex: /vaultwarden|bitwarden/i, slug: "vaultwarden" },
-    { regex: /adguard/i, slug: "adguard-home" },
-    { regex: /traefik/i, slug: "traefik" },
-    { regex: /nginx\s*proxy\s*manager|\bnpm\b/i, slug: "nginx-proxy-manager" },
-    { regex: /immich/i, slug: "immich" },
-    { regex: /paperless/i, slug: "paperless-ngx" },
-    { regex: /audiobookshelf/i, slug: "audiobookshelf" },
-    { regex: /navidrome/i, slug: "navidrome" },
-    { regex: /duplicati/i, slug: "duplicati" },
-    { regex: /restic/i, slug: "restic" },
-    { regex: /homarr/i, slug: "homarr" },
-    { regex: /heimdall/i, slug: "heimdall" },
+    { regex: /zimaos/i, slug: "zimaos", label: "ZimaOS" },
+    { regex: /casaos/i, slug: "casaos", label: "CasaOS" },
+    { regex: /home\s*assistant|hass/i, slug: "home-assistant", label: "Home Assistant" },
+    { regex: /jellyseerr/i, slug: "jellyseerr", label: "Jellyseerr" },
+    { regex: /overseerr/i, slug: "overseerr", label: "Overseerr" },
+    { regex: /jellyfin/i, slug: "jellyfin", label: "Jellyfin" },
+    { regex: /\bemby\b/i, slug: "emby", label: "Emby" },
+    { regex: /\bplex\b/i, slug: "plex", label: "Plex" },
+    { regex: /tautulli/i, slug: "tautulli", label: "Tautulli" },
+    { regex: /prowlarr/i, slug: "prowlarr", label: "Prowlarr" },
+    { regex: /radarr/i, slug: "radarr", label: "Radarr" },
+    { regex: /sonarr/i, slug: "sonarr", label: "Sonarr" },
+    { regex: /lidarr/i, slug: "lidarr", label: "Lidarr" },
+    { regex: /readarr/i, slug: "readarr", label: "Readarr" },
+    { regex: /bazarr/i, slug: "bazarr", label: "Bazarr" },
+    { regex: /\bombi\b/i, slug: "ombi", label: "Ombi" },
+    { regex: /sabnzbd/i, slug: "sabnzbd", label: "SABnzbd" },
+    { regex: /qbittorrent/i, slug: "qbittorrent", label: "qBittorrent" },
+    { regex: /otter\s*wiki/i, slug: "an-otter-wiki", label: "An Otter Wiki" },
+    { regex: /bookstack/i, slug: "bookstack", label: "BookStack" },
+    { regex: /stirling/i, slug: "stirling-pdf", label: "Stirling PDF" },
+    { regex: /mealie/i, slug: "mealie", label: "Mealie" },
+    { regex: /grafana/i, slug: "grafana", label: "Grafana" },
+    { regex: /prometheus/i, slug: "prometheus", label: "Prometheus" },
+    { regex: /uptime\s*kuma/i, slug: "uptime-kuma", label: "Uptime Kuma" },
+    { regex: /netdata/i, slug: "netdata", label: "Netdata" },
+    { regex: /portainer/i, slug: "portainer", label: "Portainer" },
+    { regex: /nextcloud/i, slug: "nextcloud", label: "Nextcloud" },
+    { regex: /syncthing/i, slug: "syncthing", label: "Syncthing" },
+    { regex: /minio/i, slug: "minio", label: "MinIO" },
+    { regex: /synology/i, slug: "synology", label: "Synology" },
+    { regex: /node[-\s]?red/i, slug: "node-red", label: "Node-RED" },
+    { regex: /mosquitto|mqtt/i, slug: "mosquitto", label: "Mosquitto" },
+    { regex: /zigbee2mqtt/i, slug: "zigbee2mqtt", label: "Zigbee2MQTT" },
+    { regex: /esphome/i, slug: "esphome", label: "ESPHome" },
+    { regex: /it[-\s]?tools/i, slug: "it-tools", label: "IT-Tools" },
+    { regex: /vaultwarden|bitwarden/i, slug: "vaultwarden", label: "Vaultwarden" },
+    { regex: /adguard/i, slug: "adguard-home", label: "AdGuard Home" },
+    { regex: /traefik/i, slug: "traefik", label: "Traefik" },
+    { regex: /nginx\s*proxy\s*manager|\bnpm\b/i, slug: "nginx-proxy-manager", label: "Nginx Proxy Manager" },
+    { regex: /immich/i, slug: "immich", label: "Immich" },
+    { regex: /paperless/i, slug: "paperless-ngx", label: "Paperless-ngx" },
+    { regex: /audiobookshelf/i, slug: "audiobookshelf", label: "Audiobookshelf" },
+    { regex: /navidrome/i, slug: "navidrome", label: "Navidrome" },
+    { regex: /duplicati/i, slug: "duplicati", label: "Duplicati" },
+    { regex: /restic/i, slug: "restic", label: "Restic" },
+    { regex: /homarr/i, slug: "homarr", label: "Homarr" },
+    { regex: /heimdall/i, slug: "heimdall", label: "Heimdall" },
 ];
 
 const CATEGORY_META = {
@@ -267,7 +266,16 @@ const els = {
     iconPreviewEmoji: document.getElementById("iconPreviewEmoji"),
     iconPreview: document.getElementById("iconPreview"),
     iconStatus: document.getElementById("iconStatus"),
-    containerSelect: document.getElementById("containerSelect"),
+    iconSuggest: document.getElementById("iconSuggest"),
+    settingsAuthOverlay: document.getElementById("settingsAuthOverlay"),
+    settingsAuthUser: document.getElementById("settingsAuthUser"),
+    settingsAuthPass: document.getElementById("settingsAuthPass"),
+    settingsAuthStatus: document.getElementById("settingsAuthStatus"),
+    btnSettingsAuthSave: document.getElementById("btnSettingsAuthSave"),
+    btnSettingsAuthCancel: document.getElementById("btnSettingsAuthCancel"),
+    containerPicker: document.getElementById("containerPicker"),
+    containerSummary: document.getElementById("containerSummary"),
+    containerOptions: document.getElementById("containerOptions"),
     containerHint: document.getElementById("containerHint"),
     btnIconSave: document.getElementById("btnIconSave"),
     btnIconCancel: document.getElementById("btnIconCancel"),
@@ -1017,6 +1025,7 @@ function populateDiskMountOptions() {
         ND_UNIT_DISK = ND_SELECTED_DISKS[0].units;
         try {
             localStorage.setItem("storageMounts", JSON.stringify(ND_SELECTED_DISKS.map((option) => option.mount)));
+            scheduleSharedSettingsSave();
         } catch {}
         updateDiskMountSummary();
         tickNetdata();
@@ -1121,7 +1130,15 @@ function netdataValueToBytes(value, units) {
     return null;
 }
 
-function formatStorageBytes(bytes) {
+// One scale for every byte figure on the dashboard, so a 40 MB container and a
+// 4 TB disk are written the same way and nothing is stuck reading "0.04 GB" or
+// "3800000 MB". Sizes are 1024-based, matching what Netdata reports; the
+// shorter KB/MB/GB labels are the ones the rest of the UI already uses.
+function formatBytes(bytes) {
+    // The disk readouts pass null to mean "no sample", and Number(null) is 0 —
+    // which would report an unread volume as empty rather than unknown.
+    if (bytes == null) return "—";
+
     const numeric = Number(bytes);
     if (!Number.isFinite(numeric)) return "—";
 
@@ -1129,18 +1146,15 @@ function formatStorageBytes(bytes) {
         { label: "TB", size: 1024 ** 4 },
         { label: "GB", size: 1024 ** 3 },
         { label: "MB", size: 1024 ** 2 },
+        { label: "KB", size: 1024 },
+        { label: "B", size: 1 },
     ];
     const selected = units.find((unit) => Math.abs(numeric) >= unit.size) || units[units.length - 1];
     const scaled = numeric / selected.size;
-    const digits = Math.abs(scaled) >= 100 ? 0 : Math.abs(scaled) >= 10 ? 1 : 2;
+    // Whole bytes never need decimals; everything else keeps three significant
+    // figures so the column width stays steady as values move between units.
+    const digits = selected.size === 1 ? 0 : Math.abs(scaled) >= 100 ? 0 : Math.abs(scaled) >= 10 ? 1 : 2;
     return `${scaled.toFixed(digits)} ${selected.label}`;
-}
-
-function formatRamTotal(bytes) {
-    const numeric = Number(bytes);
-    if (!Number.isFinite(numeric)) return "—";
-    const gigabytes = numeric / 1024 ** 3;
-    return `${gigabytes.toFixed(gigabytes >= 10 ? 1 : 2)} GB`;
 }
 
 function inspectNetdataSample(nd) {
@@ -1251,7 +1265,7 @@ function applyHostMetricsFromNetdata(cpuNd, ramNd, diskNd, loadNd, powerNd, temp
     }
 
     setMetric(els.memVal, els.memBar, ramPct, ramPct == null ? "—" : `${ramPct.toFixed(0)}%`);
-    if (els.memTotal) els.memTotal.textContent = formatRamTotal(netdataValueToBytes(rTotal, ND_UNIT_RAM));
+    if (els.memTotal) els.memTotal.textContent = formatBytes(netdataValueToBytes(rTotal, ND_UNIT_RAM));
 
     // -------------------
     // Disk
@@ -1301,9 +1315,9 @@ function applyHostMetricsFromNetdata(cpuNd, ramNd, diskNd, loadNd, powerNd, temp
     // The used figure lives in the details line, so the headline value stays a
     // bare percentage like the other two metrics.
     setMetric(els.diskVal, els.diskBar, diskPct, diskPct == null ? "—" : `${diskPct.toFixed(0)}%`);
-    if (els.diskUsed) els.diskUsed.textContent = formatStorageBytes(validDiskSamples ? usedBytes : null);
-    if (els.diskFree) els.diskFree.textContent = formatStorageBytes(validDiskSamples ? freeBytes : null);
-    if (els.diskTotal) els.diskTotal.textContent = formatStorageBytes(validDiskSamples ? totalBytes : null);
+    if (els.diskUsed) els.diskUsed.textContent = formatBytes(validDiskSamples ? usedBytes : null);
+    if (els.diskFree) els.diskFree.textContent = formatBytes(validDiskSamples ? freeBytes : null);
+    if (els.diskTotal) els.diskTotal.textContent = formatBytes(validDiskSamples ? totalBytes : null);
     if (els.diskMount && diskNd?.kind === "diskBundle" && diskNd.errors?.length) {
         els.diskMount.title = `${ND_SELECTED_DISKS.map((option) => option.mount).join(" • ")} • Unavailable: ${diskNd.errors.join("; ")}`;
     }
@@ -1633,29 +1647,55 @@ async function tickContainerStats() {
 
     _containerTickInFlight = true;
     try {
-        // One request pair per mapped card, and only for cards actually mapped.
+        // One request pair per mapped container, and only for cards actually
+        // mapped — a card mapped to three containers costs six queries a tick.
         const targets = state.services
-            .map((service) => ({ service, container: containerForService(service.name).container }))
-            .filter((target) => target.container && ND_CONTAINERS.includes(target.container));
+            .map((service) => ({
+                service,
+                containers: containerForService(service.name).containers.filter((container) =>
+                    ND_CONTAINERS.includes(container)
+                ),
+            }))
+            .filter((target) => target.containers.length);
 
         await Promise.allSettled(
-            targets.map(async ({ service, container }) => {
-                const [cpu, mem] = await Promise.allSettled([
-                    fetchNetdataChartOnce(`cgroup_${container}.cpu`),
-                    fetchNetdataChartOnce(`cgroup_${container}.mem_usage`),
-                ]);
+            targets.map(async ({ service, containers }) => {
+                const samples = await Promise.all(
+                    containers.map(async (container) => {
+                        const [cpu, mem] = await Promise.allSettled([
+                            fetchNetdataChartOnce(`cgroup_${container}.cpu`),
+                            fetchNetdataChartOnce(`cgroup_${container}.mem_usage`),
+                        ]);
 
-                const cpuNd = cpu.status === "fulfilled" ? cpu.value : null;
-                const memNd = mem.status === "fulfilled" ? mem.value : null;
+                        const cpuNd = cpu.status === "fulfilled" ? cpu.value : null;
+                        const memNd = mem.status === "fulfilled" ? mem.value : null;
 
-                // cgroup.cpu is split across user/system; mem_usage across ram/swap.
-                const cpuPct = sumNdRowExcluding(cpuNd, ["time"]);
-                const ramMib = getNdValue(memNd, "ram");
+                        // cgroup.cpu is split across user/system; mem_usage
+                        // across ram/swap.
+                        const cpuPct = sumNdRowExcluding(cpuNd, ["time"]);
+                        const ramMib = getNdValue(memNd, "ram");
+
+                        return {
+                            container,
+                            cpuPct: Number.isFinite(cpuPct) ? cpuPct : null,
+                            ramMib: Number.isFinite(ramMib) ? ramMib : null,
+                        };
+                    })
+                );
+
+                // Containers that answered are summed; ones that did not are
+                // reported instead of being silently counted as zero.
+                const live = samples.filter((sample) => sample.cpuPct != null || sample.ramMib != null);
+                const total = (key) =>
+                    live.some((sample) => sample[key] != null)
+                        ? live.reduce((sum, sample) => sum + (sample[key] ?? 0), 0)
+                        : null;
 
                 applyContainerStats(service, {
-                    container,
-                    cpuPct: Number.isFinite(cpuPct) ? cpuPct : null,
-                    ramMib: Number.isFinite(ramMib) ? ramMib : null,
+                    containers,
+                    liveCount: live.length,
+                    cpuPct: total("cpuPct"),
+                    ramMib: total("ramMib"),
                 });
             })
         );
@@ -1679,10 +1719,19 @@ function applyContainerStats(service, stats) {
     const cpuEl = row.querySelector('[data-role="containerCpu"]');
     const ramEl = row.querySelector('[data-role="containerRam"]');
     if (cpuEl) cpuEl.textContent = stats.cpuPct == null ? "—" : `${stats.cpuPct.toFixed(1)}%`;
-    if (ramEl) ramEl.textContent = stats.ramMib == null ? "—" : `${Math.round(stats.ramMib)} MB`;
+    // cgroup mem_usage is reported in MiB; scale it like every other figure.
+    if (ramEl) ramEl.textContent = stats.ramMib == null ? "—" : formatBytes(stats.ramMib * 1024 ** 2);
 
     row.hidden = false;
-    row.title = `Docker container: ${stats.container}`;
+
+    const containers = stats.containers ?? [];
+    const missing = containers.length - (stats.liveCount ?? containers.length);
+    row.title =
+        containers.length > 1
+            ? `Combined across ${containers.length} containers: ${containers.join(", ")}` +
+              (missing > 0 ? ` — ${missing} not reporting` : "")
+            : `Docker container: ${containers[0] ?? "—"}`;
+    row.dataset.containerCount = String(containers.length);
 }
 
 const pad2 = (x) => String(x).padStart(2, "0"); // (can keep; used elsewhere or safe to leave)
@@ -1729,6 +1778,7 @@ function savePrefs() {
         metricsWrapOpen: document.getElementById("metricsSidebar")?.getAttribute("data-open") === "true",
     };
     localStorage.setItem("serviceDashPrefs", JSON.stringify(prefs));
+    scheduleSharedSettingsSave();
 }
 
 function loadPrefs() {
@@ -2023,6 +2073,7 @@ function populateNetIfaceSelect() {
             _netSelectedChart = els.netIface.value || "auto";
             try {
                 localStorage.setItem("netIface", _netSelectedChart);
+                scheduleSharedSettingsSave();
             } catch {}
         },
         { passive: true }
@@ -2107,13 +2158,122 @@ function loadBrowserIconOverrides() {
 function saveBrowserIconOverrides() {
     try {
         localStorage.setItem(ICON_STORAGE_KEY, JSON.stringify(Object.fromEntries(BROWSER_ICON_OVERRIDES)));
+        scheduleSharedSettingsSave();
     } catch {}
+}
+
+function iconUrlForSlug(slug) {
+    return `${SERVICE_ICON_BASE}/${slug}.png`;
+}
+
+/* =========================
+        MONOGRAM ICONS
+========================= */
+// The last-resort icon for a card, drawn rather than fetched: the service's
+// initials over a gradient keyed to its name. Beats a single shared mark —
+// every card stays distinguishable when an icon is missing or a host is
+// offline — and being a data URI it can never itself fail to load.
+const _monogramCache = new Map();
+
+function monogramInitials(name) {
+    const words = safeStr(name)
+        .replace(/\s*[([{][^)\]}]*[)\]}]\s*$/, "") // drop a trailing "(Local)"
+        .split(/[\s\-_.]+/)
+        .filter(Boolean);
+
+    const letters = words
+        .slice(0, 2)
+        .map((word) => word[0])
+        .join("")
+        .toUpperCase();
+
+    return letters || "?";
+}
+
+function monogramHue(name) {
+    const text = safeStr(name).toLowerCase();
+    let hash = 0;
+    for (let i = 0; i < text.length; i++) hash = (hash * 31 + text.charCodeAt(i)) % 360;
+    return hash;
+}
+
+function monogramIcon(name) {
+    const key = safeStr(name).trim().toLowerCase();
+    const cached = _monogramCache.get(key);
+    if (cached) return cached;
+
+    const letters = monogramInitials(name);
+    const hue = monogramHue(key);
+    const svg =
+        `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img">` +
+        `<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">` +
+        `<stop offset="0" stop-color="hsl(${hue},82%,62%)"/>` +
+        `<stop offset="1" stop-color="hsl(${(hue + 48) % 360},78%,48%)"/>` +
+        `</linearGradient></defs>` +
+        `<rect width="64" height="64" rx="16" fill="url(#g)"/>` +
+        `<text x="32" y="41" text-anchor="middle" fill="#fff" fill-opacity=".95" ` +
+        `font-family="Outfit, Inter, system-ui, sans-serif" ` +
+        `font-size="${letters.length > 1 ? 25 : 32}" font-weight="700" letter-spacing="-.5">` +
+        `${escapeHtml(letters)}</text></svg>`;
+
+    const uri = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+    _monogramCache.set(key, uri);
+    return uri;
+}
+
+// The catalogue entry a name matches on its own, before any override.
+function serviceIconEntryFor(name) {
+    return SERVICE_ICONS.find((entry) => entry.regex.test(safeStr(name))) || null;
 }
 
 // The icon this service would get with no override at all.
 function autoServiceIconUrl(name) {
-    const match = SERVICE_ICONS.find((entry) => entry.regex.test(safeStr(name)));
-    return match ? `${SERVICE_ICON_BASE}/${match.slug}.png` : "";
+    const match = serviceIconEntryFor(name);
+    return match ? iconUrlForSlug(match.slug) : "";
+}
+
+// A pasted link is a link, not a search — the picker stays out of its way.
+function looksLikeImageLink(text) {
+    return /^(?:https?:|data:|blob:|\/|\.{1,2}\/)/i.test(safeStr(text).trim());
+}
+
+// Typed text matches an icon by its human label, its slug, or the same keyword
+// pattern auto-matching uses — so "hass" finds Home Assistant.
+function searchIconCatalog(query) {
+    const q = safeStr(query).trim().toLowerCase();
+    if (!q) return [];
+
+    const scored = [];
+    for (const entry of SERVICE_ICONS) {
+        const label = entry.label.toLowerCase();
+        const slug = entry.slug.toLowerCase();
+
+        let score;
+        if (label === q || slug === q) score = 100;
+        else if (label.startsWith(q) || slug.startsWith(q)) score = 80;
+        else if (label.includes(q) || slug.includes(q)) score = 60;
+        else if (entry.regex.test(q)) score = 40;
+        else continue;
+
+        scored.push({ entry, score });
+    }
+
+    return scored
+        .sort((a, b) => b.score - a.score || a.entry.label.localeCompare(b.entry.label))
+        .slice(0, ICON_SUGGEST_LIMIT)
+        .map((item) => item.entry);
+}
+
+// Whatever is in the field, turned into something storable: a link is kept as
+// typed, a service name resolves to the icon it matches, and anything with no
+// match becomes "" so the card falls back to its monogram.
+function resolveIconInput(value) {
+    const raw = safeStr(value).trim();
+    if (!raw) return "";
+    if (looksLikeImageLink(raw)) return raw;
+
+    const match = searchIconCatalog(raw)[0];
+    return match ? iconUrlForSlug(match.slug) : "";
 }
 
 function iconOverrideFor(name) {
@@ -2131,12 +2291,27 @@ function iconOverrideFor(name) {
     return { source: "auto", url: autoServiceIconUrl(name) };
 }
 
+// A card can be mapped to several containers, whose stats are added together.
+// Entries written by 1.1.1 and earlier hold a single string; they are read as a
+// one-item list, and "" still means "show no stats for this card".
+function normalizeContainerList(value) {
+    const list = Array.isArray(value) ? value : [value];
+    const seen = new Set();
+
+    for (const entry of list) {
+        const name = safeStr(entry).trim();
+        if (name) seen.add(name);
+    }
+
+    return [...seen];
+}
+
 function loadServiceContainers() {
     try {
         const stored = JSON.parse(localStorage.getItem(CONTAINER_STORAGE_KEY) || "{}");
         const map = new Map();
-        for (const [service, container] of Object.entries(stored)) {
-            map.set(safeStr(service).trim().toLowerCase(), safeStr(container).trim());
+        for (const [service, containers] of Object.entries(stored)) {
+            map.set(safeStr(service).trim().toLowerCase(), normalizeContainerList(containers));
         }
         return map;
     } catch {
@@ -2147,8 +2322,232 @@ function loadServiceContainers() {
 function saveServiceContainers() {
     try {
         localStorage.setItem(CONTAINER_STORAGE_KEY, JSON.stringify(Object.fromEntries(SERVICE_CONTAINERS)));
+        scheduleSharedSettingsSave();
     } catch {}
 }
+
+/* =========================
+        SHARED SETTINGS
+========================= */
+// Customisations normally live in this browser's localStorage, which means a
+// second browser or a phone starts from scratch. When the deployment enables
+// SHARED_SETTINGS, the same values are mirrored to a JSON document the
+// dashboard serves and accepts over WebDAV, so every browser and device sees
+// the same dashboard.
+const SHARED_SETTINGS_URL = "/settings/state.json";
+// Everything a person customises, and nothing that identifies them: the Uptime
+// Kuma token, username and remember flag stay in the browser that entered
+// them and are never written to a document other devices can read.
+const SHARED_KEYS = ["serviceDashPrefs", "serviceIcons", "serviceContainers", "storageMounts", "netIface"];
+const SHARED_SAVE_DEBOUNCE_MS = 1200;
+// Writing the shared document is authenticated; reading it is not. The
+// credential lives in this browser and is deliberately absent from SHARED_KEYS
+// above — sending it to a document every other device can read would defeat the
+// point of asking for it.
+const SETTINGS_AUTH_KEY = "settingsAuth";
+
+let _sharedSettingsAvailable = false;
+let _sharedSettingsWarned = false;
+let _sharedSaveTimer = null;
+let _settingsAuthPrompted = false;
+// Boot applies the theme, accent and preferences it just read, and each of
+// those calls savePrefs(). Mirroring that straight back would write the
+// document nobody changed — and, now that writing is authenticated, would ask
+// every read-only visitor for a password just for opening the page.
+let _sharedSettingsReady = false;
+
+function loadSettingsAuth() {
+    try {
+        const stored = JSON.parse(localStorage.getItem(SETTINGS_AUTH_KEY) || "null");
+        if (!stored || typeof stored.user !== "string" || typeof stored.pass !== "string") return null;
+        return stored;
+    } catch {
+        return null;
+    }
+}
+
+function saveSettingsAuth(user, pass) {
+    try {
+        localStorage.setItem(SETTINGS_AUTH_KEY, JSON.stringify({ user, pass }));
+    } catch {}
+}
+
+function clearSettingsAuth() {
+    try {
+        localStorage.removeItem(SETTINGS_AUTH_KEY);
+    } catch {}
+}
+
+function settingsAuthHeader() {
+    const auth = loadSettingsAuth();
+    if (!auth) return null;
+    try {
+        // btoa handles Latin-1 only, so widen to bytes first and a non-ASCII
+        // password still produces a valid header.
+        const bytes = new TextEncoder().encode(`${auth.user}:${auth.pass}`);
+        return `Basic ${btoa(String.fromCharCode(...bytes))}`;
+    } catch {
+        return null;
+    }
+}
+
+function collectSharedSettings() {
+    const values = {};
+    for (const key of SHARED_KEYS) {
+        const value = localStorage.getItem(key);
+        if (value !== null) values[key] = value;
+    }
+    return { version: 1, savedAt: new Date().toISOString(), values };
+}
+
+function applySharedSettings(payload) {
+    const values = payload?.values;
+    if (!values || typeof values !== "object") return false;
+
+    let applied = 0;
+    for (const key of SHARED_KEYS) {
+        // Values are stored as the same strings localStorage holds, so a
+        // document written by a newer version cannot corrupt an older one.
+        if (typeof values[key] !== "string") continue;
+        try {
+            localStorage.setItem(key, values[key]);
+            applied++;
+        } catch {}
+    }
+    return applied > 0;
+}
+
+async function loadSharedSettings() {
+    if (!RUNTIME_CONFIG.sharedSettings) return false;
+
+    try {
+        const res = await fetch(SHARED_SETTINGS_URL, { cache: "no-store" });
+
+        // Enabled but nothing saved yet — the first change here creates it.
+        if (res.status === 404) {
+            _sharedSettingsAvailable = true;
+            return false;
+        }
+        if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
+
+        const payload = await res.json();
+        _sharedSettingsAvailable = true;
+        if (!applySharedSettings(payload)) return false;
+
+        // These were parsed from localStorage when the script loaded, before
+        // the shared document arrived, so re-read them.
+        BROWSER_ICON_OVERRIDES = loadBrowserIconOverrides();
+        SERVICE_CONTAINERS = loadServiceContainers();
+        return true;
+    } catch (error) {
+        console.info("Shared settings unavailable; using this browser's own copy", error);
+        return false;
+    }
+}
+
+// Called from every save path. Debounced, because typing in the notes field
+// would otherwise mean one request per keystroke.
+function scheduleSharedSettingsSave() {
+    if (!_sharedSettingsAvailable || !_sharedSettingsReady) return;
+    clearTimeout(_sharedSaveTimer);
+    _sharedSaveTimer = setTimeout(saveSharedSettings, SHARED_SAVE_DEBOUNCE_MS);
+}
+
+async function saveSharedSettings() {
+    if (!_sharedSettingsAvailable) return;
+
+    const headers = { "Content-Type": "application/json" };
+    const authorization = settingsAuthHeader();
+    if (authorization) headers.Authorization = authorization;
+
+    try {
+        const res = await fetch(SHARED_SETTINGS_URL, {
+            method: "PUT",
+            headers,
+            body: JSON.stringify(collectSharedSettings()),
+        });
+
+        // No credential yet, or the stored one is wrong: ask for it and retry
+        // rather than silently dropping the change.
+        if (res.status === 401) {
+            openSettingsAuth(authorization ? "Those details were not accepted. Try again." : "");
+            return;
+        }
+        if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
+
+        _sharedSettingsWarned = false;
+    } catch (error) {
+        // Once only: a read-only volume should not produce a toast on every
+        // keystroke. This browser keeps working from its own storage.
+        if (!_sharedSettingsWarned) {
+            _sharedSettingsWarned = true;
+            toast("⚠️ <b>Shared settings could not be saved.</b> This browser keeps its own copy.", 4600);
+        }
+        console.warn("Shared settings save failed", error);
+    }
+}
+
+/* ---- shared settings unlock ---- */
+
+function openSettingsAuth(message) {
+    if (!els.settingsAuthOverlay) return;
+
+    // One prompt per session: a rejected password should not reopen the dialog
+    // on every keystroke in the notes field.
+    if (_settingsAuthPrompted && els.settingsAuthOverlay.classList.contains("show") === false && !message) return;
+    _settingsAuthPrompted = true;
+
+    if (els.settingsAuthUser && !els.settingsAuthUser.value) {
+        els.settingsAuthUser.value = loadSettingsAuth()?.user || "dashboard";
+    }
+    if (els.settingsAuthPass) els.settingsAuthPass.value = "";
+    setSettingsAuthStatus(message ? "error" : "idle", message || "Changes are saved once you sign in.");
+
+    els.settingsAuthOverlay.classList.add("show");
+    els.settingsAuthOverlay.setAttribute("aria-hidden", "false");
+    setTimeout(() => els.settingsAuthPass?.focus(), 60);
+}
+
+function closeSettingsAuth() {
+    if (!els.settingsAuthOverlay) return;
+    els.settingsAuthOverlay.classList.remove("show");
+    els.settingsAuthOverlay.setAttribute("aria-hidden", "true");
+    if (els.settingsAuthPass) els.settingsAuthPass.value = "";
+}
+
+function setSettingsAuthStatus(state, message) {
+    if (!els.settingsAuthStatus) return;
+    els.settingsAuthStatus.dataset.state = state;
+    els.settingsAuthStatus.textContent = message;
+}
+
+function submitSettingsAuth() {
+    const user = safeStr(els.settingsAuthUser?.value).trim();
+    const pass = safeStr(els.settingsAuthPass?.value);
+
+    if (!user || !pass) {
+        setSettingsAuthStatus("error", "Enter both a username and a password.");
+        return;
+    }
+
+    saveSettingsAuth(user, pass);
+    closeSettingsAuth();
+    // Retry the write that triggered the prompt; a wrong password reopens it.
+    saveSharedSettings();
+}
+
+els.btnSettingsAuthSave?.addEventListener("click", submitSettingsAuth);
+els.btnSettingsAuthCancel?.addEventListener("click", () => {
+    clearSettingsAuth();
+    closeSettingsAuth();
+    toast("🔒 <b>Not signed in.</b> Changes stay in this browser only.", 3600);
+});
+els.settingsAuthOverlay?.addEventListener("click", (event) => {
+    if (event.target === els.settingsAuthOverlay) closeSettingsAuth();
+});
+els.settingsAuthPass?.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") submitSettingsAuth();
+});
 
 const normalizeForMatch = (value) => safeStr(value).toLowerCase().replace(/[^a-z0-9]/g, "");
 
@@ -2166,10 +2565,13 @@ function autoContainerFor(name) {
 }
 
 function containerForService(name) {
-    // "" is a real choice here: it means "show no stats for this card".
+    // An empty list is a real choice here: it means "show no stats for this
+    // card", as distinct from having made no choice at all.
     const chosen = SERVICE_CONTAINERS.get(baseServiceKey(name));
-    if (chosen !== undefined) return { source: "chosen", container: chosen };
-    return { source: "auto", container: autoContainerFor(name) };
+    if (chosen !== undefined) return { source: "chosen", containers: chosen };
+
+    const auto = autoContainerFor(name);
+    return { source: "auto", containers: auto ? [auto] : [] };
 }
 
 function serviceIconUrl(name) {
@@ -2177,13 +2579,15 @@ function serviceIconUrl(name) {
 }
 
 // Used at build time and again after an edit, so both paths behave identically.
-// Every card shows an image: the resolved icon if there is one, otherwise the
-// bundled Service Dash mark. A broken link falls back to the same mark.
+// Every card shows an image: the resolved icon if there is one, otherwise a
+// monogram drawn from the service name. A broken link falls back to the same
+// monogram.
 function renderCardIcon(card, name) {
     const tile = card.querySelector(".svcIcon");
     if (!tile) return;
 
-    const url = serviceIconUrl(name) || FALLBACK_ICON;
+    const fallback = monogramIcon(name);
+    const url = serviceIconUrl(name) || fallback;
     tile.innerHTML = "";
 
     const img = document.createElement("img");
@@ -2192,16 +2596,16 @@ function renderCardIcon(card, name) {
     img.decoding = "async";
 
     img.addEventListener("error", () => {
-        // One retry with the bundled mark, then stop — no infinite loop if the
+        // One retry with the monogram, then stop — no infinite loop if the
         // fallback itself is somehow missing.
         if (img.dataset.fallbackApplied === "true") return;
         img.dataset.fallbackApplied = "true";
-        img.src = FALLBACK_ICON;
+        img.src = fallback;
     });
 
     tile.appendChild(img);
     img.src = url;
-    if (url === FALLBACK_ICON) img.dataset.fallbackApplied = "true";
+    if (url === fallback) img.dataset.fallbackApplied = "true";
 }
 
 function statusForIdFromHeartbeat(id) {
@@ -3068,12 +3472,12 @@ function tickMockMetrics() {
     const mockDiskUsed = mockDiskTotal * (disk / 100);
     const mockDiskFree = mockDiskTotal - mockDiskUsed;
     els.diskVal.textContent = `${disk.toFixed(0)}%`;
-    if (els.diskUsed) els.diskUsed.textContent = formatStorageBytes(mockDiskUsed);
+    if (els.diskUsed) els.diskUsed.textContent = formatBytes(mockDiskUsed);
     if (els.cpuWatts) els.cpuWatts.textContent = `${(10 + cpu / 8).toFixed(1)} W`;
     if (els.cpuTemp) els.cpuTemp.textContent = `${(38 + cpu / 4).toFixed(1)} °C`;
     if (els.memTotal) els.memTotal.textContent = "8.00 GB";
-    if (els.diskFree) els.diskFree.textContent = formatStorageBytes(mockDiskFree);
-    if (els.diskTotal) els.diskTotal.textContent = formatStorageBytes(mockDiskTotal);
+    if (els.diskFree) els.diskFree.textContent = formatBytes(mockDiskFree);
+    if (els.diskTotal) els.diskTotal.textContent = formatBytes(mockDiskTotal);
 
     if (els.loadVal) {
         const mockCpuCount = 4;
@@ -3188,6 +3592,18 @@ function wireSections() {
 let _iconEditTarget = null;
 // null = nothing to check, true = image loaded, false = it failed.
 let _iconPreviewOk = null;
+// What the preview is actually showing, after resolving a typed name.
+let _iconPreviewUrl = "";
+// Label of the icon picked from the list, so the status line can name it.
+let _iconPickedLabel = null;
+// The name the field was pre-filled with for an auto-matched card. Saving it
+// untouched keeps the card automatic instead of freezing today's URL into an
+// override.
+let _iconEditAutoLabel = null;
+
+const ICON_SUGGEST_LIMIT = 6;
+let _iconSuggestions = [];
+let _iconSuggestIndex = -1;
 
 function setIconStatus(state, message) {
     if (!els.iconStatus) return;
@@ -3198,20 +3614,120 @@ function setIconStatus(state, message) {
 function updateIconPreview() {
     if (!els.iconPreviewImg) return;
 
-    const url = safeStr(els.iconUrlInput?.value).trim();
+    const raw = safeStr(els.iconUrlInput?.value).trim();
+    const resolved = resolveIconInput(raw);
+    _iconPreviewUrl = resolved;
     els.iconPreviewImg.style.display = "none";
     els.iconPreview?.classList.remove("has-image");
 
-    if (!url) {
+    if (!resolved) {
         _iconPreviewOk = null;
-        setIconStatus("idle", "No link — this card will show the default Service Dash icon.");
-        els.iconPreviewImg.src = FALLBACK_ICON;
+        setIconStatus(
+            "idle",
+            raw
+                ? `No icon matches “${raw}” — this card will show its initials instead.`
+                : "No icon — this card will show its initials instead."
+        );
+        els.iconPreviewImg.src = monogramIcon(_iconEditTarget?.name ?? "");
         return;
     }
 
     _iconPreviewOk = null;
-    setIconStatus("checking", "Loading image…");
-    els.iconPreviewImg.src = url;
+    setIconStatus("checking", _iconPickedLabel ? `Loading the ${_iconPickedLabel} icon…` : "Loading image…");
+    els.iconPreviewImg.src = resolved;
+}
+
+/* ---- icon picker ---- */
+
+function closeIconSuggest() {
+    _iconSuggestions = [];
+    _iconSuggestIndex = -1;
+    if (!els.iconSuggest) return;
+    els.iconSuggest.hidden = true;
+    els.iconSuggest.innerHTML = "";
+    els.iconUrlInput?.setAttribute("aria-expanded", "false");
+    els.iconUrlInput?.removeAttribute("aria-activedescendant");
+}
+
+function highlightIconSuggestion(index) {
+    const options = els.iconSuggest ? [...els.iconSuggest.children] : [];
+    if (!options.length) return;
+
+    _iconSuggestIndex = ((index % options.length) + options.length) % options.length;
+
+    options.forEach((option, i) => {
+        const active = i === _iconSuggestIndex;
+        option.classList.toggle("is-active", active);
+        option.setAttribute("aria-selected", String(active));
+    });
+
+    const active = options[_iconSuggestIndex];
+    els.iconUrlInput?.setAttribute("aria-activedescendant", active.id);
+    active.scrollIntoView({ block: "nearest" });
+}
+
+function openIconSuggest(query) {
+    if (!els.iconSuggest) return;
+
+    const matches = searchIconCatalog(query);
+    if (!matches.length) {
+        closeIconSuggest();
+        return;
+    }
+
+    _iconSuggestions = matches;
+    els.iconSuggest.innerHTML = "";
+
+    matches.forEach((entry, i) => {
+        const option = document.createElement("li");
+        option.className = "iconSuggestItem";
+        option.id = `iconSuggest-${i}`;
+        option.setAttribute("role", "option");
+        option.setAttribute("aria-selected", "false");
+
+        const img = document.createElement("img");
+        img.alt = "";
+        img.decoding = "async";
+        img.addEventListener("error", () => {
+            img.src = monogramIcon(entry.label);
+        }, { once: true });
+        img.src = iconUrlForSlug(entry.slug);
+
+        const label = document.createElement("span");
+        label.textContent = entry.label;
+
+        option.append(img, label);
+        // mousedown, not click: the input losing focus would close the list
+        // before a click ever landed.
+        option.addEventListener("mousedown", (event) => {
+            event.preventDefault();
+            chooseIconSuggestion(i);
+        });
+
+        els.iconSuggest.appendChild(option);
+    });
+
+    els.iconSuggest.hidden = false;
+    els.iconUrlInput?.setAttribute("aria-expanded", "true");
+    highlightIconSuggestion(0);
+}
+
+function chooseIconSuggestion(index) {
+    const entry = _iconSuggestions[index];
+    if (!entry || !els.iconUrlInput) return;
+
+    _iconPickedLabel = entry.label;
+    els.iconUrlInput.value = entry.label;
+    closeIconSuggest();
+    updateIconPreview();
+    els.iconUrlInput.focus();
+}
+
+// What Save should store: null keeps the card on automatic matching.
+function iconEditValue() {
+    const raw = safeStr(els.iconUrlInput?.value).trim();
+    if (_iconEditAutoLabel !== null && raw === _iconEditAutoLabel) return null;
+    return raw;
 }
 
 function openIconEditor(service) {
@@ -3220,8 +3736,14 @@ function openIconEditor(service) {
     _iconEditTarget = service;
     const current = iconOverrideFor(service.name);
 
+    // An automatic match is shown by name rather than by URL: that is what the
+    // picker reads, and it resolves back to the same icon on save.
+    _iconEditAutoLabel = current.source === "auto" ? (serviceIconEntryFor(service.name)?.label ?? "") : null;
+    _iconPickedLabel = null;
+    closeIconSuggest();
+
     if (els.iconServiceName) els.iconServiceName.textContent = service.name;
-    if (els.iconUrlInput) els.iconUrlInput.value = current.url;
+    if (els.iconUrlInput) els.iconUrlInput.value = _iconEditAutoLabel ?? current.url;
     updateIconPreview();
     populateContainerSelect(service);
 
@@ -3230,75 +3752,112 @@ function openIconEditor(service) {
     setTimeout(() => els.iconUrlInput?.focus(), 60);
 }
 
-function populateContainerSelect(service) {
-    const select = els.containerSelect;
-    if (!select) return;
+// Editor state for the container picker: which containers are ticked, and
+// whether the card is still following the automatic match.
+let _containerEditAuto = true;
+let _containerEditSelection = [];
 
-    const resolved = containerForService(service.name);
-    const auto = autoContainerFor(service.name);
-
-    select.innerHTML = "";
-    const autoOption = document.createElement("option");
-    autoOption.value = "__auto__";
-    autoOption.textContent = auto ? `Auto — ${auto}` : "Auto — no match found";
-    select.appendChild(autoOption);
-
-    const noneOption = document.createElement("option");
-    noneOption.value = "";
-    noneOption.textContent = "None (hide stats)";
-    select.appendChild(noneOption);
-
-    for (const container of ND_CONTAINERS) {
-        const option = document.createElement("option");
-        option.value = container;
-        option.textContent = container;
-        select.appendChild(option);
+function containerSelectionSummary() {
+    if (_containerEditAuto) {
+        const auto = autoContainerFor(_iconEditTarget?.name ?? "");
+        return auto ? `Auto — ${auto}` : "Auto — no match";
     }
+    if (!_containerEditSelection.length) return "None";
+    if (_containerEditSelection.length === 1) return _containerEditSelection[0];
+    return `${_containerEditSelection.length} containers`;
+}
 
-    select.value = resolved.source === "auto" ? "__auto__" : resolved.container;
-    select.disabled = ND_CONTAINERS.length === 0;
+function renderContainerOptions() {
+    if (!els.containerOptions) return;
+
+    const selected = new Set(_containerEditSelection);
+    const auto = autoContainerFor(_iconEditTarget?.name ?? "");
+
+    const autoRow = `
+        <label class="storage-source-option">
+            <input type="checkbox" data-container-auto${_containerEditAuto ? " checked" : ""} />
+            <span>Match automatically<small>${escapeHtml(auto ? `Currently ${auto}` : "No container matches this card name")}</small></span>
+        </label>`;
+
+    const rows = ND_CONTAINERS.map((container) => {
+        const checked = selected.has(container) ? " checked" : "";
+        const disabled = _containerEditAuto ? " disabled" : "";
+        return `
+            <label class="storage-source-option${_containerEditAuto ? " is-disabled" : ""}">
+                <input type="checkbox" data-container="${escapeAttr(container)}"${checked}${disabled} />
+                <span>${escapeHtml(container)}</span>
+            </label>`;
+    }).join("");
+
+    // Every tick re-renders the list, so hold the scroll position — otherwise
+    // ticking a container near the bottom throws the list back to the top.
+    const scroll = els.containerOptions.scrollTop;
+    els.containerOptions.innerHTML = autoRow + rows;
+    els.containerOptions.scrollTop = scroll;
+
+    if (els.containerSummary) els.containerSummary.textContent = containerSelectionSummary();
 
     if (els.containerHint) {
-        els.containerHint.textContent = ND_CONTAINERS.length
-            ? "Shows this container\u2019s CPU and RAM on the card."
-            : "No containers reported by Netdata on this host.";
+        els.containerHint.textContent = !ND_CONTAINERS.length
+            ? "No containers reported by Netdata on this host."
+            : _containerEditSelection.length > 1 && !_containerEditAuto
+              ? `Adding up CPU and RAM across ${_containerEditSelection.length} containers.`
+              : "Shows this container\u2019s CPU and RAM on the card. Pick several to add them together.";
     }
+}
+
+function populateContainerSelect(service) {
+    if (!els.containerOptions) return;
+
+    const resolved = containerForService(service.name);
+    _containerEditAuto = resolved.source === "auto";
+    // Unticking Auto starts from whatever the card is showing right now, so the
+    // list never jumps to empty the moment the mode changes.
+    _containerEditSelection = [...resolved.containers];
+
+    if (els.containerPicker) els.containerPicker.open = false;
+    renderContainerOptions();
 }
 
 function closeIconEditor() {
     if (!els.iconOverlay) return;
     _iconEditTarget = null;
+    _iconEditAutoLabel = null;
+    _iconPickedLabel = null;
+    closeIconSuggest();
     els.iconOverlay.classList.remove("show");
     els.iconOverlay.setAttribute("aria-hidden", "true");
 }
 
 function applyContainerChoice(service) {
-    const select = els.containerSelect;
-    if (!select) return;
+    if (!els.containerOptions) return;
 
     const key = baseServiceKey(service.name);
-    if (select.value === "__auto__") SERVICE_CONTAINERS.delete(key);
-    else SERVICE_CONTAINERS.set(key, select.value);
+    if (_containerEditAuto) SERVICE_CONTAINERS.delete(key);
+    else SERVICE_CONTAINERS.set(key, normalizeContainerList(_containerEditSelection));
     saveServiceContainers();
 
     // Hide immediately if the card no longer maps anywhere; otherwise the next
     // tick fills it in.
-    if (!containerForService(service.name).container) {
+    if (!containerForService(service.name).containers.length) {
         const row = state.cardElById.get(String(service.id))?.querySelector('[data-role="containerStats"]');
         if (row) row.hidden = true;
     }
     tickContainerStats();
 }
 
-function applyIconEdit(url) {
+function applyIconEdit(value) {
     const service = _iconEditTarget;
     if (!service) return;
 
     applyContainerChoice(service);
 
+    // null means "no override"; anything else is resolved the same way the
+    // preview resolved it, so what was shown is what gets saved.
+    const url = value === null ? null : resolveIconInput(value);
     const key = baseServiceKey(service.name);
     if (url === null) BROWSER_ICON_OVERRIDES.delete(key);
-    else BROWSER_ICON_OVERRIDES.set(key, safeStr(url).trim());
+    else BROWSER_ICON_OVERRIDES.set(key, url);
     // Also clear any entry stored under the full display name.
     if (url === null) BROWSER_ICON_OVERRIDES.delete(safeStr(service.name).trim().toLowerCase());
 
@@ -3307,41 +3866,111 @@ function applyIconEdit(url) {
     const card = state.cardElById.get(String(service.id));
     if (card) renderCardIcon(card, service.name);
 
-    const failed = url !== null && safeStr(url).trim() !== "" && _iconPreviewOk === false;
+    const failed = url !== null && url !== "" && _iconPreviewOk === false;
     closeIconEditor();
 
     if (url === null) toast(`↩️ <b>${escapeHtml(service.name)}</b> • Icon reset to default`, 2000);
     else if (failed) {
-        toast(`⚠️ <b>${escapeHtml(service.name)}</b> • Saved, but that image would not load — the card shows the default icon.`, 4200);
+        toast(`⚠️ <b>${escapeHtml(service.name)}</b> • Saved, but that image would not load — the card shows its initials.`, 4200);
     } else toast(`🖼️ <b>${escapeHtml(service.name)}</b> • Icon updated`, 2000);
 }
 
-els.iconUrlInput?.addEventListener("input", updateIconPreview);
+els.iconUrlInput?.addEventListener("input", () => {
+    _iconPickedLabel = null;
+    updateIconPreview();
+
+    const value = els.iconUrlInput.value;
+    if (looksLikeImageLink(value)) closeIconSuggest();
+    else openIconSuggest(value);
+});
 els.iconPreviewImg?.addEventListener("load", () => {
     els.iconPreviewImg.style.display = "block";
 
-    // With an empty field the preview is showing the bundled default, so keep
-    // the "will use the default icon" message rather than claiming a load.
-    if (!safeStr(els.iconUrlInput?.value).trim()) return;
+    // With nothing resolved the preview is showing the monogram, so keep
+    // the "will use its initials" message rather than claiming a load.
+    if (!_iconPreviewUrl) return;
 
     _iconPreviewOk = true;
-    setIconStatus("ok", "Image loaded.");
+    setIconStatus("ok", _iconPickedLabel ? `${_iconPickedLabel} icon loaded.` : "Image loaded.");
 });
 els.iconPreviewImg?.addEventListener("error", () => {
     _iconPreviewOk = false;
     els.iconPreviewImg.style.display = "none";
     // Saying so beats silently falling back to the emoji and leaving the user
     // wondering why nothing happened.
-    setIconStatus("error", "Could not load that image. Check the link, or that the host allows hotlinking. The card will show the default icon.");
+    setIconStatus("error", "Could not load that image. Check the link, or that the host allows hotlinking. The card will show its initials.");
 });
-els.btnIconSave?.addEventListener("click", () => applyIconEdit(els.iconUrlInput?.value ?? ""));
+els.containerOptions?.addEventListener("change", (event) => {
+    const input = event.target.closest("input[type=checkbox]");
+    if (!input) return;
+
+    if (input.hasAttribute("data-container-auto")) {
+        _containerEditAuto = input.checked;
+        if (_containerEditAuto) {
+            // Back to following the card name; the list shows what that resolves to.
+            const auto = autoContainerFor(_iconEditTarget?.name ?? "");
+            _containerEditSelection = auto ? [auto] : [];
+        }
+        renderContainerOptions();
+        return;
+    }
+
+    const container = input.dataset.container;
+    if (!container) return;
+
+    const selected = new Set(_containerEditSelection);
+    if (input.checked) selected.add(container);
+    else selected.delete(container);
+    // Keep the order Netdata reports, so the summary and tooltip stay stable.
+    _containerEditSelection = ND_CONTAINERS.filter((name) => selected.has(name));
+    renderContainerOptions();
+});
+
+els.btnIconSave?.addEventListener("click", () => applyIconEdit(iconEditValue()));
 els.btnIconDefault?.addEventListener("click", () => applyIconEdit(null));
 els.btnIconCancel?.addEventListener("click", closeIconEditor);
 els.iconOverlay?.addEventListener("click", (event) => {
     if (event.target === els.iconOverlay) closeIconEditor();
 });
 els.iconUrlInput?.addEventListener("keydown", (event) => {
-    if (event.key === "Enter") applyIconEdit(els.iconUrlInput.value);
+    const listOpen = !!els.iconSuggest && !els.iconSuggest.hidden;
+
+    if (event.key === "ArrowDown") {
+        event.preventDefault();
+        if (listOpen) highlightIconSuggestion(_iconSuggestIndex + 1);
+        else openIconSuggest(els.iconUrlInput.value || _iconEditTarget?.name || "");
+        return;
+    }
+
+    if (event.key === "ArrowUp" && listOpen) {
+        event.preventDefault();
+        highlightIconSuggestion(_iconSuggestIndex - 1);
+        return;
+    }
+
+    if (event.key === "Escape" && listOpen) {
+        // Dismiss the list only — the dialog stays open.
+        event.preventDefault();
+        event.stopPropagation();
+        closeIconSuggest();
+        return;
+    }
+
+    if (event.key === "Enter") {
+        if (listOpen && _iconSuggestIndex >= 0) {
+            event.preventDefault();
+            chooseIconSuggestion(_iconSuggestIndex);
+            return;
+        }
+        applyIconEdit(iconEditValue());
+    }
+});
+
+// Anywhere else in the dialog dismisses the list.
+document.addEventListener("mousedown", (event) => {
+    if (!els.iconSuggest || els.iconSuggest.hidden) return;
+    if (event.target instanceof Node && els.iconSuggest.parentElement?.contains(event.target)) return;
+    closeIconSuggest();
 });
 
 /* =========================
@@ -3445,6 +4074,11 @@ async function pollOnce(showToast) {
                BOOT
                ========================= */
 async function initialLoad() {
+    // First, before anything reads a preference or builds a card: a shared
+    // document, where the deployment serves one, replaces what this browser
+    // has stored.
+    await loadSharedSettings();
+
     // Sticky layout helpers (desktop): compute topbar height so the pinned left column can
     // sit neatly below it without guessing a hard-coded value.
     const syncStickyOffsets = () => {
@@ -3495,6 +4129,10 @@ async function initialLoad() {
     els.notes.addEventListener("input", () => autoResizeTextarea(els.notes));
     autoResizeTextarea(els.notes); // fit saved notes on load
 
+    // Everything above replayed stored state; from here on, a save means
+    // somebody changed something.
+    _sharedSettingsReady = true;
+
     // Sidebar metrics: Netdata (preferred) with graceful fallback to mock animation.
     // A hidden tab cannot show the values, so skip the 2s poll while backgrounded
     // and take one fresh sample the moment the tab is looked at again.
@@ -3544,6 +4182,7 @@ async function initialLoad() {
         if (e.key === "Escape") {
             closeAuth();
             closeIconEditor();
+            closeSettingsAuth();
         }
         // ✅ Optional: press "T" to cycle accents
         if (e.key.toLowerCase() === "t" && !e.metaKey && !e.ctrlKey && !e.altKey) {

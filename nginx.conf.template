@@ -38,6 +38,10 @@ server {
         add_header Cache-Control "no-store";
     }
 
+    # Shared settings: either a WebDAV endpoint or a flat 404, depending on
+    # SHARED_SETTINGS. The entrypoint writes whichever one applies.
+    include /etc/nginx/snippets/shared-settings.conf;
+
     location = /network-info/status {
         alias /var/run/network-info/status.json;
         default_type application/json;
@@ -107,5 +111,15 @@ server {
 
     location / {
         try_files $uri $uri/ /index.html;
+
+        # The dashboard renders image URLs that anyone with write access to the
+        # settings document can choose, so the policy bounds what those URLs can
+        # reach. img-src allows https and same-origin only: a plain-http URL
+        # aimed at LAN equipment cannot be loaded, which is the request a
+        # malicious icon would otherwise make from each viewer's browser.
+        # Self-hosted icons still work over a relative path such as /icons/x.png.
+        add_header Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self'" always;
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header Referrer-Policy "no-referrer" always;
     }
 }

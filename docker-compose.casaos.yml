@@ -2,7 +2,7 @@ name: service-dash
 
 services:
   service-dash:
-    image: ghcr.io/cvaghela/service-dash:1.1.1
+    image: ghcr.io/cvaghela/service-dash:1.2.0
     container_name: service-dash
     ports:
       - "8888:80"
@@ -13,6 +13,18 @@ services:
       # Optional: override the auto-picked icon for a service, by its card name.
       # An empty value keeps that card on its category emoji.
       SERVICE_ICONS: '{}'
+      # "on" shares card settings, filters and notes across every browser and
+      # device, by keeping them in the settings volume below instead of in each
+      # browser. Reading stays open; saving a change requires the password
+      # below, so a visitor cannot rewrite what everyone else sees.
+      SHARED_SETTINGS: "off"
+      SHARED_SETTINGS_USER: "dashboard"
+      # Required when SHARED_SETTINGS is "on" — the container refuses to start
+      # without it. A file keeps the secret out of `docker inspect`; create it
+      # with, for example:
+      #   printf '%s' 'a-long-random-passphrase' > ./settings-password.txt
+      #   chmod 600 ./settings-password.txt
+      SHARED_SETTINGS_PASSWORD_FILE: "/run/secrets/settings-password"
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
@@ -24,6 +36,15 @@ services:
         source: /DATA/AppData/service-dash/network-info
         target: /var/run/network-info
         read_only: true
+      # Holds shared card settings. Only written when SHARED_SETTINGS is "on".
+      - type: bind
+        source: /DATA/AppData/service-dash/settings
+        target: /var/lib/service-dash
+      # Only read when SHARED_SETTINGS is "on".
+      - type: bind
+        source: /DATA/AppData/service-dash/settings-password
+        target: /run/secrets/settings-password
+        read_only: true
     networks:
       service-dash-network:
         aliases:
@@ -31,7 +52,7 @@ services:
     restart: unless-stopped
 
   network-info:
-    image: ghcr.io/cvaghela/service-dash-network-info:1.1.1
+    image: ghcr.io/cvaghela/service-dash-network-info:1.2.0
     container_name: service-dash-network-info
     network_mode: host
     read_only: true
