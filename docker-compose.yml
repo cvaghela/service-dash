@@ -59,9 +59,12 @@ services:
     network_mode: host
     read_only: true
     environment:
+      # Starting value only — the dashboard's settings page overrides it.
       NETWORK_INFO_REFRESH_SECONDS: "600"
     volumes:
       - networkinfo:/status
+      # Read-only: the refresh interval is set on the dashboard's settings page.
+      - settings:/settings:ro
     security_opt:
       - no-new-privileges:true
     healthcheck:

@@ -211,7 +211,7 @@ The dashboard also proxies the icon catalogue at `/icon-index`; nothing to confi
 makes one outbound request a day to `cdn.jsdelivr.net`. Without internet access the picker falls back to its built-in
 list and cards fall back to monograms.
 | `KUMA_URL` | Where the `kuma-auth` service reaches Uptime Kuma. Must point at the same instance as `KUMA_PORT` | `http://host.docker.internal:3001` |
-| `NETWORK_INFO_REFRESH_SECONDS` | How often the LAN route and WAN address are re-read. Set on the `network-info` service, and required — the helper exits if it is removed | `600` |
+| `NETWORK_INFO_REFRESH_SECONDS` | Starting value for how often the LAN route and WAN address are re-read. Optional — the **Settings** page overrides it | `600` |
 
 ### Container CPU and RAM
 
@@ -257,6 +257,19 @@ Practical consequences:
   document and cannot be made to check only writes, so a validator outage takes reads with it. The dashboard falls back
   to each browser's own copy and keeps working; the rest of the dashboard is unaffected.
 - The document is capped at 256 KB, and a failed write leaves the browser working from its own copy with a warning.
+
+### Settings
+
+The gear in the top bar opens a settings page. What is there applies to every browser and device, stored in the same
+shared document: reading it needs nothing, changing it asks you to sign in to Uptime Kuma.
+
+It currently holds how often the LAN route and public IP are re-read, between 30 seconds and 24 hours. The value is
+bounded in the browser and again in the `network-info` service, which reads it straight from the shared document and
+picks it up on its next pass — no container to recreate. The `settings` volume is mounted read-only into that service
+for the purpose. Without it, or with an unreadable or out-of-range value, the service falls back to
+`NETWORK_INFO_REFRESH_SECONDS`, and failing that to 600 seconds.
+
+`KUMA_PORT`, `STATUS_SLUG` and `STORAGE_MOUNT` stay in Compose, because the dashboard needs them before it can start.
 
 ### Values hidden until you sign in
 

@@ -2217,6 +2217,41 @@ html {
     margin-top: 0;
     z-index: 1;
 }
+/* Settings page: the same modal language as the icon editor, with room for
+   grouped sections rather than a single field. */
+.settingsModal {
+    max-width: 560px;
+}
+.settingsSection {
+    margin-top: 16px;
+    padding-top: 14px;
+    border-top: 1px solid var(--stroke);
+}
+.settingsSection:first-of-type {
+    border-top: 0;
+    padding-top: 0;
+}
+.settingsSection h3 {
+    margin: 0 0 10px;
+    font-family: var(--font-head);
+    font-size: 13.5px;
+    font-weight: 600;
+    letter-spacing: 0.2px;
+    color: var(--text);
+}
+.settingsInline {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.settingsInline input {
+    width: 130px;
+    font-variant-numeric: tabular-nums;
+}
+.settingsUnit {
+    font-size: 12.5px;
+    color: var(--muted);
+}
 /* Values that stay hidden until you sign in to Uptime Kuma: service URLs and
    the host's LAN and WAN addresses. What is blurred is a placeholder, never the
    real value — the blur is presentation, not the protection. */

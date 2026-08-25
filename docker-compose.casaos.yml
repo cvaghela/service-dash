@@ -61,11 +61,17 @@ services:
     network_mode: host
     read_only: true
     environment:
+      # Starting value only — the dashboard's settings page overrides it.
       NETWORK_INFO_REFRESH_SECONDS: "600"
     volumes:
       - type: bind
         source: /DATA/AppData/service-dash/network-info
         target: /status
+      # Read-only: the refresh interval is set on the dashboard's settings page.
+      - type: bind
+        source: /DATA/AppData/service-dash/settings
+        target: /settings
+        read_only: true
     security_opt:
       - no-new-privileges:true
     healthcheck:

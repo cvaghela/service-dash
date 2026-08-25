@@ -236,6 +236,9 @@ const state = {
     socket: null,
     socketReady: false,
     socketAuthed: false,
+    // Seconds between network-address reads. The sidecar's own default applies
+    // until somebody sets one here.
+    networkRefreshSeconds: 600,
     // The Uptime Kuma session token, held in memory unless the user asked to be
     // remembered. It is what proves a settings write is allowed.
     kumaToken: "",
@@ -267,6 +270,12 @@ const els = {
     iconPreview: document.getElementById("iconPreview"),
     iconStatus: document.getElementById("iconStatus"),
     iconSuggest: document.getElementById("iconSuggest"),
+    settingsOverlay: document.getElementById("settingsOverlay"),
+    setNetworkRefresh: document.getElementById("setNetworkRefresh"),
+    settingsStatus: document.getElementById("settingsStatus"),
+    btnSettings: document.getElementById("btnSettings"),
+    btnSettingsSave: document.getElementById("btnSettingsSave"),
+    btnSettingsClose: document.getElementById("btnSettingsClose"),
     containerPicker: document.getElementById("containerPicker"),
     containerSummary: document.getElementById("containerSummary"),
     containerOptions: document.getElementById("containerOptions"),
@@ -1793,6 +1802,9 @@ function savePrefs() {
         statusFilter: state.statusFilter,
         categoryFilter: state.categoryFilter,
         query: state.query,
+        // Read by the network-info sidecar straight from the shared document,
+        // so changing it here takes effect without recreating a container.
+        networkRefreshSeconds: state.networkRefreshSeconds,
         notes: els.notes.value || "",
         calendarOpen: document.getElementById("secCalendar")?.getAttribute("data-open") === "true",
 
@@ -1814,6 +1826,9 @@ function loadPrefs() {
         if (p.statusFilter) state.statusFilter = p.statusFilter;
         if (p.categoryFilter) state.categoryFilter = p.categoryFilter;
         if (typeof p.query === "string") state.query = p.query;
+        if (Number.isFinite(Number(p.networkRefreshSeconds))) {
+            state.networkRefreshSeconds = clampNetworkRefresh(p.networkRefreshSeconds);
+        }
         if (typeof p.notes === "string") els.notes.value = p.notes;
         if (typeof p.calendarOpen === "boolean") {
             const cal = document.getElementById("secCalendar");
@@ -2569,6 +2584,85 @@ async function saveSharedSettings() {
         console.warn("Shared settings save failed", error);
     }
 }
+
+/* =========================
+          SETTINGS
+========================= */
+// Bounded here and again in the sidecar. The floor keeps the public-IP lookup
+// from being hammered; the ceiling keeps a typo from parking it for a year.
+const NETWORK_REFRESH_MIN = 30;
+const NETWORK_REFRESH_MAX = 86400;
+
+function clampNetworkRefresh(value) {
+    const seconds = Math.round(Number(value));
+    if (!Number.isFinite(seconds)) return 600;
+    return clamp(seconds, NETWORK_REFRESH_MIN, NETWORK_REFRESH_MAX);
+}
+
+function openSettings() {
+    if (!els.settingsOverlay) return;
+
+    if (els.setNetworkRefresh) els.setNetworkRefresh.value = String(state.networkRefreshSeconds);
+    setSettingsStatus(
+        "idle",
+        state.socketAuthed
+            ? "Changes apply to every browser and device."
+            : "Sign in to Uptime Kuma to change these."
+    );
+
+    els.settingsOverlay.classList.add("show");
+    els.settingsOverlay.setAttribute("aria-hidden", "false");
+    setTimeout(() => els.setNetworkRefresh?.focus(), 60);
+}
+
+function closeSettings() {
+    if (!els.settingsOverlay) return;
+    els.settingsOverlay.classList.remove("show");
+    els.settingsOverlay.setAttribute("aria-hidden", "true");
+}
+
+function setSettingsStatus(state_, message) {
+    if (!els.settingsStatus) return;
+    els.settingsStatus.dataset.state = state_;
+    els.settingsStatus.textContent = message;
+}
+
+function saveSettings() {
+    const requested = Number(els.setNetworkRefresh?.value);
+    const seconds = clampNetworkRefresh(requested);
+
+    if (!Number.isFinite(requested) || String(els.setNetworkRefresh?.value).trim() === "") {
+        setSettingsStatus("error", "Enter a number of seconds.");
+        return;
+    }
+
+    state.networkRefreshSeconds = seconds;
+    if (els.setNetworkRefresh) els.setNetworkRefresh.value = String(seconds);
+    savePrefs();
+
+    // Both facts matter, so neither is allowed to hide the other: a clamped
+    // value the user cannot see explained looks like the page ignored them.
+    const notes = [];
+    if (seconds !== Math.round(requested)) {
+        notes.push(`Kept within ${NETWORK_REFRESH_MIN}–${NETWORK_REFRESH_MAX} seconds, so saved as ${seconds}.`);
+    }
+    // savePrefs still keeps it in this browser; the save path raises the Kuma
+    // sign-in itself.
+    if (!state.socketAuthed) notes.push("Saved in this browser. Sign in to Uptime Kuma to share it.");
+
+    if (notes.length) setSettingsStatus("error", notes.join(" "));
+    else setSettingsStatus("ok", "Saved.");
+}
+
+els.btnSettings?.addEventListener("click", openSettings);
+els.btnSettingsClose?.addEventListener("click", closeSettings);
+els.btnSettingsSave?.addEventListener("click", saveSettings);
+els.settingsOverlay?.addEventListener("click", (event) => {
+    if (event.target === els.settingsOverlay) closeSettings();
+});
+els.setNetworkRefresh?.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") saveSettings();
+});
 
 /* ---- shared settings unlock ---- */
 
@@ -4256,6 +4350,7 @@ async function initialLoad() {
         if (e.key === "Escape") {
             closeAuth();
             closeIconEditor();
+            closeSettings();
         }
         // ✅ Optional: press "T" to cycle accents
         if (e.key.toLowerCase() === "t" && !e.metaKey && !e.ctrlKey && !e.altKey) {

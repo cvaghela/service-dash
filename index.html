@@ -68,6 +68,14 @@
 
                     <button
                         class="pill iconbtn"
+                        id="btnSettings"
+                        title="Settings"
+                        aria-label="Settings"
+                    >
+                        <span class="material-symbols-rounded" aria-hidden="true">settings</span>
+                    </button>
+                    <button
+                        class="pill iconbtn"
                         id="btnRefresh"
                         title="Refresh now (poll still runs)"
                         aria-label="Refresh"
@@ -332,6 +340,55 @@
                 </div>
             </div>
         </div>
+        <!-- Settings -->
+        <div class="overlay" id="settingsOverlay" aria-hidden="true">
+            <div class="modal settingsModal">
+                <div class="blob" style="top: -110px; left: -110px"></div>
+                <div class="blob b2" style="bottom: -120px; right: -140px"></div>
+                <h2>Settings</h2>
+                <p>
+                    These apply to every browser and device. Reading them needs nothing; changing them asks you to sign
+                    in to Uptime Kuma.
+                </p>
+
+                <div class="settingsSection">
+                    <h3>Network addresses</h3>
+                    <div class="field">
+                        <label for="setNetworkRefresh">Refresh every</label>
+                        <div class="settingsInline">
+                            <input
+                                id="setNetworkRefresh"
+                                type="number"
+                                min="30"
+                                max="86400"
+                                step="30"
+                                inputmode="numeric"
+                            />
+                            <span class="settingsUnit">seconds</span>
+                        </div>
+                        <div class="subtle">
+                            How often the LAN route and public IP are re-read. Between 30 seconds and 24 hours; the
+                            public IP lookup leaves your network, so slower is kinder.
+                        </div>
+                    </div>
+                </div>
+
+                <div class="settingsSection">
+                    <h3>Fixed at deployment</h3>
+                    <div class="subtle">
+                        Set in your Compose file, because the dashboard needs them before it can start:
+                        <b>KUMA_PORT</b>, <b>STATUS_SLUG</b> and <b>STORAGE_MOUNT</b>.
+                    </div>
+                </div>
+
+                <div class="iconStatus" id="settingsStatus" data-state="idle"></div>
+                <div class="row">
+                    <button class="pill" id="btnSettingsClose">Close</button>
+                    <button class="pill primary" id="btnSettingsSave">Save</button>
+                </div>
+            </div>
+        </div>
+
         <!-- Icon Editor -->
         <div class="overlay" id="iconOverlay" aria-hidden="true">
             <div class="modal iconModal">

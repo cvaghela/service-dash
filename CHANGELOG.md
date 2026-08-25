@@ -11,6 +11,10 @@ All notable changes to Service Dash are recorded here. This project follows
   one question for nginx — is this browser really signed in? — by asking Kuma itself, which verifies the token against
   its own secret, checks the user is still active, and rejects tokens issued before a password change. Reading settings
   stays open; anything that is not an explicit yes is a no.
+- **A settings page**, opened from the gear in the top bar. Settings apply to every browser and device; changing them
+  asks for a Kuma sign-in. It holds how often the network addresses are re-read, which the `network-info` service now
+  reads from the shared document and picks up on its next pass, so `NETWORK_INFO_REFRESH_SECONDS` is optional and only
+  a starting value.
 - **Service URLs, and the host's LAN and WAN addresses, are hidden until you sign in**, shown as a blurred mask. While
   locked the addresses are not requested at all, so they never reach the browser.
 - **The icon picker now searches the whole selfh.st catalogue** — around 2,900 icons rather than the 48 built in — and
