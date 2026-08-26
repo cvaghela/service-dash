@@ -3,6 +3,29 @@
 All notable changes to Service Dash are recorded here. This project follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.1] — 2026-08-26
+
+A drop-in upgrade from 1.3.0: only the dashboard's own JavaScript and markup
+changed, so pulling the new images is enough.
+
+### Changed
+
+- **The settings gear is hidden until you sign in.** Settings can only be
+  changed while signed in — nginx refuses the write otherwise — so offering the
+  gear to a signed-out visitor led only to a dialog whose Save could not work.
+  It is hidden rather than disabled, starts hidden in the markup so it never
+  flashes on the way there, and `openSettings()` is guarded as well as the
+  button being hidden, so the rule holds however the dialog is reached.
+
+### Fixed
+
+- **A revealed button no longer has its layout overridden.** Showing one set an
+  inline `display: flex`, which suits a `.pill` but not the gear: `.iconbtn`
+  centres its glyph with `display: grid` and `place-items: center`, and the
+  inline value overrode that, leaving the glyph against the start of its own
+  circle instead of the middle of it. Showing now clears the inline display
+  rather than choosing one, so each button lays out the way its own rule says.
+
 ## [1.3.0] — 2026-08-26
 
 A drop-in upgrade from 1.2.2: nothing in the Compose files, the images'
@@ -264,6 +287,7 @@ Housekeeping for the first public release. No functional changes to the dashboar
 
 See the [release history](https://github.com/cvaghela/service-dash/releases).
 
+[1.3.1]: https://github.com/cvaghela/service-dash/releases/tag/v1.3.1
 [1.3.0]: https://github.com/cvaghela/service-dash/releases/tag/v1.3.0
 [1.2.2]: https://github.com/cvaghela/service-dash/releases/tag/v1.2.2
 [1.2.1]: https://github.com/cvaghela/service-dash/releases/tag/v1.2.1

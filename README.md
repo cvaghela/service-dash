@@ -478,6 +478,17 @@ docker compose up -d --force-recreate service-dash
 
 Static assets are cached for seven days, so a browser hard refresh or cache clear may be required.
 
+## Upgrading from 1.3.0
+
+A drop-in upgrade: pull the new images and restart. Only the dashboard's own JavaScript and markup changed, so nothing
+in the Compose files, the images' configuration or `entrypoint.sh` needs editing.
+
+```bash
+docker compose pull && docker compose up -d
+```
+
+Static assets are cached for seven days, so a hard refresh may be needed before the change shows.
+
 ## Upgrading from 1.2.2
 
 A drop-in upgrade: pull the new images and restart. Nothing in the Compose files, the images' configuration or
@@ -498,7 +509,7 @@ not just a new image: give `kuma-auth` the same network as everything else.
 
 ```yaml
   kuma-auth:
-    image: ghcr.io/cvaghela/service-dash-kuma-auth:1.3.0
+    image: ghcr.io/cvaghela/service-dash-kuma-auth:1.3.1
     # …
     networks:                      # replaces `- default`
       service-dash-network:
@@ -603,7 +614,7 @@ Turning the setting back off leaves the document in the volume untouched and ret
 
 ## Update and rollback
 
-The current release is **1.3.0**; the Compose files in this repository reference the matching `1.3.0` images.
+The current release is **1.3.1**; the Compose files in this repository reference the matching `1.3.1` images.
 
 Download the appropriate Compose file from the desired release—`docker-compose.yml` for standard Docker/ZimaOS or `docker-compose.casaos.yml` for the CasaOS UI—then run:
 
