@@ -293,6 +293,7 @@ const els = {
 
     authUser: document.getElementById("authUser"),
     authPass: document.getElementById("authPass"),
+    authPassReveal: document.getElementById("authPassReveal"),
     authTfa: document.getElementById("authTfa"),
     authRemember: document.getElementById("authRemember"),
     authConn: document.getElementById("authConn"),
@@ -4381,7 +4382,20 @@ document.addEventListener("mousedown", (event) => {
 /* =========================
                AUTH OVERLAY
                ========================= */
+// The password field can be unmasked to check a typo. It always opens masked:
+// a reveal left on from a previous visit would put the password on screen
+// before anyone asked for it.
+function setPasswordRevealed(revealed) {
+    if (!els.authPass || !els.authPassReveal) return;
+    els.authPass.type = revealed ? "text" : "password";
+    els.authPassReveal.setAttribute("aria-pressed", String(revealed));
+    const label = revealed ? "Hide password" : "Show password";
+    els.authPassReveal.setAttribute("aria-label", label);
+    els.authPassReveal.title = label;
+}
+
 function openAuth() {
+    setPasswordRevealed(false);
     els.overlay.classList.add("show");
     els.overlay.setAttribute("aria-hidden", "false");
     setTimeout(() => els.authUser.focus(), 60);
@@ -4389,7 +4403,20 @@ function openAuth() {
 function closeAuth() {
     els.overlay.classList.remove("show");
     els.overlay.setAttribute("aria-hidden", "true");
+    setPasswordRevealed(false);
 }
+
+els.authPassReveal?.addEventListener("click", () => {
+    const revealed = els.authPassReveal.getAttribute("aria-pressed") === "true";
+    setPasswordRevealed(!revealed);
+    // Focus goes back to the field, with the caret at the end, so checking a
+    // typo does not cost you your place.
+    els.authPass.focus();
+    const end = els.authPass.value.length;
+    try {
+        els.authPass.setSelectionRange(end, end);
+    } catch {}
+});
 
 els.btnCancel.addEventListener("click", closeAuth);
 els.overlay.addEventListener("click", (e) => {

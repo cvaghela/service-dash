@@ -307,7 +307,18 @@
                     </div>
                     <div class="field">
                         <label>Password</label>
-                        <input id="authPass" type="password" autocomplete="current-password" placeholder="••••••••" />
+                        <div class="fieldWithButton">
+                            <input id="authPass" type="password" autocomplete="current-password" placeholder="••••••••" />
+                            <button
+                                type="button"
+                                class="revealToggle"
+                                id="authPassReveal"
+                                aria-controls="authPass"
+                                aria-pressed="false"
+                                aria-label="Show password"
+                                title="Show password"
+                            ></button>
+                        </div>
                     </div>
                     <div class="field" style="grid-column: 1/-1">
                         <label>2FA Token (optional)</label>
