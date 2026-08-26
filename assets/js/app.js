@@ -247,8 +247,13 @@ const state = {
     // derived
     services: [],
 
-    // Whether a revealed value is covered until pointed at. Both default on,
-    // which is what the dashboard did before the setting existed.
+    // Whether a value is left unreadable until pointed at or tabbed to. Both
+    // default on, which is what the dashboard did before the setting existed.
+    //
+    // The keys keep their original names on purpose: they are what is written
+    // into the shared settings document, and renaming them would make every
+    // saved document look like it had never set them. The labels in the dialog
+    // say what actually happens; these say where the value is stored.
     blurCardLinks: true,
     blurNetworkAddresses: true,
 
