@@ -2732,6 +2732,12 @@ function clampNetworkRefresh(value) {
 
 function openSettings() {
     if (!els.settingsOverlay) return;
+    // Guarded as well as hidden: the gear is the only way in today, and this
+    // keeps that true if another one is ever added.
+    if (!state.socketAuthed) {
+        toast("🔒 <b>Settings are locked.</b> Sign in to Uptime Kuma to change them.", 2600);
+        return;
+    }
 
     if (els.setNetworkRefresh) els.setNetworkRefresh.value = String(state.networkRefreshSeconds);
     setSettingsStatus(
@@ -2989,6 +2995,12 @@ function updateAuthButtons() {
 
     // Hide Unlock URLs once authenticated
     els.btnAuth.style.display = authed ? "none" : "flex";
+
+    // Settings are only changeable while signed in -- the write is refused
+    // otherwise -- so offering the gear to a signed-out visitor only leads to a
+    // dialog whose Save cannot work. Hidden rather than disabled: there is
+    // nothing here for them to come back to until they sign in.
+    if (els.btnSettings) els.btnSettings.style.display = authed ? "flex" : "none";
 }
 
 /* =========================
