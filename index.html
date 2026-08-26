@@ -52,7 +52,7 @@
                     <button
                         class="pill"
                         id="btnAuth"
-                        title="Optional: log in to Uptime Kuma to reveal private service URLs"
+                        title="Optional: sign in to Uptime Kuma to reveal links, addresses and notes"
                     >
                         🔐 <span>Login</span>
                     </button>
@@ -295,10 +295,10 @@
             <div class="modal">
                 <div class="blob" style="top: -110px; left: -110px"></div>
                 <div class="blob b2" style="bottom: -120px; right: -140px"></div>
-                <h2>Optional Private URL Unlock (Socket.IO)</h2>
+                <h2>Sign in to Uptime Kuma</h2>
                 <p>
-                    This connects to <b>/kuma/socket.io</b> and logs into Kuma to fetch monitor URLs (the public status
-                    API can’t show them). Heartbeat/status updates work either way.
+                    Reveals the service links, the host’s LAN and WAN addresses and the notes, and lets you change
+                    settings. Status and uptime are shown either way.
                 </p>
                 <div class="grid2">
                     <div class="field">
@@ -330,18 +330,14 @@
                         <input id="authRemember" type="checkbox" />
                         <div style="min-width: 0">
                             <b>Remember me</b>
-                            <div class="subtle">Keeps you signed in (stores a Kuma token in localStorage).</div>
+                            <div class="subtle">Keeps you signed in on this device.</div>
                         </div>
                     </div>
                     <div class="subtle" id="authConn">Not connected</div>
                 </div>
                 <div class="row">
                     <button class="pill" id="btnCancel">Cancel</button>
-                    <button class="pill primary" id="btnConnect">Connect</button>
-                </div>
-                <div class="subtle" style="margin-top: 10px">
-                    If Socket.IO is blocked/misconfigured, the dashboard still works via public status APIs (status +
-                    uptime only).
+                    <button class="pill primary" id="btnConnect">Sign in</button>
                 </div>
             </div>
         </div>
