@@ -3674,29 +3674,8 @@ body.mobile-topbar-open .mobile-menu-icon span:nth-child(3) {
 }
 
 
-/* The Privacy rows reuse .checkrow, but their description is a sentence rather
-   than the auth dialog's one-line status, so it wraps instead of being clipped. */
-.settingsSection .checkrow .subtle {
-    white-space: normal;
-    overflow: visible;
-    max-width: none;
-}
-.settingsSection .checkrow .left {
-    align-items: flex-start;
-}
-
 /* The refresh-interval slider. Track and handle take the palette's accent, the
    same as the switch, so the two controls in this dialog read as one family. */
-.settingsSliderHead {
-    justify-content: space-between;
-    align-items: baseline;
-}
-.settingsValue {
-    font-family: var(--font-head);
-    font-size: 13px;
-    color: var(--text);
-    font-variant-numeric: tabular-nums;
-}
 .settingsSlider {
     -webkit-appearance: none;
     appearance: none;
@@ -3763,5 +3742,117 @@ body.mobile-topbar-open .mobile-menu-icon span:nth-child(3) {
 @media (prefers-reduced-motion: reduce) {
     .settingsSlider::-webkit-slider-thumb {
         transition: none;
+    }
+}
+
+/* ==========================================================================
+   Settings rows
+   One anatomy for every setting: what it is and what it does on the left, the
+   control that changes it on the right. Before this the slider was a stacked
+   block and the switches were horizontal boxes, so two settings in the same
+   dialog were read two different ways.
+   ========================================================================== */
+.setRow {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-top: 8px;
+    padding: 12px 14px;
+    border: 1px solid var(--stroke);
+    border-radius: 16px;
+    background: rgb(255, 255, 255, 0.05);
+}
+.setRowText {
+    min-width: 0;
+    display: grid;
+    gap: 3px;
+}
+.setRowText b {
+    font-family: var(--font-head);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+}
+.setRowText .subtle {
+    /* A sentence, so it wraps -- unlike the one-line status the sign-in dialog
+       puts in this position. */
+    white-space: normal;
+    line-height: 1.45;
+}
+
+/* A slider needs width the switches do not, so it takes a fixed column rather
+   than breaking the row in two and losing the shared anatomy. */
+.setRow--stacked .setRowControl {
+    flex: 0 0 210px;
+    display: grid;
+    gap: 2px;
+}
+.setRowValue {
+    font-family: var(--font-head);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+/* Values that cannot be changed here are shown, not just named: knowing the
+   status page is "homelab" is the whole reason to look. */
+.setRow--readonly {
+    background: transparent;
+    border-style: dashed;
+}
+.setRowFixed {
+    flex: 0 0 auto;
+    max-width: 45%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    padding: 4px 10px;
+    border-radius: 999px;
+    border: 1px solid var(--stroke);
+    background: var(--chip);
+    color: var(--muted);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 12px;
+}
+.settingsFootnote {
+    margin-top: 10px;
+    line-height: 1.45;
+}
+
+/* The status line and the actions belong together: the result of pressing Save
+   should appear beside Save, not adrift above it. */
+.settingsFooter {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 18px;
+    padding-top: 14px;
+    border-top: 1px solid var(--stroke);
+}
+.settingsFooter .iconStatus {
+    margin-top: 0;
+    flex: 1 1 auto;
+    min-width: 0;
+}
+.settingsFooter .row {
+    flex: 0 0 auto;
+}
+
+@media (max-width: 560px) {
+    /* Too narrow to hold a slider beside its label. */
+    .setRow--stacked {
+        display: grid;
+        gap: 10px;
+    }
+    .setRow--stacked .setRowControl {
+        flex: none;
+    }
+    .settingsFooter {
+        flex-direction: column;
+        align-items: stretch;
     }
 }

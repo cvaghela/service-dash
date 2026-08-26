@@ -283,6 +283,8 @@ const els = {
     settingsOverlay: document.getElementById("settingsOverlay"),
     setNetworkRefresh: document.getElementById("setNetworkRefresh"),
     setNetworkRefreshValue: document.getElementById("setNetworkRefreshValue"),
+    setFixedSlug: document.getElementById("setFixedSlug"),
+    setFixedMount: document.getElementById("setFixedMount"),
     setBlurCardLinks: document.getElementById("setBlurCardLinks"),
     setBlurNetworkAddresses: document.getElementById("setBlurNetworkAddresses"),
     settingsStatus: document.getElementById("settingsStatus"),
@@ -2762,12 +2764,15 @@ function openSettings() {
     }
     if (els.setBlurCardLinks) els.setBlurCardLinks.checked = !!state.blurCardLinks;
     if (els.setBlurNetworkAddresses) els.setBlurNetworkAddresses.checked = !!state.blurNetworkAddresses;
-    setSettingsStatus(
-        "idle",
-        state.socketAuthed
-            ? "Changes apply to every browser and device."
-            : "Sign in to Uptime Kuma to change these."
-    );
+    // These are read-only here, but worth showing rather than merely naming:
+    // knowing the status page is "homelab" is the reason to look.
+    if (els.setFixedSlug) setTextIfChanged(els.setFixedSlug, STATUS_SLUG);
+    if (els.setFixedMount) setTextIfChanged(els.setFixedMount, STORAGE_MOUNT || "auto");
+
+    // Opens quiet. The line under the dialog title already says these apply
+    // everywhere, and a status that repeats it has nothing left to say when it
+    // actually matters.
+    setSettingsStatus("idle", "");
 
     els.settingsOverlay.classList.add("show");
     els.settingsOverlay.setAttribute("aria-hidden", "false");
