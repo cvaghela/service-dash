@@ -2732,6 +2732,12 @@ function clampNetworkRefresh(value) {
 
 function openSettings() {
     if (!els.settingsOverlay) return;
+    // Guarded as well as hidden: the gear is the only way in today, and this
+    // keeps that true if another one is ever added.
+    if (!state.socketAuthed) {
+        toast("🔒 <b>Settings are locked.</b> Sign in to Uptime Kuma to change them.", 2600);
+        return;
+    }
 
     if (els.setNetworkRefresh) els.setNetworkRefresh.value = String(state.networkRefreshSeconds);
     setSettingsStatus(
@@ -2975,6 +2981,17 @@ function updateNotesLock() {
     }
 }
 
+// Showing a button clears the inline display rather than setting one, so the
+// stylesheet decides how it lays out. The two kinds here disagree: .pill is
+// display:flex, but .iconbtn centres its glyph with display:grid and
+// place-items:center, so forcing "flex" on the gear left it aligned to the
+// start of its own circle instead of the middle of it.
+function setButtonShown(el, shown) {
+    if (!el) return;
+    if (shown) el.style.removeProperty("display");
+    else el.style.display = "none";
+}
+
 function updateAuthButtons() {
     const authed = !!state.socketAuthed;
 
@@ -2985,10 +3002,16 @@ function updateAuthButtons() {
     if (state.domBuilt) updateCardUrlsInPlace();
 
     // Show Logout only when authenticated
-    els.btnLogout.style.display = authed ? "flex" : "none";
+    setButtonShown(els.btnLogout, authed);
 
     // Hide Unlock URLs once authenticated
-    els.btnAuth.style.display = authed ? "none" : "flex";
+    setButtonShown(els.btnAuth, !authed);
+
+    // Settings are only changeable while signed in -- the write is refused
+    // otherwise -- so offering the gear to a signed-out visitor only leads to a
+    // dialog whose Save cannot work. Hidden rather than disabled: there is
+    // nothing here for them to come back to until they sign in.
+    setButtonShown(els.btnSettings, authed);
 }
 
 /* =========================
