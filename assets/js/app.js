@@ -282,6 +282,7 @@ const els = {
     iconSuggest: document.getElementById("iconSuggest"),
     settingsOverlay: document.getElementById("settingsOverlay"),
     setNetworkRefresh: document.getElementById("setNetworkRefresh"),
+    setNetworkRefreshValue: document.getElementById("setNetworkRefreshValue"),
     setBlurCardLinks: document.getElementById("setBlurCardLinks"),
     setBlurNetworkAddresses: document.getElementById("setBlurNetworkAddresses"),
     settingsStatus: document.getElementById("settingsStatus"),
@@ -2753,7 +2754,12 @@ function openSettings() {
         return;
     }
 
-    if (els.setNetworkRefresh) els.setNetworkRefresh.value = String(state.networkRefreshSeconds);
+    if (els.setNetworkRefresh) {
+        const steps = networkRefreshSteps();
+        els.setNetworkRefresh.max = String(steps.length - 1);
+        els.setNetworkRefresh.value = String(steps.indexOf(clampNetworkRefresh(state.networkRefreshSeconds)));
+        showRefreshInterval(state.networkRefreshSeconds);
+    }
     if (els.setBlurCardLinks) els.setBlurCardLinks.checked = !!state.blurCardLinks;
     if (els.setBlurNetworkAddresses) els.setBlurNetworkAddresses.checked = !!state.blurNetworkAddresses;
     setSettingsStatus(
@@ -2783,6 +2789,52 @@ function setSettingsStatus(state_, message) {
 // Reapplies the cover to the addresses already on screen. updateNetworkAddresses()
 // refetches, and its schedule is measured in minutes, so it is the wrong tool
 // for a setting that should take effect the moment it is saved.
+// The interval runs from 30 seconds to 24 hours -- a span of nearly 3,000x.
+// A slider over that range linearly would spend half its travel between twelve
+// and twenty-four hours and squeeze everything under five minutes into a few
+// pixels, which is worse than typing a number. These are the intervals someone
+// would actually pick, evenly spaced along the track, so every position on it
+// is a sensible answer.
+const NETWORK_REFRESH_STEPS = [30, 60, 120, 300, 600, 900, 1800, 3600, 7200, 21600, 43200, 86400];
+
+// The steps for this session, which include whatever is currently stored even
+// when it is not one of the presets -- a value set in Compose or edited into
+// the document by hand still lands the handle exactly on itself, so opening
+// the dialog and saving cannot quietly move it.
+function networkRefreshSteps() {
+    const current = clampNetworkRefresh(state.networkRefreshSeconds);
+    const steps = NETWORK_REFRESH_STEPS.includes(current)
+        ? NETWORK_REFRESH_STEPS.slice()
+        : NETWORK_REFRESH_STEPS.concat(current);
+    return steps.sort((a, b) => a - b);
+}
+
+function formatRefreshInterval(seconds) {
+    const n = Number(seconds);
+    if (!Number.isFinite(n)) return "—";
+    if (n < 60) return `${n} second${n === 1 ? "" : "s"}`;
+    if (n < 3600) {
+        const m = n / 60;
+        return Number.isInteger(m) ? `${m} minute${m === 1 ? "" : "s"}` : `${Math.round(n)} seconds`;
+    }
+    const h = n / 3600;
+    return Number.isInteger(h) ? `${h} hour${h === 1 ? "" : "s"}` : `${(n / 60).toFixed(0)} minutes`;
+}
+
+// Reads the seconds the handle is currently sitting on.
+function selectedRefreshSeconds() {
+    const steps = networkRefreshSteps();
+    const index = clamp(Number(els.setNetworkRefresh?.value ?? 0), 0, steps.length - 1);
+    return steps[Math.round(index)];
+}
+
+function showRefreshInterval(seconds) {
+    const label = formatRefreshInterval(seconds);
+    if (els.setNetworkRefreshValue) setTextIfChanged(els.setNetworkRefreshValue, label);
+    // The handle's position means nothing to a screen reader on its own.
+    if (els.setNetworkRefresh) setAttrIfChanged(els.setNetworkRefresh, "aria-valuetext", label);
+}
+
 function applyNetworkAddressCover() {
     for (const el of [els.lan, els.wan]) {
         if (!el) continue;
@@ -2793,16 +2845,12 @@ function applyNetworkAddressCover() {
 }
 
 function saveSettings() {
-    const requested = Number(els.setNetworkRefresh?.value);
-    const seconds = clampNetworkRefresh(requested);
-
-    if (!Number.isFinite(requested) || String(els.setNetworkRefresh?.value).trim() === "") {
-        setSettingsStatus("error", "Enter a number of seconds.");
-        return;
-    }
+    // A slider cannot be empty or out of range, so the parse and clamp errors
+    // the number field needed are gone with it.
+    const seconds = clampNetworkRefresh(selectedRefreshSeconds());
 
     state.networkRefreshSeconds = seconds;
-    if (els.setNetworkRefresh) els.setNetworkRefresh.value = String(seconds);
+    showRefreshInterval(seconds);
     if (els.setBlurCardLinks) state.blurCardLinks = !!els.setBlurCardLinks.checked;
     if (els.setBlurNetworkAddresses) state.blurNetworkAddresses = !!els.setBlurNetworkAddresses.checked;
     savePrefs();
@@ -2812,12 +2860,7 @@ function saveSettings() {
     if (state.domBuilt) updateCardUrlsInPlace();
     applyNetworkAddressCover();
 
-    // Both facts matter, so neither is allowed to hide the other: a clamped
-    // value the user cannot see explained looks like the page ignored them.
     const notes = [];
-    if (seconds !== Math.round(requested)) {
-        notes.push(`Kept within ${NETWORK_REFRESH_MIN}–${NETWORK_REFRESH_MAX} seconds, so saved as ${seconds}.`);
-    }
     // savePrefs still keeps it in this browser; the save path raises the Kuma
     // sign-in itself.
     if (!state.socketAuthed) notes.push("Saved in this browser. Sign in to Uptime Kuma to share it.");
@@ -2832,7 +2875,10 @@ els.btnSettingsSave?.addEventListener("click", saveSettings);
 els.settingsOverlay?.addEventListener("click", (event) => {
     if (event.target === els.settingsOverlay) closeSettings();
 });
+els.setNetworkRefresh?.addEventListener("input", () => showRefreshInterval(selectedRefreshSeconds()));
 els.setNetworkRefresh?.addEventListener("keydown", (event) => {
+    // Arrow keys move the handle; Enter still means "save", as it did in the
+    // field this replaced.
     if (event.key === "Enter") saveSettings();
 });
 

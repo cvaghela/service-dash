@@ -3684,3 +3684,84 @@ body.mobile-topbar-open .mobile-menu-icon span:nth-child(3) {
 .settingsSection .checkrow .left {
     align-items: flex-start;
 }
+
+/* The refresh-interval slider. Track and handle take the palette's accent, the
+   same as the switch, so the two controls in this dialog read as one family. */
+.settingsSliderHead {
+    justify-content: space-between;
+    align-items: baseline;
+}
+.settingsValue {
+    font-family: var(--font-head);
+    font-size: 13px;
+    color: var(--text);
+    font-variant-numeric: tabular-nums;
+}
+.settingsSlider {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    margin: 10px 0 4px;
+    background: transparent;
+    cursor: pointer;
+}
+.settingsSlider::-webkit-slider-runnable-track {
+    height: 6px;
+    border-radius: 999px;
+    background: var(--chip);
+    box-shadow: inset 0 0 0 1px var(--stroke);
+}
+.settingsSlider::-moz-range-track {
+    height: 6px;
+    border-radius: 999px;
+    background: var(--chip);
+    box-shadow: inset 0 0 0 1px var(--stroke);
+}
+.settingsSlider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    margin-top: -6px;
+    border-radius: 50%;
+    border: 0;
+    background: rgb(var(--accent-2));
+    box-shadow: 0 2px 8px rgb(0, 0, 0, 0.35);
+    transition: transform var(--t-fast) ease;
+}
+.settingsSlider::-moz-range-thumb {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    border: 0;
+    background: rgb(var(--accent-2));
+    box-shadow: 0 2px 8px rgb(0, 0, 0, 0.35);
+}
+.settingsSlider:hover::-webkit-slider-thumb {
+    transform: scale(1.08);
+}
+.settingsSlider:focus-visible {
+    outline: none;
+}
+.settingsSlider:focus-visible::-webkit-slider-thumb {
+    outline: 2px solid rgb(var(--accent-2) / 0.85);
+    outline-offset: 2px;
+}
+.settingsSlider:focus-visible::-moz-range-thumb {
+    outline: 2px solid rgb(var(--accent-2) / 0.85);
+    outline-offset: 2px;
+}
+/* The ends of the range, so the handle's position means something without
+   dragging it first. */
+.settingsScale {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    color: var(--muted-2);
+    margin-bottom: 8px;
+}
+@media (prefers-reduced-motion: reduce) {
+    .settingsSlider::-webkit-slider-thumb {
+        transition: none;
+    }
+}

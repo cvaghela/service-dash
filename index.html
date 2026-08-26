@@ -356,21 +356,18 @@
                 <div class="settingsSection">
                     <h3>Network addresses</h3>
                     <div class="field">
-                        <label for="setNetworkRefresh">Refresh every</label>
-                        <div class="settingsInline">
-                            <input
-                                id="setNetworkRefresh"
-                                type="number"
-                                min="30"
-                                max="86400"
-                                step="30"
-                                inputmode="numeric"
-                            />
-                            <span class="settingsUnit">seconds</span>
+                        <div class="settingsInline settingsSliderHead">
+                            <label for="setNetworkRefresh">Refresh every</label>
+                            <b class="settingsValue" id="setNetworkRefreshValue">10 minutes</b>
+                        </div>
+                        <input class="settingsSlider" id="setNetworkRefresh" type="range" min="0" max="11" step="1" />
+                        <div class="settingsScale" aria-hidden="true">
+                            <span>30 sec</span>
+                            <span>24 hours</span>
                         </div>
                         <div class="subtle">
-                            How often the LAN route and public IP are re-read. Between 30 seconds and 24 hours; the
-                            public IP lookup leaves your network, so slower is kinder.
+                            How often the LAN route and public IP are re-read. The public IP lookup leaves your network,
+                            so slower is kinder.
                         </div>
                     </div>
                 </div>
