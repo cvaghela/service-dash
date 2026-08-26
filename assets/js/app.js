@@ -3732,6 +3732,14 @@ function applyLockedValue(el, value, lockedTitle, unlockedTitle, lockedLabel) {
 }
 
 function updateCardUrlsInPlace() {
+    // Gated on the session, not merely on whether a URL happens to be known --
+    // the same test updateNetworkAddresses() applies to the LAN and WAN
+    // addresses. In practice Uptime Kuma only sends the monitor list to an
+    // authenticated socket, so this was equivalent; relying on the server not
+    // to send something is a weaker guarantee than not displaying it, and the
+    // two locked surfaces should not disagree about what locked means.
+    const authed = !!state.socketAuthed;
+
     for (const s of state.services) {
         const card = state.cardElById.get(String(s.id));
         if (!card) continue;
@@ -3739,8 +3747,8 @@ function updateCardUrlsInPlace() {
         const localId = card.dataset.localId || "";
         const extId = card.dataset.externalId || "";
 
-        const localUrl = localId ? urlForMonitor(localId) : null;
-        const extUrl = extId ? urlForMonitor(extId) : null;
+        const localUrl = authed && localId ? urlForMonitor(localId) : null;
+        const extUrl = authed && extId ? urlForMonitor(extId) : null;
 
         // Store on card dataset (used by click + filtering)
         setDataIfChanged(card, "localUrl", localUrl || "");
