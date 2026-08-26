@@ -3,6 +3,70 @@
 All notable changes to Service Dash are recorded here. This project follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] — 2026-08-26
+
+A drop-in upgrade from 1.2.2: nothing in the Compose files, the images'
+configuration or `entrypoint.sh` changed, so pulling the new images is enough.
+
+### Added
+
+- **A padlock in front of every locked value** — the card links, the LAN and WAN
+  addresses, and the notes panel — so the state reads at a glance rather than
+  resting on the word alone. Drawn as a masked SVG rather than a Material
+  Symbols glyph: the icon font is hidden outright when it cannot load, and a
+  lock that vanished exactly when the page could least explain itself would be
+  the wrong trade.
+- **Clicking a locked value says what to do about it.** The notes panel is a
+  real button, so it answers to the keyboard as well as the pointer.
+- **The sign-in password can be revealed.** A typo could previously only be
+  found by clearing the field and starting again, on a form whose only other
+  feedback is that the username or password was wrong, with no clue which. The
+  dialog always opens masked, and closing it re-masks.
+- **The wheel now chains from the page into the pinned left column.** The column
+  already chained outward; the other direction did not exist, so with the
+  pointer over the cards the page scrolled to its end and stopped, leaving the
+  rest of the column unreachable. The hovered pane consumes first in either
+  direction, which is the rule the column already followed. The listener is
+  passive: it acts only once the page cannot move, so ordinary scrolling stays
+  entirely native.
+
+### Changed
+
+- **Notes are covered until you sign in**, like the service URLs. The field is
+  emptied rather than merely disabled, so the text is not sitting in the page,
+  and a "Notes Locked" panel stands in at the same height so nothing resizes.
+  Note that the shared settings document is readable without signing in by
+  design, so this hides the notes from the page rather than making them secret.
+- **The sign-in dialog is written in the reader's terms.** It described its own
+  plumbing — a heading naming Socket.IO, a paragraph naming `/kuma/socket.io`
+  and the public status API — and promised only monitor URLs, which had stopped
+  being true. It now says what it is and what signing in gets you. The button
+  that signs you in says so instead of "Connect", and the note under Remember me
+  says the session is kept on this device rather than naming localStorage.
+- **The refresh button is gone.** The fifteen-second poll already covered it.
+
+### Fixed
+
+- **Notes could be wiped for every device.** Saving read the note straight back
+  out of the textarea, so any save while the field was deliberately empty — and
+  changing a filter is enough to trigger one — would have written an empty
+  string over the shared notes.
+- **A locked address reported itself as "unavailable"**, which reads like a
+  fault to go and investigate. Locked and unavailable are different problems and
+  only one is actionable. A locked card offered "Use Unlock URLs", naming a
+  control that does not exist.
+- **Card URLs are gated on the session**, not merely on whether a URL happens to
+  be known — the same test the LAN and WAN addresses already applied. Uptime
+  Kuma only sends the monitor list to an authenticated socket, so these were
+  equivalent in practice; relying on a server not to send something is weaker
+  than not displaying it.
+
+### Internal
+
+- `scripts/check-release.py` fails the build when the version in the Compose
+  image tags, the asset cache-busters, the README and the CHANGELOG disagree —
+  the slip that ships a release pointing at the previous images.
+
 ## [1.2.2] — 2026-08-25
 
 A fix release. Anyone running the CasaOS Compose file from 1.2.1 needs this
@@ -200,6 +264,7 @@ Housekeeping for the first public release. No functional changes to the dashboar
 
 See the [release history](https://github.com/cvaghela/service-dash/releases).
 
+[1.3.0]: https://github.com/cvaghela/service-dash/releases/tag/v1.3.0
 [1.2.2]: https://github.com/cvaghela/service-dash/releases/tag/v1.2.2
 [1.2.1]: https://github.com/cvaghela/service-dash/releases/tag/v1.2.1
 [1.2.0]: https://github.com/cvaghela/service-dash/releases/tag/v1.2.0

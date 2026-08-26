@@ -478,6 +478,18 @@ docker compose up -d --force-recreate service-dash
 
 Static assets are cached for seven days, so a browser hard refresh or cache clear may be required.
 
+## Upgrading from 1.2.2
+
+A drop-in upgrade: pull the new images and restart. Nothing in the Compose files, the images' configuration or
+`entrypoint.sh` changed, so an existing 1.2.2 deployment needs no edits.
+
+```bash
+docker compose pull && docker compose up -d
+```
+
+Static assets are cached for seven days, so a hard refresh may be needed before the new sign-in dialog and locked-value
+styling appear.
+
 ## Upgrading from 1.2.1
 
 **If you deployed 1.2.1 on CasaOS, your stack could not start** — `kuma-auth` was on the wrong network, so nginx exited
@@ -486,7 +498,7 @@ not just a new image: give `kuma-auth` the same network as everything else.
 
 ```yaml
   kuma-auth:
-    image: ghcr.io/cvaghela/service-dash-kuma-auth:1.2.2
+    image: ghcr.io/cvaghela/service-dash-kuma-auth:1.3.0
     # …
     networks:                      # replaces `- default`
       service-dash-network:
@@ -494,8 +506,9 @@ not just a new image: give `kuma-auth` the same network as everything else.
           - kuma-auth
 ```
 
-The `docker-compose.casaos.yml` in this release already has it. Everything else in 1.2.2 arrives with the images and
-needs no configuration change; the standard `docker-compose.yml` was never affected.
+The `docker-compose.casaos.yml` shipped with any release from 1.2.2 onwards already has it, so taking that file
+wholesale is the simplest route. Everything else arrives with the images and needs no configuration change; the standard
+`docker-compose.yml` was never affected.
 
 ## Upgrading from 1.2.0
 
@@ -590,7 +603,7 @@ Turning the setting back off leaves the document in the volume untouched and ret
 
 ## Update and rollback
 
-The current release is **1.2.2**; the Compose files in this repository reference the matching `1.2.2` images.
+The current release is **1.3.0**; the Compose files in this repository reference the matching `1.3.0` images.
 
 Download the appropriate Compose file from the desired release—`docker-compose.yml` for standard Docker/ZimaOS or `docker-compose.casaos.yml` for the CasaOS UI—then run:
 

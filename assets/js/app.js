@@ -247,6 +247,11 @@ const state = {
     // derived
     services: [],
 
+    // The notes text, held here rather than read back out of the textarea:
+    // while signed out the textarea is empty on purpose, and the stored notes
+    // must survive that.
+    notes: "",
+
     // render caching
     domBuilt: false,
     cardElById: new Map(),
@@ -257,11 +262,11 @@ const els = {
     btnTheme: document.getElementById("btnTheme"),
     btnLinkMode: document.getElementById("btnLinkMode"),
     linkModeToggle: document.getElementById("linkModeToggle"),
-    btnRefresh: document.getElementById("btnRefresh"),
     btnAuth: document.getElementById("btnAuth"),
     btnLogout: document.getElementById("btnLogout"),
 
     overlay: document.getElementById("overlay"),
+    sideStack: document.querySelector(".side-stack"),
     iconOverlay: document.getElementById("iconOverlay"),
     iconServiceName: document.getElementById("iconServiceName"),
     iconUrlInput: document.getElementById("iconUrlInput"),
@@ -288,6 +293,7 @@ const els = {
 
     authUser: document.getElementById("authUser"),
     authPass: document.getElementById("authPass"),
+    authPassReveal: document.getElementById("authPassReveal"),
     authTfa: document.getElementById("authTfa"),
     authRemember: document.getElementById("authRemember"),
     authConn: document.getElementById("authConn"),
@@ -302,6 +308,7 @@ const els = {
     pollDot: document.getElementById("pollDot"),
 
     notes: document.getElementById("notes"),
+    notesLocked: document.getElementById("notesLocked"),
     cpuVal: document.getElementById("cpuVal"),
     cpuWatts: document.getElementById("cpuWatts"),
     cpuTemp: document.getElementById("cpuTemp"),
@@ -635,7 +642,13 @@ function isIpAddress(value) {
 async function copyNetworkAddress(element, label) {
     const address = String(element?.dataset.copyIp || "").trim();
     if (!isIpAddress(address)) {
-        toast(`⚠️ <b>${label} IP is unavailable.</b>`, 2200);
+        // Locked and unavailable are different problems, and only one of them
+        // is something the reader can act on.
+        if (!state.socketAuthed) {
+            toast(`🔒 <b>${label} IP is hidden.</b> Sign in to Uptime Kuma to reveal it.`, 2600);
+        } else {
+            toast(`⚠️ <b>${label} IP is unavailable.</b>`, 2200);
+        }
         return;
     }
 
@@ -1151,6 +1164,14 @@ function cardRefs(id, card) {
     if (!card) return null;
     cacheCardRefs(id, card);
     return _cardRefs.get(String(id));
+}
+
+// A wheel delta can arrive in pixels, lines or pages depending on the device
+// and platform; normalising it keeps one notch feeling the same everywhere.
+function wheelDeltaPixels(event) {
+    if (event.deltaMode === 1) return event.deltaY * 16; // lines
+    if (event.deltaMode === 2) return event.deltaY * window.innerHeight; // pages
+    return event.deltaY;
 }
 
 function markMetricGood(elVal) {
@@ -1907,7 +1928,9 @@ function savePrefs() {
         // Read by the network-info sidecar straight from the shared document,
         // so changing it here takes effect without recreating a container.
         networkRefreshSeconds: state.networkRefreshSeconds,
-        notes: els.notes.value || "",
+        // Never read from the textarea while it is locked: it is deliberately
+        // empty then, and saving that would wipe the notes for every device.
+        notes: (state.socketAuthed ? els.notes.value : state.notes) || "",
         calendarOpen: document.getElementById("secCalendar")?.getAttribute("data-open") === "true",
 
         // Whole metrics sidebar collapse state (Metrics + Network + Notes)
@@ -1931,7 +1954,12 @@ function loadPrefs() {
         if (Number.isFinite(Number(p.networkRefreshSeconds))) {
             state.networkRefreshSeconds = clampNetworkRefresh(p.networkRefreshSeconds);
         }
-        if (typeof p.notes === "string") els.notes.value = p.notes;
+        if (typeof p.notes === "string") {
+            state.notes = p.notes;
+            // Only mirrored into the textarea when signed in; updateNotesLock()
+            // puts it there on sign-in.
+            if (state.socketAuthed) els.notes.value = p.notes;
+        }
         if (typeof p.calendarOpen === "boolean") {
             const cal = document.getElementById("secCalendar");
             if (cal) cal.setAttribute("data-open", String(p.calendarOpen));
@@ -2922,12 +2950,38 @@ function setUrlState(label) {
     }
 }
 
+// Notes follow the same rule as the service URLs: readable and editable once
+// signed in, covered before that. The textarea is emptied rather than merely
+// disabled, so the text is not sitting in the DOM for anyone to read off the
+// page, and state.notes keeps the real value so saving cannot lose it.
+//
+// Worth being precise about what this is: the shared settings document is
+// readable without signing in, by design, so this hides the notes from the
+// page -- it is not a secret store. Anything that must not be read by a
+// visitor does not belong in it.
+function updateNotesLock() {
+    if (!els.notes) return;
+    const authed = !!state.socketAuthed;
+
+    els.notes.hidden = !authed;
+    els.notes.disabled = !authed;
+    if (els.notesLocked) els.notesLocked.hidden = authed;
+
+    if (authed) {
+        if (els.notes.value !== (state.notes || "")) els.notes.value = state.notes || "";
+        autoResizeTextarea(els.notes);
+    } else if (els.notes.value !== "") {
+        els.notes.value = "";
+    }
+}
+
 function updateAuthButtons() {
     const authed = !!state.socketAuthed;
 
     // Signing in reveals the addresses; signing out hides them again, without
     // waiting for the next poll.
     updateNetworkAddresses();
+    updateNotesLock();
     if (state.domBuilt) updateCardUrlsInPlace();
 
     // Show Logout only when authenticated
@@ -3502,7 +3556,7 @@ function buildDomOnceIfNeeded() {
             // If URLs aren't unlocked/available
             if (!usableLocal && !usableExt) {
                 toast(
-                    `🔒 <b>${escapeHtml(name)}</b> • URLs hidden. Use <b>Unlock URLs</b> to load them (optional).`,
+                    `🔒 <b>${escapeHtml(name)}</b> • URLs are hidden. Sign in to Uptime Kuma to reveal them.`,
                     2600
                 );
                 return;
@@ -3688,6 +3742,14 @@ function applyLockedValue(el, value, lockedTitle, unlockedTitle, lockedLabel) {
 }
 
 function updateCardUrlsInPlace() {
+    // Gated on the session, not merely on whether a URL happens to be known --
+    // the same test updateNetworkAddresses() applies to the LAN and WAN
+    // addresses. In practice Uptime Kuma only sends the monitor list to an
+    // authenticated socket, so this was equivalent; relying on the server not
+    // to send something is a weaker guarantee than not displaying it, and the
+    // two locked surfaces should not disagree about what locked means.
+    const authed = !!state.socketAuthed;
+
     for (const s of state.services) {
         const card = state.cardElById.get(String(s.id));
         if (!card) continue;
@@ -3695,8 +3757,8 @@ function updateCardUrlsInPlace() {
         const localId = card.dataset.localId || "";
         const extId = card.dataset.externalId || "";
 
-        const localUrl = localId ? urlForMonitor(localId) : null;
-        const extUrl = extId ? urlForMonitor(extId) : null;
+        const localUrl = authed && localId ? urlForMonitor(localId) : null;
+        const extUrl = authed && extId ? urlForMonitor(extId) : null;
 
         // Store on card dataset (used by click + filtering)
         setDataIfChanged(card, "localUrl", localUrl || "");
@@ -4320,7 +4382,20 @@ document.addEventListener("mousedown", (event) => {
 /* =========================
                AUTH OVERLAY
                ========================= */
+// The password field can be unmasked to check a typo. It always opens masked:
+// a reveal left on from a previous visit would put the password on screen
+// before anyone asked for it.
+function setPasswordRevealed(revealed) {
+    if (!els.authPass || !els.authPassReveal) return;
+    els.authPass.type = revealed ? "text" : "password";
+    els.authPassReveal.setAttribute("aria-pressed", String(revealed));
+    const label = revealed ? "Hide password" : "Show password";
+    els.authPassReveal.setAttribute("aria-label", label);
+    els.authPassReveal.title = label;
+}
+
 function openAuth() {
+    setPasswordRevealed(false);
     els.overlay.classList.add("show");
     els.overlay.setAttribute("aria-hidden", "false");
     setTimeout(() => els.authUser.focus(), 60);
@@ -4328,7 +4403,20 @@ function openAuth() {
 function closeAuth() {
     els.overlay.classList.remove("show");
     els.overlay.setAttribute("aria-hidden", "true");
+    setPasswordRevealed(false);
 }
+
+els.authPassReveal?.addEventListener("click", () => {
+    const revealed = els.authPassReveal.getAttribute("aria-pressed") === "true";
+    setPasswordRevealed(!revealed);
+    // Focus goes back to the field, with the caret at the end, so checking a
+    // typo does not cost you your place.
+    els.authPass.focus();
+    const end = els.authPass.value.length;
+    try {
+        els.authPass.setSelectionRange(end, end);
+    } catch {}
+});
 
 els.btnCancel.addEventListener("click", closeAuth);
 els.overlay.addEventListener("click", (e) => {
@@ -4470,9 +4558,19 @@ async function initialLoad() {
     });
 
     wireSections();
-    els.notes.addEventListener("input", savePrefs);
-    els.notes.addEventListener("input", () => autoResizeTextarea(els.notes));
+    els.notesLocked?.addEventListener("click", () => {
+        toast("🔒 <b>Notes are locked.</b> Sign in to Uptime Kuma to read and edit them.", 2600);
+    });
+
+    // Keep the authoritative copy in step before saving, since savePrefs reads
+    // state.notes rather than the field.
+    els.notes.addEventListener("input", () => {
+        state.notes = els.notes.value;
+        savePrefs();
+        autoResizeTextarea(els.notes);
+    });
     autoResizeTextarea(els.notes); // fit saved notes on load
+    updateNotesLock();
 
     // Everything above replayed stored state; from here on, a save means
     // somebody changed something.
@@ -4557,13 +4655,6 @@ async function initialLoad() {
     els.btnAuth.addEventListener("click", openAuth);
     els.btnLogout.addEventListener("click", doLogout);
     els.toastClose.addEventListener("click", () => els.toast.classList.remove("show"));
-    // One handler only — a second listener here made every click poll twice.
-    els.btnRefresh.addEventListener("click", () => {
-        els.btnRefresh.classList.add("spinning");
-        pollOnce(true);
-        setTimeout(() => els.btnRefresh.classList.remove("spinning"), 500);
-    });
-
     // auth modal defaults
     els.authUser.value = localStorage.getItem("ml_user") || "";
     els.authRemember.checked = (localStorage.getItem("ml_remember") || "no") === "yes";
@@ -4795,6 +4886,51 @@ scrollBtn.addEventListener("click", () => {
 
     updateClock();
     renderCalendar(viewDate);
+    // Scroll chaining from the page into the pinned left column.
+    //
+    // The left column already chains outward: it scrolls its own content, and
+    // once it has nothing left the wheel carries on to the page. That is why it
+    // deliberately has no overscroll-behavior. The other direction did not
+    // exist -- with the pointer over the cards, the page scrolled to its end
+    // and simply stopped, leaving the rest of the left column unreachable
+    // without moving the pointer onto it.
+    //
+    // The listener is passive on purpose. It only acts once the page cannot
+    // move any further, and at that point the wheel would do nothing anyway, so
+    // there is never anything to preventDefault. Ordinary scrolling stays
+    // entirely native -- a non-passive wheel handler here would make the
+    // browser wait on this code before every scroll, which is exactly the
+    // stutter worth avoiding.
+    window.addEventListener(
+        "wheel",
+        (event) => {
+            const side = els.sideStack;
+            if (!side) return;
+
+            // The column's own scroll comes first; the browser already does that.
+            if (side.contains(event.target)) return;
+            // A modal owns the wheel while it is open.
+            if (els.overlay?.classList.contains("show")) return;
+
+            // Below the desktop breakpoint the column is not a scroll container
+            // at all, so there is nothing to chain into.
+            const room = side.scrollHeight - side.clientHeight;
+            if (room <= 0) return;
+
+            const delta = wheelDeltaPixels(event);
+            if (!delta) return;
+
+            // Only once the page itself has run out of room in this direction.
+            const pageMax = document.documentElement.scrollHeight - window.innerHeight;
+            const pageStillHasRoom = delta > 0 ? window.scrollY < pageMax - 1 : window.scrollY > 1;
+            if (pageStillHasRoom) return;
+
+            const next = clamp(side.scrollTop + delta, 0, room);
+            if (next !== side.scrollTop) side.scrollTop = next;
+        },
+        { passive: true }
+    );
+
     setInterval(updateClock, 1000);
 
     // A homelab box with no route to fonts.gstatic.com would otherwise show

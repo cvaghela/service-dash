@@ -708,7 +708,6 @@ html {
     }
 }
 @media (max-width: 380px) {
-    .refreshIcon,
     .logoutIcon {
         font-size: 18px;
     }
@@ -807,25 +806,6 @@ html {
     opacity: 1;
 }
 
-/* Refresh-specific polish */
-.refreshIcon {
-    transition: transform 0.25s ease;
-    font-size: 20px; /* size inside your circle */
-    line-height: 1;
-    font-variation-settings:
-        "FILL" 0,
-        "wght" 600,
-        /* bolder */ "GRAD" 0,
-        "opsz" 24;
-}
-
-#btnRefresh:active .refreshIcon {
-    transform: rotate(90deg);
-}
-#btnRefresh.spinning .refreshIcon {
-    transform: rotate(360deg);
-    transition: transform 0.5s ease;
-}
 /* Header */
 .topbar {
     grid-column: 1 / -1;
@@ -1080,8 +1060,7 @@ html {
     .linkModePill {
         grid-column: span 2;
     }
-    /* Refresh + Theme each take 1 of 4 columns */
-    #btnRefresh,
+    /* Theme takes 1 of 4 columns */
     #btnTheme {
         grid-column: span 1;
     }
@@ -3567,4 +3546,114 @@ body.mobile-topbar-open .mobile-menu-icon span:nth-child(3) {
        font has definitively failed, so there is no late arrival to shift. */
     font-size: 0 !important;
     overflow: hidden;
+}
+
+/* A padlock in front of every locked value -- the card URLs, the LAN and WAN
+   addresses, and the notes panel -- so the state reads at a glance rather than
+   depending on the word alone.
+
+   Drawn as a mask rather than a Material Symbols ligature: it takes the current
+   text colour like a glyph would, but it still renders on a host with no route
+   to Google Fonts, which is precisely the case the icon fallback handles by
+   hiding font glyphs. A lock that disappears exactly when the page is least
+   able to explain itself would be the wrong trade. */
+.is-locked::before {
+    content: "";
+    display: inline-block;
+    width: 0.95em;
+    height: 0.95em;
+    margin-right: 0.38em;
+    vertical-align: -0.12em;
+    background-color: currentColor;
+    -webkit-mask: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%20-960%20960%20960%22%3E%3Cpath%20d%3D%22M240-80q-33%200-56.5-23.5T160-160v-400q0-33%2023.5-56.5T240-640h40v-80q0-83%2058.5-141.5T480-920q83%200%20141.5%2058.5T680-720v80h40q33%200%2056.5%2023.5T800-560v400q0%2033-23.5%2056.5T720-80H240Zm240-200q33%200%2056.5-23.5T560-360q0-33-23.5-56.5T480-440q-33%200-56.5%2023.5T400-360q0%2033%2023.5%2056.5T480-280ZM360-640h240v-80q0-50-35-85t-85-35q-50%200-85%2035t-35%2085v80Z%22%2F%3E%3C%2Fsvg%3E") center / contain no-repeat;
+    mask: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%20-960%20960%20960%22%3E%3Cpath%20d%3D%22M240-80q-33%200-56.5-23.5T160-160v-400q0-33%2023.5-56.5T240-640h40v-80q0-83%2058.5-141.5T480-920q83%200%20141.5%2058.5T680-720v80h40q33%200%2056.5%2023.5T800-560v400q0%2033-23.5%2056.5T720-80H240Zm240-200q33%200%2056.5-23.5T560-360q0-33-23.5-56.5T480-440q-33%200-56.5%2023.5T400-360q0%2033%2023.5%2056.5T480-280ZM360-640h240v-80q0-50-35-85t-85-35q-50%200-85%2035t-35%2085v80Z%22%2F%3E%3C%2Fsvg%3E") center / contain no-repeat;
+}
+
+/* Stands in for the notes field while signed out. Sized like the textarea so
+   the panel does not resize when signing in, and a real button because it is
+   clickable -- that keeps it reachable and operable from the keyboard without
+   inventing ARIA for a div. */
+.noteLocked {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 90px;
+    width: 100%;
+    /* .is-locked sets cursor: default for text that does nothing; this panel
+       does something. */
+    cursor: pointer;
+    color: var(--muted);
+    font: inherit;
+    font-style: italic;
+    text-align: center;
+    appearance: none;
+}
+.noteLocked:hover {
+    border-color: var(--stroke-2);
+    color: var(--text);
+}
+.noteLocked:focus-visible {
+    outline: 2px solid rgb(var(--accent-2) / 0.85);
+    outline-offset: 2px;
+}
+.noteLocked[hidden] {
+    display: none;
+}
+
+/* Reveal control for the password field. Masked SVG rather than a Material
+   Symbols ligature, for the same reason the padlock is: the icon font comes
+   from Google Fonts and is hidden outright when it cannot load, which would
+   leave this button an unlabelled empty square exactly when someone is trying
+   to check what they typed. */
+.fieldWithButton {
+    position: relative;
+    display: grid;
+}
+.fieldWithButton input {
+    /* Room for the button, so a long password never runs underneath it. */
+    padding-right: 44px;
+}
+.revealToggle {
+    position: absolute;
+    right: 6px;
+    top: 50%;
+    transform: translateY(-50%);
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border: 0;
+    border-radius: 10px;
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+    transition:
+        color var(--t-fast) ease,
+        background var(--t-fast) ease;
+}
+.revealToggle::before {
+    content: "";
+    width: 20px;
+    height: 20px;
+    background-color: currentColor;
+    -webkit-mask: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%20-960%20960%20960%22%3E%3Cpath%20d%3D%22M480-320q75%200%20127.5-52.5T660-500q0-75-52.5-127.5T480-680q-75%200-127.5%2052.5T300-500q0%2075%2052.5%20127.5T480-320Zm0-72q-45%200-76.5-31.5T372-500q0-45%2031.5-76.5T480-608q45%200%2076.5%2031.5T588-500q0%2045-31.5%2076.5T480-392Zm0%20192q-146%200-266-81.5T40-500q54-137%20174-218.5T480-800q146%200%20266%2081.5T920-500q-54%20137-174%20218.5T480-200Zm0-300Zm0%20220q113%200%20207.5-59.5T832-500q-50-101-144.5-160.5T480-720q-113%200-207.5%2059.5T128-500q50%20101%20144.5%20160.5T480-280Z%22%2F%3E%3C%2Fsvg%3E") center / contain no-repeat;
+    mask: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%20-960%20960%20960%22%3E%3Cpath%20d%3D%22M480-320q75%200%20127.5-52.5T660-500q0-75-52.5-127.5T480-680q-75%200-127.5%2052.5T300-500q0%2075%2052.5%20127.5T480-320Zm0-72q-45%200-76.5-31.5T372-500q0-45%2031.5-76.5T480-608q45%200%2076.5%2031.5T588-500q0%2045-31.5%2076.5T480-392Zm0%20192q-146%200-266-81.5T40-500q54-137%20174-218.5T480-800q146%200%20266%2081.5T920-500q-54%20137-174%20218.5T480-200Zm0-300Zm0%20220q113%200%20207.5-59.5T832-500q-50-101-144.5-160.5T480-720q-113%200-207.5%2059.5T128-500q50%20101%20144.5%20160.5T480-280Z%22%2F%3E%3C%2Fsvg%3E") center / contain no-repeat;
+}
+.revealToggle[aria-pressed="true"]::before {
+    -webkit-mask: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%20-960%20960%20960%22%3E%3Cpath%20d%3D%22m644-428-58-58q9-47-27-88t-93-32l-58-58q17-8%2034.5-12t37.5-4q75%200%20127.5%2052.5T660-500q0%2020-4%2037.5T644-428Zm128%20126-58-56q38-29%2067.5-63.5T832-500q-50-101-143.5-160.5T480-720q-29%200-57%204t-55%2012l-62-62q41-17%2084.5-25.5T480-800q146%200%20265.5%2081.5T920-500q-26%2064-67%20117t-81%2081Zm20%20246L624-222q-35%2011-70.5%2016.5T480-200q-146%200-265.5-81.5T40-500q26-64%2066.5-117t90.5-90L56-848l56-56%20736%20736-56%2056ZM253-651q-35%2026-65%2060.5T128-500q50%20101%20143.5%20160.5T480-280q20%200%2039-2.5t39-5.5l-36-38q-11%203-21%204.5t-21%201.5q-75%200-127.5-52.5T300-500q0-11%201.5-21t4.5-21l-53-109Zm227%20109Zm-84%2040Z%22%2F%3E%3C%2Fsvg%3E") center / contain no-repeat;
+    mask: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%20-960%20960%20960%22%3E%3Cpath%20d%3D%22m644-428-58-58q9-47-27-88t-93-32l-58-58q17-8%2034.5-12t37.5-4q75%200%20127.5%2052.5T660-500q0%2020-4%2037.5T644-428Zm128%20126-58-56q38-29%2067.5-63.5T832-500q-50-101-143.5-160.5T480-720q-29%200-57%204t-55%2012l-62-62q41-17%2084.5-25.5T480-800q146%200%20265.5%2081.5T920-500q-26%2064-67%20117t-81%2081Zm20%20246L624-222q-35%2011-70.5%2016.5T480-200q-146%200-265.5-81.5T40-500q26-64%2066.5-117t90.5-90L56-848l56-56%20736%20736-56%2056ZM253-651q-35%2026-65%2060.5T128-500q50%20101%20143.5%20160.5T480-280q20%200%2039-2.5t39-5.5l-36-38q-11%203-21%204.5t-21%201.5q-75%200-127.5-52.5T300-500q0-11%201.5-21t4.5-21l-53-109Zm227%20109Zm-84%2040Z%22%2F%3E%3C%2Fsvg%3E") center / contain no-repeat;
+}
+.revealToggle:hover {
+    color: var(--text);
+    background: rgb(255, 255, 255, 0.1);
+}
+.revealToggle:focus-visible {
+    outline: 2px solid rgb(var(--accent-2) / 0.85);
+    outline-offset: 2px;
+}
+@media (prefers-reduced-motion: reduce) {
+    .revealToggle {
+        transition: none;
+    }
 }
