@@ -376,6 +376,28 @@
                 </div>
 
                 <div class="settingsSection">
+                    <h3>Privacy</h3>
+                    <div class="subtle">
+                        Covered values stay hidden until you point at them, so the dashboard can sit on a screen other
+                        people can see. Turning a cover off shows those values outright.
+                    </div>
+                    <label class="settingsToggle" for="setBlurCardLinks">
+                        <input id="setBlurCardLinks" type="checkbox" />
+                        <span>
+                            <b>Cover service links</b>
+                            <span class="subtle">The Local and External addresses on each card.</span>
+                        </span>
+                    </label>
+                    <label class="settingsToggle" for="setBlurNetworkAddresses">
+                        <input id="setBlurNetworkAddresses" type="checkbox" />
+                        <span>
+                            <b>Cover LAN and WAN addresses</b>
+                            <span class="subtle">The host's own addresses in the Network panel.</span>
+                        </span>
+                    </label>
+                </div>
+
+                <div class="settingsSection">
                     <h3>Fixed at deployment</h3>
                     <div class="subtle">
                         Set in your Compose file, because the dashboard needs them before it can start:

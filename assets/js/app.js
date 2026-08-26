@@ -247,6 +247,11 @@ const state = {
     // derived
     services: [],
 
+    // Whether a revealed value is covered until pointed at. Both default on,
+    // which is what the dashboard did before the setting existed.
+    blurCardLinks: true,
+    blurNetworkAddresses: true,
+
     // The notes text, held here rather than read back out of the textarea:
     // while signed out the textarea is empty on purpose, and the stored notes
     // must survive that.
@@ -277,6 +282,8 @@ const els = {
     iconSuggest: document.getElementById("iconSuggest"),
     settingsOverlay: document.getElementById("settingsOverlay"),
     setNetworkRefresh: document.getElementById("setNetworkRefresh"),
+    setBlurCardLinks: document.getElementById("setBlurCardLinks"),
+    setBlurNetworkAddresses: document.getElementById("setBlurNetworkAddresses"),
     settingsStatus: document.getElementById("settingsStatus"),
     btnSettings: document.getElementById("btnSettings"),
     btnSettingsSave: document.getElementById("btnSettingsSave"),
@@ -684,7 +691,8 @@ function setNetworkAddressText(el, text, isRealAddress) {
     if (!el) return;
     setTextIfChanged(el, text);
     if (el.classList.contains("is-locked")) el.classList.remove("is-locked");
-    if (el.classList.contains("is-private") !== isRealAddress) el.classList.toggle("is-private", isRealAddress);
+    const covered = isRealAddress && state.blurNetworkAddresses;
+    if (el.classList.contains("is-private") !== covered) el.classList.toggle("is-private", covered);
     setAttrIfChanged(el, "aria-label", isRealAddress ? String(text) : `${text}`);
 }
 
@@ -1928,6 +1936,8 @@ function savePrefs() {
         // Read by the network-info sidecar straight from the shared document,
         // so changing it here takes effect without recreating a container.
         networkRefreshSeconds: state.networkRefreshSeconds,
+        blurCardLinks: state.blurCardLinks,
+        blurNetworkAddresses: state.blurNetworkAddresses,
         // Never read from the textarea while it is locked: it is deliberately
         // empty then, and saving that would wipe the notes for every device.
         notes: (state.socketAuthed ? els.notes.value : state.notes) || "",
@@ -1954,6 +1964,10 @@ function loadPrefs() {
         if (Number.isFinite(Number(p.networkRefreshSeconds))) {
             state.networkRefreshSeconds = clampNetworkRefresh(p.networkRefreshSeconds);
         }
+        // Absent means a document written before these existed, which should
+        // keep behaving the way it did: covered.
+        if (typeof p.blurCardLinks === "boolean") state.blurCardLinks = p.blurCardLinks;
+        if (typeof p.blurNetworkAddresses === "boolean") state.blurNetworkAddresses = p.blurNetworkAddresses;
         if (typeof p.notes === "string") {
             state.notes = p.notes;
             // Only mirrored into the textarea when signed in; updateNotesLock()
@@ -2740,6 +2754,8 @@ function openSettings() {
     }
 
     if (els.setNetworkRefresh) els.setNetworkRefresh.value = String(state.networkRefreshSeconds);
+    if (els.setBlurCardLinks) els.setBlurCardLinks.checked = !!state.blurCardLinks;
+    if (els.setBlurNetworkAddresses) els.setBlurNetworkAddresses.checked = !!state.blurNetworkAddresses;
     setSettingsStatus(
         "idle",
         state.socketAuthed
@@ -2764,6 +2780,18 @@ function setSettingsStatus(state_, message) {
     els.settingsStatus.textContent = message;
 }
 
+// Reapplies the cover to the addresses already on screen. updateNetworkAddresses()
+// refetches, and its schedule is measured in minutes, so it is the wrong tool
+// for a setting that should take effect the moment it is saved.
+function applyNetworkAddressCover() {
+    for (const el of [els.lan, els.wan]) {
+        if (!el) continue;
+        const isRealAddress = !!el.dataset.copyIp;
+        const covered = isRealAddress && state.blurNetworkAddresses;
+        if (el.classList.contains("is-private") !== covered) el.classList.toggle("is-private", covered);
+    }
+}
+
 function saveSettings() {
     const requested = Number(els.setNetworkRefresh?.value);
     const seconds = clampNetworkRefresh(requested);
@@ -2775,7 +2803,14 @@ function saveSettings() {
 
     state.networkRefreshSeconds = seconds;
     if (els.setNetworkRefresh) els.setNetworkRefresh.value = String(seconds);
+    if (els.setBlurCardLinks) state.blurCardLinks = !!els.setBlurCardLinks.checked;
+    if (els.setBlurNetworkAddresses) state.blurNetworkAddresses = !!els.setBlurNetworkAddresses.checked;
     savePrefs();
+
+    // Repaint straight away: waiting for the next poll to show a setting you
+    // just changed reads as the change not having taken.
+    if (state.domBuilt) updateCardUrlsInPlace();
+    applyNetworkAddressCover();
 
     // Both facts matter, so neither is allowed to hide the other: a clamped
     // value the user cannot see explained looks like the page ignored them.
@@ -3752,8 +3787,11 @@ function applyLockedValue(el, value, lockedTitle, unlockedTitle, lockedLabel) {
     setTextIfChanged(el, locked ? label : String(value));
     // Two distinct looks: a plain "locked" label, or the real value under a
     // blur that lifts on hover and on keyboard focus.
+    // The lock is not negotiable -- there is nothing to show. The cover over a
+    // revealed value is, and is what the setting turns off.
+    const covered = !locked && state.blurCardLinks;
     if (el.classList.contains("is-locked") !== locked) el.classList.toggle("is-locked", locked);
-    if (el.classList.contains("is-private") === locked) el.classList.toggle("is-private", !locked);
+    if (el.classList.contains("is-private") !== covered) el.classList.toggle("is-private", covered);
 
     // A blur says nothing to a screen reader, and neither state should force
     // one to guess: locked states say so, revealed ones read out the value.

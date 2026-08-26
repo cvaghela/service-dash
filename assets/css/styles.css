@@ -3657,3 +3657,48 @@ body.mobile-topbar-open .mobile-menu-icon span:nth-child(3) {
         transition: none;
     }
 }
+
+/* A settings row you click anywhere on, rather than hunting for the box. The
+   label wraps the input, so the whole row is the hit target without any
+   scripting. */
+.settingsToggle {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 10px;
+    align-items: start;
+    margin-top: 10px;
+    padding: 10px 12px;
+    border: 1px solid var(--stroke);
+    border-radius: 14px;
+    background: rgb(255, 255, 255, 0.04);
+    cursor: pointer;
+    transition: border-color var(--t-fast) ease, background var(--t-fast) ease;
+}
+.settingsToggle:hover {
+    border-color: var(--stroke-2);
+    background: rgb(255, 255, 255, 0.07);
+}
+.settingsToggle input {
+    width: 18px;
+    height: 18px;
+    margin: 1px 0 0;
+    accent-color: rgb(var(--accent-2));
+    cursor: pointer;
+}
+.settingsToggle > span {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+}
+.settingsToggle b {
+    font-weight: 600;
+}
+.settingsToggle:focus-within {
+    outline: 2px solid rgb(var(--accent-2) / 0.85);
+    outline-offset: 2px;
+}
+@media (prefers-reduced-motion: reduce) {
+    .settingsToggle {
+        transition: none;
+    }
+}
