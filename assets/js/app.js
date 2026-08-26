@@ -266,6 +266,7 @@ const els = {
     btnLogout: document.getElementById("btnLogout"),
 
     overlay: document.getElementById("overlay"),
+    sideStack: document.querySelector(".side-stack"),
     iconOverlay: document.getElementById("iconOverlay"),
     iconServiceName: document.getElementById("iconServiceName"),
     iconUrlInput: document.getElementById("iconUrlInput"),
@@ -1162,6 +1163,14 @@ function cardRefs(id, card) {
     if (!card) return null;
     cacheCardRefs(id, card);
     return _cardRefs.get(String(id));
+}
+
+// A wheel delta can arrive in pixels, lines or pages depending on the device
+// and platform; normalising it keeps one notch feeling the same everywhere.
+function wheelDeltaPixels(event) {
+    if (event.deltaMode === 1) return event.deltaY * 16; // lines
+    if (event.deltaMode === 2) return event.deltaY * window.innerHeight; // pages
+    return event.deltaY;
 }
 
 function markMetricGood(elVal) {
@@ -4850,6 +4859,51 @@ scrollBtn.addEventListener("click", () => {
 
     updateClock();
     renderCalendar(viewDate);
+    // Scroll chaining from the page into the pinned left column.
+    //
+    // The left column already chains outward: it scrolls its own content, and
+    // once it has nothing left the wheel carries on to the page. That is why it
+    // deliberately has no overscroll-behavior. The other direction did not
+    // exist -- with the pointer over the cards, the page scrolled to its end
+    // and simply stopped, leaving the rest of the left column unreachable
+    // without moving the pointer onto it.
+    //
+    // The listener is passive on purpose. It only acts once the page cannot
+    // move any further, and at that point the wheel would do nothing anyway, so
+    // there is never anything to preventDefault. Ordinary scrolling stays
+    // entirely native -- a non-passive wheel handler here would make the
+    // browser wait on this code before every scroll, which is exactly the
+    // stutter worth avoiding.
+    window.addEventListener(
+        "wheel",
+        (event) => {
+            const side = els.sideStack;
+            if (!side) return;
+
+            // The column's own scroll comes first; the browser already does that.
+            if (side.contains(event.target)) return;
+            // A modal owns the wheel while it is open.
+            if (els.overlay?.classList.contains("show")) return;
+
+            // Below the desktop breakpoint the column is not a scroll container
+            // at all, so there is nothing to chain into.
+            const room = side.scrollHeight - side.clientHeight;
+            if (room <= 0) return;
+
+            const delta = wheelDeltaPixels(event);
+            if (!delta) return;
+
+            // Only once the page itself has run out of room in this direction.
+            const pageMax = document.documentElement.scrollHeight - window.innerHeight;
+            const pageStillHasRoom = delta > 0 ? window.scrollY < pageMax - 1 : window.scrollY > 1;
+            if (pageStillHasRoom) return;
+
+            const next = clamp(side.scrollTop + delta, 0, room);
+            if (next !== side.scrollTop) side.scrollTop = next;
+        },
+        { passive: true }
+    );
+
     setInterval(updateClock, 1000);
 
     // A homelab box with no route to fonts.gstatic.com would otherwise show
