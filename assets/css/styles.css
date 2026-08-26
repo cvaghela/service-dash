@@ -3570,14 +3570,31 @@ body.mobile-topbar-open .mobile-menu-icon span:nth-child(3) {
 }
 
 /* Stands in for the notes field while signed out. Sized like the textarea so
-   the panel does not resize when signing in. */
+   the panel does not resize when signing in, and a real button because it is
+   clickable -- that keeps it reachable and operable from the keyboard without
+   inventing ARIA for a div. */
 .noteLocked {
     display: flex;
     align-items: center;
     justify-content: center;
     min-height: 90px;
-    cursor: default;
+    width: 100%;
+    /* .is-locked sets cursor: default for text that does nothing; this panel
+       does something. */
+    cursor: pointer;
     color: var(--muted);
+    font: inherit;
+    font-style: italic;
+    text-align: center;
+    appearance: none;
+}
+.noteLocked:hover {
+    border-color: var(--stroke-2);
+    color: var(--text);
+}
+.noteLocked:focus-visible {
+    outline: 2px solid rgb(var(--accent-2) / 0.85);
+    outline-offset: 2px;
 }
 .noteLocked[hidden] {
     display: none;

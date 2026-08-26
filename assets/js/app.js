@@ -307,7 +307,6 @@ const els = {
 
     notes: document.getElementById("notes"),
     notesLocked: document.getElementById("notesLocked"),
-    notesHint: document.getElementById("notesHint"),
     cpuVal: document.getElementById("cpuVal"),
     cpuWatts: document.getElementById("cpuWatts"),
     cpuTemp: document.getElementById("cpuTemp"),
@@ -641,7 +640,13 @@ function isIpAddress(value) {
 async function copyNetworkAddress(element, label) {
     const address = String(element?.dataset.copyIp || "").trim();
     if (!isIpAddress(address)) {
-        toast(`⚠️ <b>${label} IP is unavailable.</b>`, 2200);
+        // Locked and unavailable are different problems, and only one of them
+        // is something the reader can act on.
+        if (!state.socketAuthed) {
+            toast(`🔒 <b>${label} IP is hidden.</b> Sign in to Uptime Kuma to reveal it.`, 2600);
+        } else {
+            toast(`⚠️ <b>${label} IP is unavailable.</b>`, 2200);
+        }
         return;
     }
 
@@ -2958,13 +2963,6 @@ function updateNotesLock() {
     } else if (els.notes.value !== "") {
         els.notes.value = "";
     }
-
-    if (els.notesHint) {
-        const hint = authed
-            ? "Shared with every browser and device."
-            : "Shared with every browser and device. Sign in to Uptime Kuma to edit.";
-        if (els.notesHint.textContent.trim() !== hint) els.notesHint.textContent = hint;
-    }
 }
 
 function updateAuthButtons() {
@@ -3548,7 +3546,7 @@ function buildDomOnceIfNeeded() {
             // If URLs aren't unlocked/available
             if (!usableLocal && !usableExt) {
                 toast(
-                    `🔒 <b>${escapeHtml(name)}</b> • URLs hidden. Use <b>Unlock URLs</b> to load them (optional).`,
+                    `🔒 <b>${escapeHtml(name)}</b> • URLs are hidden. Sign in to Uptime Kuma to reveal them.`,
                     2600
                 );
                 return;
@@ -4516,6 +4514,10 @@ async function initialLoad() {
     });
 
     wireSections();
+    els.notesLocked?.addEventListener("click", () => {
+        toast("🔒 <b>Notes are locked.</b> Sign in to Uptime Kuma to read and edit them.", 2600);
+    });
+
     // Keep the authoritative copy in step before saving, since savePrefs reads
     // state.notes rather than the field.
     els.notes.addEventListener("input", () => {
