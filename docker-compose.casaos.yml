@@ -120,7 +120,13 @@ services:
       - /DATA/AppData/service-dash/netdata/config:/etc/netdata
       - /DATA/AppData/service-dash/netdata/lib:/var/lib/netdata
       - /DATA/AppData/service-dash/netdata/cache:/var/cache/netdata
-      - /DATA:/host/root/DATA:ro,rslave
+      # The whole host root, read-only, exactly as the standard Compose file
+      # does it. Binding only /DATA here left Netdata unable to walk the host's
+      # mount table, so its disk collector reported the container's own root and
+      # nothing else -- which is why the dashboard's storage picker offered a
+      # single "/" on CasaOS and ZimaOS. Read-only and rslave: Netdata reads
+      # sizes, it never writes, and rslave keeps later host mounts visible.
+      - /:/host/root:ro,rslave
       - /etc/hostname:/host/etc/hostname:ro
       - /etc/passwd:/host/etc/passwd:ro
       - /etc/group:/host/etc/group:ro
