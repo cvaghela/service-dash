@@ -1163,13 +1163,28 @@ html {
 }
 
 .link-toggle input {
-    display: none;
+    /* Not display:none -- that takes it out of the tab order, leaving the
+       switch unreachable from the keyboard. Hidden visually, still focusable,
+       and the focus ring is drawn on the track below. */
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+    pointer-events: none;
+}
+.link-toggle input:focus-visible + .track {
+    outline: 2px solid rgb(var(--accent-2) / 0.85);
+    outline-offset: 2px;
 }
 
 .link-toggle .track {
     width: 38px;
     height: 22px;
-    background: var(--bg-soft);
+    /* --bg-soft and a bare --accent were used here but declared nowhere, so the
+       track drew with no fill and the on state had no colour. These are the
+       palette's own tokens, so the switch now follows the accent like every
+       other control. */
+    background: var(--chip);
     border-radius: 999px;
     position: relative;
     box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
@@ -1191,7 +1206,7 @@ html {
 
 /* External (checked) */
 .link-toggle input:checked + .track {
-    background: var(--accent);
+    background: rgb(var(--accent-2) / 0.9);
 }
 
 .link-toggle input:checked + .track .thumb {
@@ -3658,47 +3673,14 @@ body.mobile-topbar-open .mobile-menu-icon span:nth-child(3) {
     }
 }
 
-/* A settings row you click anywhere on, rather than hunting for the box. The
-   label wraps the input, so the whole row is the hit target without any
-   scripting. */
-.settingsToggle {
-    display: grid;
-    grid-template-columns: auto 1fr;
-    gap: 10px;
-    align-items: start;
-    margin-top: 10px;
-    padding: 10px 12px;
-    border: 1px solid var(--stroke);
-    border-radius: 14px;
-    background: rgb(255, 255, 255, 0.04);
-    cursor: pointer;
-    transition: border-color var(--t-fast) ease, background var(--t-fast) ease;
+
+/* The Privacy rows reuse .checkrow, but their description is a sentence rather
+   than the auth dialog's one-line status, so it wraps instead of being clipped. */
+.settingsSection .checkrow .subtle {
+    white-space: normal;
+    overflow: visible;
+    max-width: none;
 }
-.settingsToggle:hover {
-    border-color: var(--stroke-2);
-    background: rgb(255, 255, 255, 0.07);
-}
-.settingsToggle input {
-    width: 18px;
-    height: 18px;
-    margin: 1px 0 0;
-    accent-color: rgb(var(--accent-2));
-    cursor: pointer;
-}
-.settingsToggle > span {
-    display: grid;
-    gap: 2px;
-    min-width: 0;
-}
-.settingsToggle b {
-    font-weight: 600;
-}
-.settingsToggle:focus-within {
-    outline: 2px solid rgb(var(--accent-2) / 0.85);
-    outline-offset: 2px;
-}
-@media (prefers-reduced-motion: reduce) {
-    .settingsToggle {
-        transition: none;
-    }
+.settingsSection .checkrow .left {
+    align-items: flex-start;
 }
