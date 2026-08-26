@@ -708,7 +708,6 @@ html {
     }
 }
 @media (max-width: 380px) {
-    .refreshIcon,
     .logoutIcon {
         font-size: 18px;
     }
@@ -807,25 +806,6 @@ html {
     opacity: 1;
 }
 
-/* Refresh-specific polish */
-.refreshIcon {
-    transition: transform 0.25s ease;
-    font-size: 20px; /* size inside your circle */
-    line-height: 1;
-    font-variation-settings:
-        "FILL" 0,
-        "wght" 600,
-        /* bolder */ "GRAD" 0,
-        "opsz" 24;
-}
-
-#btnRefresh:active .refreshIcon {
-    transform: rotate(90deg);
-}
-#btnRefresh.spinning .refreshIcon {
-    transform: rotate(360deg);
-    transition: transform 0.5s ease;
-}
 /* Header */
 .topbar {
     grid-column: 1 / -1;
@@ -1080,8 +1060,7 @@ html {
     .linkModePill {
         grid-column: span 2;
     }
-    /* Refresh + Theme each take 1 of 4 columns */
-    #btnRefresh,
+    /* Theme takes 1 of 4 columns */
     #btnTheme {
         grid-column: span 1;
     }
@@ -3567,4 +3546,39 @@ body.mobile-topbar-open .mobile-menu-icon span:nth-child(3) {
        font has definitively failed, so there is no late arrival to shift. */
     font-size: 0 !important;
     overflow: hidden;
+}
+
+/* A padlock in front of every locked value -- the card URLs, the LAN and WAN
+   addresses, and the notes panel -- so the state reads at a glance rather than
+   depending on the word alone.
+
+   Drawn as a mask rather than a Material Symbols ligature: it takes the current
+   text colour like a glyph would, but it still renders on a host with no route
+   to Google Fonts, which is precisely the case the icon fallback handles by
+   hiding font glyphs. A lock that disappears exactly when the page is least
+   able to explain itself would be the wrong trade. */
+.is-locked::before {
+    content: "";
+    display: inline-block;
+    width: 0.95em;
+    height: 0.95em;
+    margin-right: 0.38em;
+    vertical-align: -0.12em;
+    background-color: currentColor;
+    -webkit-mask: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%20-960%20960%20960%22%3E%3Cpath%20d%3D%22M240-80q-33%200-56.5-23.5T160-160v-400q0-33%2023.5-56.5T240-640h40v-80q0-83%2058.5-141.5T480-920q83%200%20141.5%2058.5T680-720v80h40q33%200%2056.5%2023.5T800-560v400q0%2033-23.5%2056.5T720-80H240Zm240-200q33%200%2056.5-23.5T560-360q0-33-23.5-56.5T480-440q-33%200-56.5%2023.5T400-360q0%2033%2023.5%2056.5T480-280ZM360-640h240v-80q0-50-35-85t-85-35q-50%200-85%2035t-35%2085v80Z%22%2F%3E%3C%2Fsvg%3E") center / contain no-repeat;
+    mask: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%20-960%20960%20960%22%3E%3Cpath%20d%3D%22M240-80q-33%200-56.5-23.5T160-160v-400q0-33%2023.5-56.5T240-640h40v-80q0-83%2058.5-141.5T480-920q83%200%20141.5%2058.5T680-720v80h40q33%200%2056.5%2023.5T800-560v400q0%2033-23.5%2056.5T720-80H240Zm240-200q33%200%2056.5-23.5T560-360q0-33-23.5-56.5T480-440q-33%200-56.5%2023.5T400-360q0%2033%2023.5%2056.5T480-280ZM360-640h240v-80q0-50-35-85t-85-35q-50%200-85%2035t-35%2085v80Z%22%2F%3E%3C%2Fsvg%3E") center / contain no-repeat;
+}
+
+/* Stands in for the notes field while signed out. Sized like the textarea so
+   the panel does not resize when signing in. */
+.noteLocked {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 90px;
+    cursor: default;
+    color: var(--muted);
+}
+.noteLocked[hidden] {
+    display: none;
 }

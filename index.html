@@ -74,14 +74,6 @@
                     >
                         <span class="material-symbols-rounded" aria-hidden="true">settings</span>
                     </button>
-                    <button
-                        class="pill iconbtn"
-                        id="btnRefresh"
-                        title="Refresh now (poll still runs)"
-                        aria-label="Refresh"
-                    >
-                        <span class="material-symbols-rounded refreshIcon" aria-hidden="true">refresh</span>
-                    </button>
                     <div class="pill linkModePill" title="Local ⇄ External">
                         <label class="link-toggle">
                             <input type="checkbox" id="linkModeToggle" />
@@ -248,9 +240,12 @@
                             <textarea
                                 class="note"
                                 id="notes"
-                                placeholder="Add runbooks, ports, maintenance notes… (saved locally)"
+                                placeholder="Add runbooks, ports, maintenance notes…"
                             ></textarea>
-                            <div class="subtle">Saved to your browser (localStorage).</div>
+                            <div class="note noteLocked is-locked" id="notesLocked" hidden>Notes Locked</div>
+                            <div class="subtle" id="notesHint">
+                                Shared with every browser and device. Sign in to Uptime Kuma to edit.
+                            </div>
                         </div>
                     </div>
                 </aside>

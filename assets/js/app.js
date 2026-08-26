@@ -247,6 +247,11 @@ const state = {
     // derived
     services: [],
 
+    // The notes text, held here rather than read back out of the textarea:
+    // while signed out the textarea is empty on purpose, and the stored notes
+    // must survive that.
+    notes: "",
+
     // render caching
     domBuilt: false,
     cardElById: new Map(),
@@ -257,7 +262,6 @@ const els = {
     btnTheme: document.getElementById("btnTheme"),
     btnLinkMode: document.getElementById("btnLinkMode"),
     linkModeToggle: document.getElementById("linkModeToggle"),
-    btnRefresh: document.getElementById("btnRefresh"),
     btnAuth: document.getElementById("btnAuth"),
     btnLogout: document.getElementById("btnLogout"),
 
@@ -302,6 +306,8 @@ const els = {
     pollDot: document.getElementById("pollDot"),
 
     notes: document.getElementById("notes"),
+    notesLocked: document.getElementById("notesLocked"),
+    notesHint: document.getElementById("notesHint"),
     cpuVal: document.getElementById("cpuVal"),
     cpuWatts: document.getElementById("cpuWatts"),
     cpuTemp: document.getElementById("cpuTemp"),
@@ -1907,7 +1913,9 @@ function savePrefs() {
         // Read by the network-info sidecar straight from the shared document,
         // so changing it here takes effect without recreating a container.
         networkRefreshSeconds: state.networkRefreshSeconds,
-        notes: els.notes.value || "",
+        // Never read from the textarea while it is locked: it is deliberately
+        // empty then, and saving that would wipe the notes for every device.
+        notes: (state.socketAuthed ? els.notes.value : state.notes) || "",
         calendarOpen: document.getElementById("secCalendar")?.getAttribute("data-open") === "true",
 
         // Whole metrics sidebar collapse state (Metrics + Network + Notes)
@@ -1931,7 +1939,12 @@ function loadPrefs() {
         if (Number.isFinite(Number(p.networkRefreshSeconds))) {
             state.networkRefreshSeconds = clampNetworkRefresh(p.networkRefreshSeconds);
         }
-        if (typeof p.notes === "string") els.notes.value = p.notes;
+        if (typeof p.notes === "string") {
+            state.notes = p.notes;
+            // Only mirrored into the textarea when signed in; updateNotesLock()
+            // puts it there on sign-in.
+            if (state.socketAuthed) els.notes.value = p.notes;
+        }
         if (typeof p.calendarOpen === "boolean") {
             const cal = document.getElementById("secCalendar");
             if (cal) cal.setAttribute("data-open", String(p.calendarOpen));
@@ -2922,12 +2935,45 @@ function setUrlState(label) {
     }
 }
 
+// Notes follow the same rule as the service URLs: readable and editable once
+// signed in, covered before that. The textarea is emptied rather than merely
+// disabled, so the text is not sitting in the DOM for anyone to read off the
+// page, and state.notes keeps the real value so saving cannot lose it.
+//
+// Worth being precise about what this is: the shared settings document is
+// readable without signing in, by design, so this hides the notes from the
+// page -- it is not a secret store. Anything that must not be read by a
+// visitor does not belong in it.
+function updateNotesLock() {
+    if (!els.notes) return;
+    const authed = !!state.socketAuthed;
+
+    els.notes.hidden = !authed;
+    els.notes.disabled = !authed;
+    if (els.notesLocked) els.notesLocked.hidden = authed;
+
+    if (authed) {
+        if (els.notes.value !== (state.notes || "")) els.notes.value = state.notes || "";
+        autoResizeTextarea(els.notes);
+    } else if (els.notes.value !== "") {
+        els.notes.value = "";
+    }
+
+    if (els.notesHint) {
+        const hint = authed
+            ? "Shared with every browser and device."
+            : "Shared with every browser and device. Sign in to Uptime Kuma to edit.";
+        if (els.notesHint.textContent.trim() !== hint) els.notesHint.textContent = hint;
+    }
+}
+
 function updateAuthButtons() {
     const authed = !!state.socketAuthed;
 
     // Signing in reveals the addresses; signing out hides them again, without
     // waiting for the next poll.
     updateNetworkAddresses();
+    updateNotesLock();
     if (state.domBuilt) updateCardUrlsInPlace();
 
     // Show Logout only when authenticated
@@ -4470,9 +4516,15 @@ async function initialLoad() {
     });
 
     wireSections();
-    els.notes.addEventListener("input", savePrefs);
-    els.notes.addEventListener("input", () => autoResizeTextarea(els.notes));
+    // Keep the authoritative copy in step before saving, since savePrefs reads
+    // state.notes rather than the field.
+    els.notes.addEventListener("input", () => {
+        state.notes = els.notes.value;
+        savePrefs();
+        autoResizeTextarea(els.notes);
+    });
     autoResizeTextarea(els.notes); // fit saved notes on load
+    updateNotesLock();
 
     // Everything above replayed stored state; from here on, a save means
     // somebody changed something.
@@ -4557,13 +4609,6 @@ async function initialLoad() {
     els.btnAuth.addEventListener("click", openAuth);
     els.btnLogout.addEventListener("click", doLogout);
     els.toastClose.addEventListener("click", () => els.toast.classList.remove("show"));
-    // One handler only — a second listener here made every click poll twice.
-    els.btnRefresh.addEventListener("click", () => {
-        els.btnRefresh.classList.add("spinning");
-        pollOnce(true);
-        setTimeout(() => els.btnRefresh.classList.remove("spinning"), 500);
-    });
-
     // auth modal defaults
     els.authUser.value = localStorage.getItem("ml_user") || "";
     els.authRemember.checked = (localStorage.getItem("ml_remember") || "no") === "yes";
