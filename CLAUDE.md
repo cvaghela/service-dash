@@ -75,6 +75,22 @@ what republishes the store, so step 1 above is what makes an update appear on
 users' tiles. A release that skips it ships new images that store users are
 never offered.
 
+### Submitting to IceWhale's official store
+
+`scripts/sync-appstore-upstream.py` renders the official-store variant from
+`appstore/Apps/ServiceDash/`: `org.icewhale.*` id, their CDN asset paths, and
+the one tip whose wording is true there and false here ("Install Uptime Kuma
+from this store" — ours carries one app). It fails loudly if the source wording
+changes out from under it, rather than emitting a quietly wrong file.
+
+`sync-upstream-appstore.yml` runs it, pushes to the fork and opens the PR. It is
+**workflow_dispatch only, on purpose**: nothing here can merge into their repo,
+and an automatic PR per release would pile unmerged PRs onto a tracker that
+already carries a large community backlog. It needs a `UPSTREAM_APPSTORE_TOKEN`
+secret — a fine-grained PAT scoped to the fork — because `GITHUB_TOKEN` cannot
+push to another repository. Default the `dry_run` input to true and read the
+diff before submitting.
+
 `appstore/Apps/ServiceDash/docker-compose.yml` is a third copy of the CasaOS
 stack, so it is subject to the same failure that broke 1.2.1 — both release
 guards and CI now cover it. See `appstore/README.md`.

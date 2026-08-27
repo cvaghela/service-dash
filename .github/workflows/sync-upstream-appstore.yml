@@ -1,0 +1,132 @@
+# Opens (or updates) a pull request against IceWhale's official ZimaOS app store
+# with the current Service Dash entry.
+#
+# Manual on purpose. Nothing here can merge into someone else's repository, so
+# an automatic PR per release would pile unmerged PRs onto their tracker -- they
+# already carry a large community backlog. Run this when there is a release
+# worth submitting.
+#
+# To make it fire automatically once the app is actually in their store, add:
+#
+#   release:
+#     types: [published]
+#
+# Requires a secret UPSTREAM_APPSTORE_TOKEN: a fine-grained PAT scoped to your
+# CasaOS-AppStore fork only, with Contents: read and write and Pull requests:
+# read and write. The built-in GITHUB_TOKEN cannot push to another repository.
+name: Sync to the official app store
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Render and diff only -- do not push or open a PR"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    env:
+      UPSTREAM: IceWhaleTech/CasaOS-AppStore
+      FORK: cvaghela/CasaOS-AppStore
+    steps:
+      - name: Check out Service Dash
+        uses: actions/checkout@v4
+        with:
+          path: service-dash
+
+      - name: Read the release version
+        id: ver
+        run: |
+          v=$(grep -E '^  version: "' service-dash/appstore/Apps/ServiceDash/docker-compose.yml \
+              | head -1 | cut -d'"' -f2)
+          [ -n "$v" ] || { echo "::error::no x-casaos.version found"; exit 1; }
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+          echo "Service Dash $v"
+
+      - name: Check the token is present
+        if: ${{ !inputs.dry_run }}
+        run: |
+          [ -n "${{ secrets.UPSTREAM_APPSTORE_TOKEN }}" ] || {
+            echo "::error::UPSTREAM_APPSTORE_TOKEN is not set. See the comment at the top of this workflow."
+            exit 1
+          }
+
+      - name: Check out the fork, rebased on upstream
+        env:
+          GH_TOKEN: ${{ secrets.UPSTREAM_APPSTORE_TOKEN || github.token }}
+        run: |
+          # A shallow clone of upstream is enough: the fork's own history is not
+          # interesting, and starting from upstream guarantees the branch is not
+          # carrying stale commits from a previous submission.
+          git clone --depth 1 "https://github.com/$UPSTREAM.git" store
+          cd store
+          git config user.name "Chintan Vaghela"
+          git config user.email "cheaterchintz@gmail.com"
+
+      - name: Render the entry
+        run: |
+          python3 service-dash/scripts/sync-appstore-upstream.py --out store
+          cd store
+          git add Apps/ServiceDash
+          git status --short Apps/ServiceDash
+
+      - name: Show what would change
+        id: diff
+        run: |
+          cd store
+          if git diff --cached --quiet; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::The official store already matches this entry. Nothing to submit."
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            git diff --cached --stat
+            # Text-only diff; the assets are binary and only their presence matters.
+            git diff --cached -- Apps/ServiceDash/docker-compose.yml | head -120
+          fi
+
+      - name: Stop here on a dry run
+        if: ${{ inputs.dry_run }}
+        run: echo "::notice::Dry run -- nothing pushed. Re-run with dry_run unchecked to submit."
+
+      - name: Push and open the pull request
+        if: ${{ !inputs.dry_run && steps.diff.outputs.changed == 'true' }}
+        env:
+          GH_TOKEN: ${{ secrets.UPSTREAM_APPSTORE_TOKEN }}
+          VERSION: ${{ steps.ver.outputs.version }}
+        run: |
+          cd store
+          branch="service-dash-$VERSION"
+
+          # Was the app already accepted upstream? That decides add vs update,
+          # and the wording of the PR.
+          if git cat-file -e "HEAD:Apps/ServiceDash/docker-compose.yml" 2>/dev/null; then
+            title="Update Service Dash to $VERSION"
+            verb="updates"
+          else
+            title="Add Service Dash"
+            verb="adds"
+          fi
+
+          git commit -q -m "$title"
+          git remote add fork "https://x-access-token:$GH_TOKEN@github.com/$FORK.git"
+          git push -q -f fork "HEAD:$branch"
+
+          existing=$(gh pr list --repo "$UPSTREAM" --head "cvaghela:$branch" --json number --jq '.[0].number // empty')
+          if [ -n "$existing" ]; then
+            echo "::notice::PR #$existing already open for $branch -- the push updated it."
+            exit 0
+          fi
+
+          gh pr create --repo "$UPSTREAM" --base main --head "cvaghela:$branch" \
+            --title "$title" --body "This $verb [Service Dash](https://github.com/cvaghela/service-dash) at **$VERSION**.
+
+          Service Dash turns an existing Uptime Kuma status page into a homelab dashboard: each service gets one card carrying both its local (LAN) and public URL, beside host CPU, RAM, storage and network metrics from a bundled Netdata Agent.
+
+          The entry is generated from the app source in [\`appstore/\`](https://github.com/cvaghela/service-dash/tree/main/appstore) by [\`scripts/sync-appstore-upstream.py\`](https://github.com/cvaghela/service-dash/blob/main/scripts/sync-appstore-upstream.py), which applies this store's conventions: \`org.icewhale.*\` id, assets on this repository's CDN path, and the tips wording that is accurate here. So it cannot drift from the release it claims to be.
+
+          Release notes: https://github.com/cvaghela/service-dash/releases/tag/v$VERSION"

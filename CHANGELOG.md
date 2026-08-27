@@ -21,6 +21,13 @@ All notable changes to Service Dash are recorded here. This project follows
   build otherwise. So it still reads `amd64` here, and gains `arm64` in the same
   release that first publishes multi-arch images.
 
+- **A scripted submission to IceWhale's official store.**
+  `scripts/sync-appstore-upstream.py` renders that store's variant of the app
+  entry from the one in `appstore/`, so the two cannot drift, and
+  `sync-upstream-appstore.yml` opens the pull request. Manual to run: nothing
+  here can merge into their repository, so a PR per release would only pile up
+  on their tracker.
+
 ### Fixed
 
 - **The store served users a stale catalogue indefinitely.** Publishing pushed
