@@ -102,7 +102,33 @@ Open **`http://SERVER-IP:8888`**.
 Every release publishes both Compose files as assets — take the one that matches your host.
 
 <details>
-<summary><strong>ZimaOS</strong></summary>
+<summary><strong>ZimaOS — app store (easiest)</strong></summary>
+
+<br>
+
+Service Dash publishes its own ZimaOS app-store source, so it installs and updates from the ZimaOS UI with no SSH.
+
+1. **App Store → ⋯ → Add Source**, and paste:
+
+   ```
+   https://cdn.jsdelivr.net/gh/cvaghela/service-dash@gh-pages/store.json
+   ```
+
+2. Open the **Service Dash** source and install the app.
+3. Open `http://ZIMAOS-IP:8888`.
+
+Set up **Uptime Kuma** first — Service Dash reads your monitors from it and does not install it for you. Leave Kuma on
+port `3001` and note your status page's slug, or change `KUMA_PORT` and `STATUS_SLUG` during install to match.
+
+Later releases appear as an update on the app's tile.
+
+The source is built from [`appstore/`](appstore/) in this repository by IceWhale's official
+[build action](https://github.com/IceWhaleTech/build-appstore-action) — see [`appstore/README.md`](appstore/README.md).
+
+</details>
+
+<details>
+<summary><strong>ZimaOS — Compose over SSH</strong></summary>
 
 <br>
 

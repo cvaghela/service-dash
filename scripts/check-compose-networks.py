@@ -12,7 +12,13 @@ import pathlib
 
 REPO = pathlib.Path(__file__).resolve().parent.parent
 DASHBOARD = "service-dash"
-COMPOSE_FILES = ["docker-compose.yml", "docker-compose.casaos.yml"]
+COMPOSE_FILES = [
+    "docker-compose.yml",
+    "docker-compose.casaos.yml",
+    # The ZimaOS/CasaOS app-store copy. It carries the same upstreams, so it
+    # can strand kuma-auth on the wrong network exactly the way 1.2.1 did.
+    "appstore/Apps/ServiceDash/docker-compose.yml",
+]
 
 try:
     import yaml

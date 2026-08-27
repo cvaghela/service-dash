@@ -1,0 +1,70 @@
+# Publishes the ZimaOS/CasaOS app-store source in appstore/ as a subscribable
+# store. The built dist/ lands on the gh-pages branch, and jsDelivr serves it
+# straight from there -- GitHub Pages itself does not need to be enabled.
+#
+# Users subscribe to:
+#   https://cdn.jsdelivr.net/gh/cvaghela/service-dash@gh-pages/store.json
+name: Publish app store
+
+on:
+  # No tag trigger: a tag push carries no appstore/** change of its own, so the
+  # paths filter would drop it. The release commit that bumps the app version in
+  # appstore/Apps/ServiceDash/docker-compose.yml is what republishes the store.
+  push:
+    branches:
+      - main
+    paths:
+      - "appstore/**"
+      - ".github/workflows/publish-appstore.yml"
+  pull_request:
+    paths:
+      - "appstore/**"
+      - ".github/workflows/publish-appstore.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publish-appstore
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build store dist
+        uses: IceWhaleTech/build-appstore-action@v1
+        with:
+          source: appstore
+          output: dist
+          base-url: https://cdn.jsdelivr.net/gh/${{ github.repository }}@gh-pages
+          report-json: out/build-report.json
+
+      - name: Upload build report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: appstore-build-report
+          path: out/build-report.json
+          if-no-files-found: ignore
+
+      - name: Show generated store index
+        run: |
+          echo "--- store.json ---"
+          cat dist/store.json
+          echo "--- index.json ---"
+          cat dist/index.json
+
+      # Only main and tags publish. Pull requests stop at the build above, so a
+      # broken store source fails review rather than the live store.
+      - name: Deploy dist to gh-pages
+        if: github.event_name != 'pull_request'
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_branch: gh-pages
+          publish_dir: dist
+          force_orphan: true
