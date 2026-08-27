@@ -61,6 +61,7 @@ jobs:
       # Only main and tags publish. Pull requests stop at the build above, so a
       # broken store source fails review rather than the live store.
       - name: Deploy dist to gh-pages
+        id: deploy
         if: github.event_name != 'pull_request'
         uses: peaceiris/actions-gh-pages@v4
         with:
@@ -68,3 +69,27 @@ jobs:
           publish_branch: gh-pages
           publish_dir: dist
           force_orphan: true
+
+      # jsDelivr serves a @branch URL with s-maxage=43200, so without this the
+      # store keeps handing users the previous release for up to 12 hours after
+      # gh-pages already has the new one. Purge the metadata files by name --
+      # assets are content-addressed by the build and change name when they
+      # change, so they do not need it.
+      - name: Purge the jsDelivr cache
+        if: github.event_name != 'pull_request'
+        run: |
+          base="https://purge.jsdelivr.net/gh/${{ github.repository }}@gh-pages"
+          failed=0
+          while IFS= read -r file; do
+            path="${file#dist/}"
+            body=$(curl -sS --retry 3 --retry-delay 5 "$base/$path" || echo '{"status":"request failed"}')
+            status=$(printf '%s' "$body" | grep -o '"status": *"[^"]*"' | head -1 | cut -d'"' -f4)
+            echo "  ${status:-unknown}  $path"
+            [ "$status" = "finished" ] || failed=1
+          done <<EOF
+          $(find dist -name '*.json' -o -name '*.yml' -o -name 'metadata.*' | sort)
+          EOF
+          if [ "$failed" -ne 0 ]; then
+            echo "::warning::At least one jsDelivr purge did not report 'finished'."
+            echo "::warning::The store is correct on gh-pages; the CDN may lag up to 12 hours."
+          fi
