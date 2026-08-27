@@ -23,6 +23,10 @@ All notable changes to Service Dash are recorded here. This project follows
 
 ### Fixed
 
+- **Store updates reached users up to 12 hours late.** jsDelivr serves the
+  `@gh-pages` URL with `s-maxage=43200`, so a published release kept being
+  handed out as the previous one until the edge expired. Publishing now purges
+  the CDN for every metadata file it wrote.
 - **The app-store listing described features that do not exist** — cards being
   renamed, re-categorised and reordered, and public URLs being set per card.
   Both addresses come from how the Uptime Kuma monitors are named, and the
