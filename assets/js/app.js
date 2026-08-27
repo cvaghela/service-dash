@@ -2787,6 +2787,9 @@ function openSettings() {
     }
     if (els.setBlurCardLinks) els.setBlurCardLinks.checked = !!state.blurCardLinks;
     if (els.setBlurNetworkAddresses) els.setBlurNetworkAddresses.checked = !!state.blurNetworkAddresses;
+    // Now that Save closes the dialog, the previous visit's "Saved." would
+    // still be sitting there when it is reopened.
+    setSettingsStatus("idle", "");
     // These are read-only here, but worth showing rather than merely naming:
     // knowing the status page is "homelab" is the reason to look.
     if (els.setFixedSlug) setTextIfChanged(els.setFixedSlug, STATUS_SLUG);
@@ -2900,8 +2903,19 @@ function saveSettings() {
     // sign-in itself.
     if (!state.socketAuthed) notes.push("Saved in this browser. Sign in to Uptime Kuma to share it.");
 
-    if (notes.length) setSettingsStatus("error", notes.join(" "));
-    else setSettingsStatus("ok", "Saved.");
+    // Saving closes the dialog, so the status line beside Save is gone before
+    // it can be read. The feedback moves to a toast, which outlives the close --
+    // dropping the signed-out caveat entirely would be the one message worth
+    // keeping, since that save only reached this browser.
+    if (notes.length) {
+        setSettingsStatus("error", notes.join(" "));
+        toast(`⚠️ ${notes.join(" ")}`, 5200);
+    } else {
+        setSettingsStatus("ok", "Saved.");
+        toast("✅ <b>Settings saved.</b>", 2400);
+    }
+
+    closeSettings();
 }
 
 els.btnSettings?.addEventListener("click", openSettings);
