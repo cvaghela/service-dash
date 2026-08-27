@@ -28,6 +28,11 @@ All notable changes to Service Dash are recorded here. This project follows
   here can merge into their repository, so a PR per release would only pile up
   on their tracker.
 
+- **Saving settings closes the dialog** and returns you to the dashboard,
+  rather than leaving it open over the page you were looking at. Confirmation
+  moves to a toast, so it survives the close — including the one message worth
+  keeping, that a save made while signed out reached only this browser.
+
 ### Fixed
 
 - **The store served users a stale catalogue indefinitely.** Publishing pushed
