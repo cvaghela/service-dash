@@ -68,28 +68,49 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_branch: gh-pages
           publish_dir: dist
-          force_orphan: true
+          # Deliberately NOT force_orphan. Rewriting gh-pages history on every
+          # deploy leaves jsDelivr's @gh-pages ref resolution pinned to a commit
+          # that no longer exists on the branch, and it then serves that content
+          # indefinitely -- purging a path does not invalidate a stuck ref. The
+          # symptom is a store that is correct on gh-pages and stale for users.
 
       # jsDelivr serves a @branch URL with s-maxage=43200, so without this the
       # store keeps handing users the previous release for up to 12 hours after
       # gh-pages already has the new one. Purge the metadata files by name --
       # assets are content-addressed by the build and change name when they
       # change, so they do not need it.
-      - name: Purge the jsDelivr cache
+      #
+      # Then check, rather than trust: a purge can report "finished" and still
+      # leave the CDN stale if it re-fetched before GitHub had propagated the
+      # push. So compare what the CDN actually serves against what was built,
+      # and purge again if they differ.
+      - name: Purge the jsDelivr cache and confirm it took
         if: github.event_name != 'pull_request'
         run: |
-          base="https://purge.jsdelivr.net/gh/${{ github.repository }}@gh-pages"
-          failed=0
-          while IFS= read -r file; do
-            path="${file#dist/}"
-            body=$(curl -sS --retry 3 --retry-delay 5 "$base/$path" || echo '{"status":"request failed"}')
-            status=$(printf '%s' "$body" | grep -o '"status": *"[^"]*"' | head -1 | cut -d'"' -f4)
-            echo "  ${status:-unknown}  $path"
-            [ "$status" = "finished" ] || failed=1
-          done <<EOF
-          $(find dist -name '*.json' -o -name '*.yml' -o -name 'metadata.*' | sort)
-          EOF
-          if [ "$failed" -ne 0 ]; then
-            echo "::warning::At least one jsDelivr purge did not report 'finished'."
-            echo "::warning::The store is correct on gh-pages; the CDN may lag up to 12 hours."
-          fi
+          cdn="https://cdn.jsdelivr.net/gh/${{ github.repository }}@gh-pages"
+          purge="https://purge.jsdelivr.net/gh/${{ github.repository }}@gh-pages"
+          files=$(cd dist && find . -name '*.json' -o -name '*.yml' -o -name 'metadata.*' | sed 's|^\./||' | sort)
+
+          # A canary that changes whenever any app metadata changes.
+          canary=$(cd dist && find . -name 'meta.json' | sed 's|^\./||' | head -1)
+          want=$(sha256sum "dist/$canary" | cut -d' ' -f1)
+          echo "canary: $canary ($want)"
+
+          for attempt in 1 2 3 4; do
+            echo "-- attempt $attempt: letting the push propagate"
+            sleep $((attempt * 20))
+            for path in $files; do
+              curl -sS --retry 2 --retry-delay 3 -o /dev/null "$purge/$path" || true
+            done
+            sleep 10
+            got=$(curl -sSL "$cdn/$canary" | sha256sum | cut -d' ' -f1)
+            if [ "$got" = "$want" ]; then
+              echo "::notice::jsDelivr is serving the new store (attempt $attempt)."
+              exit 0
+            fi
+            echo "   CDN still stale (got $got)"
+          done
+
+          echo "::warning::jsDelivr is still serving stale store metadata."
+          echo "::warning::gh-pages is correct -- the CDN should catch up within 12 hours."
+          echo "::warning::If this persists, check that the deploy step is not rewriting gh-pages history."
