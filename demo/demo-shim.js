@@ -20,36 +20,84 @@
     "use strict";
 
     /* ---------- services ---------- */
+    // Each service carries a LAN address, a public one, or both. The pairing is
+    // the whole point of the dashboard, so most carry both -- and the ones that
+    // do not are the ones you would genuinely never expose, which also gives the
+    // single-row card something to demonstrate.
+    //
+    // `localAs` shows off the naming convention the pairing relies on: Uptime
+    // Kuma monitors called "Plex" and "Plex local" become one card with two
+    // addresses, and "(local)", " - local" and ".local" are read the same way.
     var SERVICES = [
-        { id: 1, name: "AdGuard Home", slug: "adguard-home", cat: "other" },
-        { id: 2, name: "Duplicati", slug: "duplicati", cat: "backup" },
-        { id: 3, name: "Grafana", slug: "grafana", cat: "other" },
-        { id: 4, name: "Home Assistant", slug: "home-assistant", cat: "automation" },
-        { id: 5, name: "Nextcloud", slug: "nextcloud", cat: "storage" },
-        { id: 6, name: "Plex", slug: "plex", cat: "media" },
-        { id: 7, name: "Immich", slug: "immich", cat: "media" },
-        { id: 8, name: "Portainer", slug: "portainer", cat: "other" },
-        { id: 9, name: "Uptime Kuma", slug: "uptime-kuma", cat: "other" },
-        { id: 10, name: "Jellyfin", slug: "jellyfin", cat: "media" },
-        { id: 11, name: "Sonarr", slug: "sonarr", cat: "media" },
-        { id: 12, name: "Radarr", slug: "radarr", cat: "media" },
-        { id: 13, name: "qBittorrent", slug: "qbittorrent", cat: "other" },
-        { id: 14, name: "Vaultwarden", slug: "vaultwarden", cat: "other" },
-        { id: 15, name: "Pi-hole", slug: "pi-hole", cat: "other" },
-        { id: 16, name: "Frigate", slug: "frigate", cat: "automation" },
-        { id: 17, name: "Paperless", slug: "paperless-ngx", cat: "other" },
-        { id: 18, name: "Syncthing", slug: "syncthing", cat: "storage" },
-        { id: 19, name: "Traefik", slug: "traefik", cat: "other" },
-        { id: 20, name: "Netdata", slug: "netdata", cat: "other" },
-        { id: 21, name: "Gitea", slug: "gitea", cat: "other" },
-        { id: 22, name: "Nginx Proxy Manager", slug: "nginx-proxy-manager", cat: "other" },
-        { id: 23, name: "Audiobookshelf", slug: "audiobookshelf", cat: "media" }
+        { id: 1,  name: "AdGuard Home", slug: "adguard-home", cat: "other",
+          lan: "http://10.0.0.3", wan: "https://dns.example.com" },
+        { id: 2,  name: "Duplicati", slug: "duplicati", cat: "backup",
+          lan: "http://10.0.0.7:8200" },
+        { id: 3,  name: "Grafana", slug: "grafana", cat: "other",
+          lan: "http://10.0.0.5:3000", wan: "https://grafana.example.com" },
+        { id: 4,  name: "Home Assistant", slug: "home-assistant", cat: "automation",
+          lan: "http://homeassistant.home.lan:8123", wan: "https://ha.example.com" },
+        { id: 5,  name: "Nextcloud", slug: "nextcloud", cat: "storage",
+          localAs: "{n}.local",
+          lan: "http://10.0.0.9", wan: "https://cloud.example.com" },
+        { id: 6,  name: "Plex", slug: "plex", cat: "media",
+          lan: "http://10.0.0.4:32400/web", wan: "https://plex.example.com" },
+        { id: 7,  name: "Immich", slug: "immich", cat: "media",
+          localAs: "{n} - local",
+          lan: "http://10.0.0.9:2283", wan: "https://photos.example.com" },
+        { id: 8,  name: "Portainer", slug: "portainer", cat: "other",
+          lan: "https://10.0.0.2:9443" },
+        { id: 9,  name: "Uptime Kuma", slug: "uptime-kuma", cat: "other",
+          lan: "http://10.0.0.2:3001", wan: "https://status.example.com" },
+        { id: 10, name: "Jellyfin", slug: "jellyfin", cat: "media",
+          lan: "http://10.0.0.4:8096", wan: "https://watch.example.com" },
+        { id: 11, name: "Sonarr", slug: "sonarr", cat: "media",
+          lan: "http://10.0.0.6:8989" },
+        { id: 12, name: "Radarr", slug: "radarr", cat: "media",
+          lan: "http://10.0.0.6:7878" },
+        { id: 13, name: "qBittorrent", slug: "qbittorrent", cat: "other",
+          lan: "http://10.0.0.6:8080" },
+        { id: 14, name: "Vaultwarden", slug: "vaultwarden", cat: "other",
+          lan: "http://10.0.0.8", wan: "https://vault.example.com" },
+        { id: 15, name: "Pi-hole", slug: "pi-hole", cat: "other",
+          lan: "http://10.0.0.3/admin" },
+        { id: 16, name: "Frigate", slug: "frigate", cat: "automation",
+          lan: "http://10.0.0.11:5000", wan: "https://cams.example.com" },
+        { id: 17, name: "Paperless", slug: "paperless-ngx", cat: "other",
+          lan: "http://10.0.0.9:8000", wan: "https://docs.example.com" },
+        { id: 18, name: "Syncthing", slug: "syncthing", cat: "storage",
+          lan: "http://10.0.0.7:8384" },
+        { id: 19, name: "Traefik", slug: "traefik", cat: "other",
+          lan: "http://10.0.0.2:8080" },
+        { id: 20, name: "Netdata", slug: "netdata", cat: "other",
+          lan: "http://10.0.0.2:19999" },
+        { id: 21, name: "Gitea", slug: "gitea", cat: "other",
+          localAs: "{n} (local)",
+          lan: "http://10.0.0.5:3000", wan: "https://git.example.com" },
+        { id: 22, name: "Nginx Proxy Manager", slug: "nginx-proxy-manager", cat: "network",
+          lan: "http://10.0.0.2:81" },
+        { id: 23, name: "Audiobookshelf", slug: "audiobookshelf", cat: "media",
+          lan: "http://10.0.0.4:13378", wan: "https://books.example.com" }
     ];
 
-    // A stable spread of states so the chips have something to count.
-    var OFFLINE = [13];
-    var PENDING = [17];
-    var MAINT = [19];
+    function localName(s) {
+        return (s.localAs || "{n} local").replace("{n}", s.name);
+    }
+
+    // One monitor per address, which is how Uptime Kuma actually holds this: the
+    // dashboard is what pairs them back together, by name.
+    var MONITORS = [];
+    SERVICES.forEach(function (s) {
+        if (s.wan) MONITORS.push({ id: s.id, name: s.name, url: s.wan });
+        if (s.lan) MONITORS.push({ id: s.id + 100, name: localName(s), url: s.lan });
+    });
+
+    // A stable spread of states so the chips have something to count. Ids over
+    // 100 are the LAN monitors -- 107 down with 7 up is the case worth showing:
+    // Immich reachable from the sofa while the public route is broken.
+    var OFFLINE = [13, 113, 7];
+    var PENDING = [17, 117];
+    var MAINT = [19, 119];
 
     function statusFor(id) {
         if (OFFLINE.indexOf(id) >= 0) return 0;
@@ -71,8 +119,8 @@
                 {
                     id: 1,
                     name: "Services",
-                    monitorList: SERVICES.map(function (s) {
-                        return { id: s.id, name: s.name, type: "http" };
+                    monitorList: MONITORS.map(function (m) {
+                        return { id: m.id, name: m.name, type: "http" };
                     })
                 }
             ]
@@ -81,19 +129,19 @@
 
     function heartbeat() {
         var list = {}, uptime = {}, now = Date.now();
-        SERVICES.forEach(function (s) {
+        MONITORS.forEach(function (m) {
             var beats = [];
             for (var i = 19; i >= 0; i--) {
                 beats.push({
-                    status: i === 0 ? statusFor(s.id) : 1,
+                    status: i === 0 ? statusFor(m.id) : 1,
                     time: new Date(now - i * 60000).toISOString(),
                     msg: "",
-                    ping: 20 + ((s.id * 7 + i) % 90)
+                    ping: 20 + ((m.id * 7 + i) % 90)
                 });
             }
-            list[String(s.id)] = beats;
-            var up = statusFor(s.id) === 1 ? 99.4 + ((s.id % 6) / 10) : 87.1 + (s.id % 5);
-            uptime[String(s.id) + "_24"] = Math.min(100, up) / 100;
+            list[String(m.id)] = beats;
+            var up = statusFor(m.id) === 1 ? 99.4 + ((m.id % 6) / 10) : 87.1 + (m.id % 5);
+            uptime[String(m.id) + "_24"] = Math.min(100, up) / 100;
         });
         return { heartbeatList: list, uptimeList: uptime };
     }
@@ -315,12 +363,8 @@
                 if (event === "getMonitorList") {
                     if (!authed) return;
                     var list = {};
-                    SERVICES.forEach(function (s) {
-                        list[String(s.id)] = {
-                            id: s.id,
-                            name: s.name,
-                            url: "https://" + s.slug + ".example.lan"
-                        };
+                    MONITORS.forEach(function (m) {
+                        list[String(m.id)] = { id: m.id, name: m.name, url: m.url };
                     });
                     (handlers.monitorList || []).forEach(function (fn) { fn(list); });
                     return;

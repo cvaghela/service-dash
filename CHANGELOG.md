@@ -5,6 +5,13 @@ All notable changes to Service Dash are recorded here. This project follows
 
 ## [Unreleased]
 
+### Fixed
+
+- **A service with only a LAN monitor was titled "Duplicati local".** The
+  `local` suffix is a pairing hint, not part of the service's name, and it was
+  only being stripped when a matching public monitor existed to supply a
+  cleaner one. Found by giving the demo realistic addresses.
+
 ### Added
 
 - **A live demo**, at
