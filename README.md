@@ -10,7 +10,7 @@
 [![Release](https://img.shields.io/github/v/release/cvaghela/service-dash?color=6c5cff)](https://github.com/cvaghela/service-dash/releases/latest)
 [![License](https://img.shields.io/github/license/cvaghela/service-dash?color=2ea043)](LICENSE)
 [![Container](https://img.shields.io/badge/ghcr.io-service--dash-2496ed?logo=docker&logoColor=white)](https://github.com/cvaghela/service-dash/pkgs/container/service-dash)
-[![Platform](https://img.shields.io/badge/platform-linux%2Famd64-lightgrey)](#requirements)
+[![Platform](https://img.shields.io/badge/platform-amd64%20%7C%20arm64-lightgrey)](#requirements)
 
 [Quick start](#quick-start) · [Configuration](#configuration) · [How it works](#how-it-works) · [Troubleshooting](#troubleshooting)
 
@@ -57,7 +57,7 @@ to one origin.
 
 ## Requirements
 
-- Linux **AMD64** host — the published images are `linux/amd64`. arm64 images build on `main` and ship with the next release
+- Linux **AMD64 or ARM64** host — the images are published for both from 1.3.3
 - **Docker Engine with Compose v2**, running **rootful**
 - An **Uptime Kuma** instance on the same host, with its HTTP port published
 - Outbound HTTPS and DNS — needed only for WAN-address detection and the icon catalogue
@@ -80,7 +80,7 @@ CetusGuard, restricted to read-only network queries.
 | Debian / Ubuntu AMD64 | **Supported** | Stock Docker Engine, nothing special needed |
 | Other Linux AMD64 | Best effort | AppArmor, SELinux or mount policy may need adjusting for the Netdata Agent |
 | Synology / QNAP | Best effort | Vendor Docker builds often withhold `pid: host` and the capabilities Netdata needs |
-| Linux ARM64 | Next release | Nothing in the stack is AMD64-specific, and both bundled third-party images already publish arm64. `main` now builds `linux/amd64,linux/arm64`; the released `1.3.2` images are still AMD64 only |
+| Linux ARM64 | **Supported** | Images are published `linux/arm64` from 1.3.3. Untested on ARM hardware by the maintainer, so treat first reports as such |
 | Docker Desktop (macOS / Windows) | Not supported | Containers would measure Docker's Linux VM, not your machine, so host metrics would be fiction |
 | Rootless Docker | Not supported | Cannot grant `pid: host`, `SYS_ADMIN` or the host mounts Netdata needs |
 | Podman / Kubernetes | Not supported | The stack is written for Docker Compose; neither is tested |
@@ -468,7 +468,7 @@ Then hard-refresh the browser.
 
 ## Updating
 
-The current release is **1.3.2**; the Compose files in this repository reference the matching `1.3.2` images.
+The current release is **1.3.3**; the Compose files in this repository reference the matching `1.3.3` images.
 
 Most releases are drop-in:
 
