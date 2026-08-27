@@ -36,6 +36,10 @@ All notable changes to Service Dash are recorded here. This project follows
   purge took** by comparing what the CDN serves against what was just built —
   a purge can report success and still leave the edge stale if it re-fetched
   before GitHub had propagated the push.
+- **The store claimed to work on CasaOS.** It publishes ZimaOS's v2 protocol
+  only, with no legacy `store/main.zip`, so CasaOS's custom-source feature
+  cannot read it. The README, `appstore/README.md` and the store's own
+  description now say ZimaOS, and point CasaOS users at the Compose file.
 - **The app-store listing described features that do not exist** — cards being
   renamed, re-categorised and reordered, and public URLs being set per card.
   Both addresses come from how the Uptime Kuma monitors are named, and the

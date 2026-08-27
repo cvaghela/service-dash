@@ -85,6 +85,14 @@ cannot be bumped ahead of the images. `publish-images.yml` builds
 — add `arm64` to the store entry in the same release that first publishes
 multi-arch images, or the store build fails and no app is produced at all.
 
+Four other places still say AMD64-only and must flip in that same release.
+Nothing enforces these, so they are easy to half-do:
+
+1. `appstore/Apps/ServiceDash/docker-compose.yml` — `x-casaos.architectures`
+2. `README.md` — the `Platform` badge (`platform-linux%2Famd64`)
+3. `README.md` — the Requirements bullet naming the published images
+4. `README.md` — the "Linux ARM64" row in the Platform support table
+
 ## Conventions
 
 - Match the surrounding code: no framework, no build step, plain DOM APIs.
