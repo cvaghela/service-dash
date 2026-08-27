@@ -35,7 +35,9 @@ All notable changes to Service Dash are recorded here. This project follows
   jsDelivr serves `@gh-pages` with `s-maxage=43200`, and then **checks that the
   purge took** by comparing what the CDN serves against what was just built —
   a purge can report success and still leave the edge stale if it re-fetched
-  before GitHub had propagated the push.
+  before GitHub had propagated the push. Every file is checked, not a sample:
+  they expire independently, and a run that checked one file reported success
+  while `store.json` was still serving the previous catalogue.
 - **The store claimed to work on CasaOS.** It publishes ZimaOS's v2 protocol
   only, with no legacy `store/main.zip`, so CasaOS's custom-source feature
   cannot read it. The README, `appstore/README.md` and the store's own
