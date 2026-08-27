@@ -1,0 +1,43 @@
+<!-- Source for social-preview.png. Open in a browser at 1280x640 and capture.
+     Service Dash — Copyright (C) 2026 Chintan Vaghela, GPL-3.0. -->
+<!doctype html><html><head><meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { width:1280px; height:640px; overflow:hidden; background:#070814; }
+  .card { position:relative; width:1280px; height:640px;
+           background:radial-gradient(1200px 700px at 78% 45%, #1b2350 0%, #0b0d1f 55%, #070814 100%); }
+  .shot { position:absolute; right:-90px; top:96px; width:820px; border-radius:18px;
+           box-shadow:0 40px 90px rgba(0,0,0,.6); border:1px solid rgba(255,255,255,.10);
+           transform:rotate(-3deg); }
+  .veil { position:absolute; inset:0;
+           background:linear-gradient(100deg, #070814 30%, rgba(7,8,20,.92) 46%, rgba(7,8,20,0) 68%); }
+  .copy { position:absolute; left:76px; top:0; height:640px; width:600px;
+           display:flex; flex-direction:column; justify-content:center; gap:20px; }
+  .brand { display:flex; align-items:center; gap:18px; }
+  .brand img { width:76px; height:76px; border-radius:18px; }
+  h1 { font-family:Outfit,system-ui,sans-serif; font-size:64px; font-weight:700;
+        letter-spacing:-1px; color:#fff; line-height:1; }
+  p { font-family:Inter,system-ui,sans-serif; font-size:25px; line-height:1.45;
+       color:rgba(255,255,255,.72); max-width:520px; }
+  .tags { display:flex; gap:10px; flex-wrap:wrap; margin-top:4px; }
+  .tag { font-family:Inter,system-ui,sans-serif; font-size:16px; color:rgba(255,255,255,.8);
+          border:1px solid rgba(255,255,255,.18); background:rgba(255,255,255,.07);
+          padding:7px 15px; border-radius:999px; }
+</style></head><body>
+<div class="card">
+  <img class="shot" src="screenshot-dashboard.jpg">
+  <div class="veil"></div>
+  <div class="copy">
+    <div class="brand">
+      <img src="service-dash-icon.png">
+      <h1>Service Dash</h1>
+    </div>
+    <p>Your Uptime Kuma status page, plus what the machine running it is actually doing.</p>
+    <div class="tags">
+      <span class="tag">Uptime Kuma</span>
+      <span class="tag">Netdata metrics</span>
+      <span class="tag">One Compose stack</span>
+    </div>
+  </div>
+</div></body></html>
