@@ -14,6 +14,9 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ *
+ * Attribution notice (GPLv3 section 7b): the attribution shown in this
+ * program's interface must be preserved in modified versions.
  */
 
 /* =========================
@@ -21,6 +24,20 @@ CONFIG (edit for your setup)
 ========================= */
 
 // Uptime Kuma Setup
+// The release this page was served from. index.html cache-busts its assets with
+// ?v=<version>, and scripts/check-release.py fails the build if that disagrees
+// with the changelog -- so the running version can be read straight off the tag
+// rather than plumbed through another environment variable. Empty when the page
+// is served without one, and the About line simply omits it.
+const APP_VERSION = (() => {
+    try {
+        const src = document.querySelector('script[src*="app.js"]')?.getAttribute("src") || "";
+        return /[?&]v=([\w.-]+)/.exec(src)?.[1] || "";
+    } catch {
+        return "";
+    }
+})();
+
 const RUNTIME_CONFIG = window.__DASHBOARD_CONFIG__ || {};
 const KUMA_BASE = "/kuma";
 const STATUS_SLUG = String(RUNTIME_CONFIG.statusSlug || "homelab");
@@ -247,6 +264,16 @@ const state = {
     // derived
     services: [],
 
+    // Whether a value is left unreadable until pointed at or tabbed to. Both
+    // default on, which is what the dashboard did before the setting existed.
+    //
+    // The keys keep their original names on purpose: they are what is written
+    // into the shared settings document, and renaming them would make every
+    // saved document look like it had never set them. The labels in the dialog
+    // say what actually happens; these say where the value is stored.
+    blurCardLinks: true,
+    blurNetworkAddresses: true,
+
     // The notes text, held here rather than read back out of the textarea:
     // while signed out the textarea is empty on purpose, and the stored notes
     // must survive that.
@@ -277,6 +304,12 @@ const els = {
     iconSuggest: document.getElementById("iconSuggest"),
     settingsOverlay: document.getElementById("settingsOverlay"),
     setNetworkRefresh: document.getElementById("setNetworkRefresh"),
+    setNetworkRefreshValue: document.getElementById("setNetworkRefreshValue"),
+    setFixedSlug: document.getElementById("setFixedSlug"),
+    setFixedMount: document.getElementById("setFixedMount"),
+    aboutVersion: document.getElementById("aboutVersion"),
+    setBlurCardLinks: document.getElementById("setBlurCardLinks"),
+    setBlurNetworkAddresses: document.getElementById("setBlurNetworkAddresses"),
     settingsStatus: document.getElementById("settingsStatus"),
     btnSettings: document.getElementById("btnSettings"),
     btnSettingsSave: document.getElementById("btnSettingsSave"),
@@ -684,7 +717,8 @@ function setNetworkAddressText(el, text, isRealAddress) {
     if (!el) return;
     setTextIfChanged(el, text);
     if (el.classList.contains("is-locked")) el.classList.remove("is-locked");
-    if (el.classList.contains("is-private") !== isRealAddress) el.classList.toggle("is-private", isRealAddress);
+    const covered = isRealAddress && state.blurNetworkAddresses;
+    if (el.classList.contains("is-private") !== covered) el.classList.toggle("is-private", covered);
     setAttrIfChanged(el, "aria-label", isRealAddress ? String(text) : `${text}`);
 }
 
@@ -1928,6 +1962,8 @@ function savePrefs() {
         // Read by the network-info sidecar straight from the shared document,
         // so changing it here takes effect without recreating a container.
         networkRefreshSeconds: state.networkRefreshSeconds,
+        blurCardLinks: state.blurCardLinks,
+        blurNetworkAddresses: state.blurNetworkAddresses,
         // Never read from the textarea while it is locked: it is deliberately
         // empty then, and saving that would wipe the notes for every device.
         notes: (state.socketAuthed ? els.notes.value : state.notes) || "",
@@ -1954,6 +1990,10 @@ function loadPrefs() {
         if (Number.isFinite(Number(p.networkRefreshSeconds))) {
             state.networkRefreshSeconds = clampNetworkRefresh(p.networkRefreshSeconds);
         }
+        // Absent means a document written before these existed, which should
+        // keep behaving the way it did: covered.
+        if (typeof p.blurCardLinks === "boolean") state.blurCardLinks = p.blurCardLinks;
+        if (typeof p.blurNetworkAddresses === "boolean") state.blurNetworkAddresses = p.blurNetworkAddresses;
         if (typeof p.notes === "string") {
             state.notes = p.notes;
             // Only mirrored into the textarea when signed in; updateNotesLock()
@@ -2739,13 +2779,30 @@ function openSettings() {
         return;
     }
 
-    if (els.setNetworkRefresh) els.setNetworkRefresh.value = String(state.networkRefreshSeconds);
-    setSettingsStatus(
-        "idle",
-        state.socketAuthed
-            ? "Changes apply to every browser and device."
-            : "Sign in to Uptime Kuma to change these."
-    );
+    if (els.setNetworkRefresh) {
+        const steps = networkRefreshSteps();
+        els.setNetworkRefresh.max = String(steps.length - 1);
+        els.setNetworkRefresh.value = String(steps.indexOf(clampNetworkRefresh(state.networkRefreshSeconds)));
+        showRefreshInterval(state.networkRefreshSeconds);
+    }
+    if (els.setBlurCardLinks) els.setBlurCardLinks.checked = !!state.blurCardLinks;
+    if (els.setBlurNetworkAddresses) els.setBlurNetworkAddresses.checked = !!state.blurNetworkAddresses;
+    // These are read-only here, but worth showing rather than merely naming:
+    // knowing the status page is "homelab" is the reason to look.
+    if (els.setFixedSlug) setTextIfChanged(els.setFixedSlug, STATUS_SLUG);
+    if (els.setFixedMount) setTextIfChanged(els.setFixedMount, STORAGE_MOUNT || "auto");
+
+    // Shown only when it is actually known, rather than printing "unknown" at
+    // someone who came here to find out.
+    if (els.aboutVersion) {
+        els.aboutVersion.hidden = !APP_VERSION;
+        if (APP_VERSION) setTextIfChanged(els.aboutVersion, APP_VERSION);
+    }
+
+    // Opens quiet. The line under the dialog title already says these apply
+    // everywhere, and a status that repeats it has nothing left to say when it
+    // actually matters.
+    setSettingsStatus("idle", "");
 
     els.settingsOverlay.classList.add("show");
     els.settingsOverlay.setAttribute("aria-hidden", "false");
@@ -2764,25 +2821,81 @@ function setSettingsStatus(state_, message) {
     els.settingsStatus.textContent = message;
 }
 
-function saveSettings() {
-    const requested = Number(els.setNetworkRefresh?.value);
-    const seconds = clampNetworkRefresh(requested);
+// Reapplies the cover to the addresses already on screen. updateNetworkAddresses()
+// refetches, and its schedule is measured in minutes, so it is the wrong tool
+// for a setting that should take effect the moment it is saved.
+// The interval runs from 30 seconds to 24 hours -- a span of nearly 3,000x.
+// A slider over that range linearly would spend half its travel between twelve
+// and twenty-four hours and squeeze everything under five minutes into a few
+// pixels, which is worse than typing a number. These are the intervals someone
+// would actually pick, evenly spaced along the track, so every position on it
+// is a sensible answer.
+const NETWORK_REFRESH_STEPS = [30, 60, 120, 300, 600, 900, 1800, 3600, 7200, 21600, 43200, 86400];
 
-    if (!Number.isFinite(requested) || String(els.setNetworkRefresh?.value).trim() === "") {
-        setSettingsStatus("error", "Enter a number of seconds.");
-        return;
+// The steps for this session, which include whatever is currently stored even
+// when it is not one of the presets -- a value set in Compose or edited into
+// the document by hand still lands the handle exactly on itself, so opening
+// the dialog and saving cannot quietly move it.
+function networkRefreshSteps() {
+    const current = clampNetworkRefresh(state.networkRefreshSeconds);
+    const steps = NETWORK_REFRESH_STEPS.includes(current)
+        ? NETWORK_REFRESH_STEPS.slice()
+        : NETWORK_REFRESH_STEPS.concat(current);
+    return steps.sort((a, b) => a - b);
+}
+
+function formatRefreshInterval(seconds) {
+    const n = Number(seconds);
+    if (!Number.isFinite(n)) return "—";
+    if (n < 60) return `${n} second${n === 1 ? "" : "s"}`;
+    if (n < 3600) {
+        const m = n / 60;
+        return Number.isInteger(m) ? `${m} minute${m === 1 ? "" : "s"}` : `${Math.round(n)} seconds`;
     }
+    const h = n / 3600;
+    return Number.isInteger(h) ? `${h} hour${h === 1 ? "" : "s"}` : `${(n / 60).toFixed(0)} minutes`;
+}
+
+// Reads the seconds the handle is currently sitting on.
+function selectedRefreshSeconds() {
+    const steps = networkRefreshSteps();
+    const index = clamp(Number(els.setNetworkRefresh?.value ?? 0), 0, steps.length - 1);
+    return steps[Math.round(index)];
+}
+
+function showRefreshInterval(seconds) {
+    const label = formatRefreshInterval(seconds);
+    if (els.setNetworkRefreshValue) setTextIfChanged(els.setNetworkRefreshValue, label);
+    // The handle's position means nothing to a screen reader on its own.
+    if (els.setNetworkRefresh) setAttrIfChanged(els.setNetworkRefresh, "aria-valuetext", label);
+}
+
+function applyNetworkAddressCover() {
+    for (const el of [els.lan, els.wan]) {
+        if (!el) continue;
+        const isRealAddress = !!el.dataset.copyIp;
+        const covered = isRealAddress && state.blurNetworkAddresses;
+        if (el.classList.contains("is-private") !== covered) el.classList.toggle("is-private", covered);
+    }
+}
+
+function saveSettings() {
+    // A slider cannot be empty or out of range, so the parse and clamp errors
+    // the number field needed are gone with it.
+    const seconds = clampNetworkRefresh(selectedRefreshSeconds());
 
     state.networkRefreshSeconds = seconds;
-    if (els.setNetworkRefresh) els.setNetworkRefresh.value = String(seconds);
+    showRefreshInterval(seconds);
+    if (els.setBlurCardLinks) state.blurCardLinks = !!els.setBlurCardLinks.checked;
+    if (els.setBlurNetworkAddresses) state.blurNetworkAddresses = !!els.setBlurNetworkAddresses.checked;
     savePrefs();
 
-    // Both facts matter, so neither is allowed to hide the other: a clamped
-    // value the user cannot see explained looks like the page ignored them.
+    // Repaint straight away: waiting for the next poll to show a setting you
+    // just changed reads as the change not having taken.
+    if (state.domBuilt) updateCardUrlsInPlace();
+    applyNetworkAddressCover();
+
     const notes = [];
-    if (seconds !== Math.round(requested)) {
-        notes.push(`Kept within ${NETWORK_REFRESH_MIN}–${NETWORK_REFRESH_MAX} seconds, so saved as ${seconds}.`);
-    }
     // savePrefs still keeps it in this browser; the save path raises the Kuma
     // sign-in itself.
     if (!state.socketAuthed) notes.push("Saved in this browser. Sign in to Uptime Kuma to share it.");
@@ -2797,7 +2910,10 @@ els.btnSettingsSave?.addEventListener("click", saveSettings);
 els.settingsOverlay?.addEventListener("click", (event) => {
     if (event.target === els.settingsOverlay) closeSettings();
 });
+els.setNetworkRefresh?.addEventListener("input", () => showRefreshInterval(selectedRefreshSeconds()));
 els.setNetworkRefresh?.addEventListener("keydown", (event) => {
+    // Arrow keys move the handle; Enter still means "save", as it did in the
+    // field this replaced.
     if (event.key === "Enter") saveSettings();
 });
 
@@ -3752,8 +3868,11 @@ function applyLockedValue(el, value, lockedTitle, unlockedTitle, lockedLabel) {
     setTextIfChanged(el, locked ? label : String(value));
     // Two distinct looks: a plain "locked" label, or the real value under a
     // blur that lifts on hover and on keyboard focus.
+    // The lock is not negotiable -- there is nothing to show. The cover over a
+    // revealed value is, and is what the setting turns off.
+    const covered = !locked && state.blurCardLinks;
     if (el.classList.contains("is-locked") !== locked) el.classList.toggle("is-locked", locked);
-    if (el.classList.contains("is-private") === locked) el.classList.toggle("is-private", !locked);
+    if (el.classList.contains("is-private") !== covered) el.classList.toggle("is-private", covered);
 
     // A blur says nothing to a screen reader, and neither state should force
     // one to guess: locked states say so, revealed ones read out the value.

@@ -1,3 +1,16 @@
+/*
+ * Service Dash — stylesheet for the dashboard.
+ * Copyright (C) 2026 Chintan Vaghela
+ *
+ * This program is free software: you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License as published by the Free
+ * Software Foundation, either version 3 of the License, or (at your option)
+ * any later version. See the LICENSE file, or <https://www.gnu.org/licenses/>.
+ *
+ * Attribution notice (GPLv3 section 7b): the attribution shown in this
+ * program's interface must be preserved in modified versions.
+ */
+
 /* =========================
  SERVICE DASH (Glassy Kuma)
  Single-file HTML + CSS + JS
@@ -1163,13 +1176,28 @@ html {
 }
 
 .link-toggle input {
-    display: none;
+    /* Not display:none -- that takes it out of the tab order, leaving the
+       switch unreachable from the keyboard. Hidden visually, still focusable,
+       and the focus ring is drawn on the track below. */
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+    pointer-events: none;
+}
+.link-toggle input:focus-visible + .track {
+    outline: 2px solid rgb(var(--accent-2) / 0.85);
+    outline-offset: 2px;
 }
 
 .link-toggle .track {
     width: 38px;
     height: 22px;
-    background: var(--bg-soft);
+    /* --bg-soft and a bare --accent were used here but declared nowhere, so the
+       track drew with no fill and the on state had no colour. These are the
+       palette's own tokens, so the switch now follows the accent like every
+       other control. */
+    background: var(--chip);
     border-radius: 999px;
     position: relative;
     box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
@@ -1191,7 +1219,7 @@ html {
 
 /* External (checked) */
 .link-toggle input:checked + .track {
-    background: var(--accent);
+    background: rgb(var(--accent-2) / 0.9);
 }
 
 .link-toggle input:checked + .track .thumb {
@@ -3656,4 +3684,236 @@ body.mobile-topbar-open .mobile-menu-icon span:nth-child(3) {
     .revealToggle {
         transition: none;
     }
+}
+
+
+/* The refresh-interval slider. Track and handle take the palette's accent, the
+   same as the switch, so the two controls in this dialog read as one family. */
+.settingsSlider {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    margin: 10px 0 4px;
+    background: transparent;
+    cursor: pointer;
+}
+.settingsSlider::-webkit-slider-runnable-track {
+    height: 6px;
+    border-radius: 999px;
+    background: var(--chip);
+    box-shadow: inset 0 0 0 1px var(--stroke);
+}
+.settingsSlider::-moz-range-track {
+    height: 6px;
+    border-radius: 999px;
+    background: var(--chip);
+    box-shadow: inset 0 0 0 1px var(--stroke);
+}
+.settingsSlider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    margin-top: -6px;
+    border-radius: 50%;
+    border: 0;
+    background: rgb(var(--accent-2));
+    box-shadow: 0 2px 8px rgb(0, 0, 0, 0.35);
+    transition: transform var(--t-fast) ease;
+}
+.settingsSlider::-moz-range-thumb {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    border: 0;
+    background: rgb(var(--accent-2));
+    box-shadow: 0 2px 8px rgb(0, 0, 0, 0.35);
+}
+.settingsSlider:hover::-webkit-slider-thumb {
+    transform: scale(1.08);
+}
+.settingsSlider:focus-visible {
+    outline: none;
+}
+.settingsSlider:focus-visible::-webkit-slider-thumb {
+    outline: 2px solid rgb(var(--accent-2) / 0.85);
+    outline-offset: 2px;
+}
+.settingsSlider:focus-visible::-moz-range-thumb {
+    outline: 2px solid rgb(var(--accent-2) / 0.85);
+    outline-offset: 2px;
+}
+/* The ends of the range, so the handle's position means something without
+   dragging it first. */
+.settingsScale {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    color: var(--muted-2);
+    margin-bottom: 8px;
+}
+@media (prefers-reduced-motion: reduce) {
+    .settingsSlider::-webkit-slider-thumb {
+        transition: none;
+    }
+}
+
+/* ==========================================================================
+   Settings rows
+   One anatomy for every setting: what it is and what it does on the left, the
+   control that changes it on the right. Before this the slider was a stacked
+   block and the switches were horizontal boxes, so two settings in the same
+   dialog were read two different ways.
+   ========================================================================== */
+.setRow {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-top: 8px;
+    padding: 12px 14px;
+    border: 1px solid var(--stroke);
+    border-radius: 16px;
+    background: rgb(255, 255, 255, 0.05);
+}
+.setRowText {
+    min-width: 0;
+    display: grid;
+    gap: 3px;
+}
+.setRowText b {
+    font-family: var(--font-head);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+}
+.setRowText .subtle {
+    /* A sentence, so it wraps -- unlike the one-line status the sign-in dialog
+       puts in this position. */
+    white-space: normal;
+    line-height: 1.45;
+}
+
+/* A slider needs width the switches do not, so it takes a fixed column rather
+   than breaking the row in two and losing the shared anatomy. */
+.setRow--stacked .setRowControl {
+    flex: 0 0 210px;
+    display: grid;
+    gap: 2px;
+}
+.setRowValue {
+    font-family: var(--font-head);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+/* Values that cannot be changed here are shown, not just named: knowing the
+   status page is "homelab" is the whole reason to look. */
+.setRow--readonly {
+    background: transparent;
+    border-style: dashed;
+}
+.setRowFixed {
+    flex: 0 0 auto;
+    max-width: 45%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    padding: 4px 10px;
+    border-radius: 999px;
+    border: 1px solid var(--stroke);
+    background: var(--chip);
+    color: var(--muted);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 12px;
+}
+.settingsFootnote {
+    margin-top: 10px;
+    line-height: 1.45;
+}
+
+/* The status line and the actions belong together: the result of pressing Save
+   should appear beside Save, not adrift above it. */
+.settingsFooter {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 18px;
+    padding-top: 14px;
+    border-top: 1px solid var(--stroke);
+}
+.settingsFooter .iconStatus {
+    margin-top: 0;
+    flex: 1 1 auto;
+    min-width: 0;
+}
+.settingsFooter .row {
+    flex: 0 0 auto;
+}
+
+@media (max-width: 560px) {
+    /* Too narrow to hold a slider beside its label. */
+    .setRow--stacked {
+        display: grid;
+        gap: 10px;
+    }
+    .setRow--stacked .setRowControl {
+        flex: none;
+    }
+    .settingsFooter {
+        flex-direction: column;
+        align-items: stretch;
+    }
+}
+
+
+/* About closes the settings dialog. It is not a setting, so it deliberately
+   does not borrow the .setRow anatomy -- a row with a control implies something
+   to change. Quieter than everything above it, and last, because it is what you
+   look for only when you are looking for it.
+
+   The attribution lives here rather than in the page chrome, and GPLv3 section
+   5(d) still covers it: it is a notice this program displays. */
+.settingsAbout .aboutLine {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+}
+.settingsAbout .aboutLine b {
+    font-family: var(--font-head);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+}
+.aboutVersion {
+    font-size: 12px;
+    color: var(--muted-2);
+    font-variant-numeric: tabular-nums;
+}
+.aboutVersion::before {
+    content: "v";
+}
+.aboutVersion[hidden] {
+    display: none;
+}
+.settingsAbout .subtle {
+    margin-top: 4px;
+    line-height: 1.5;
+}
+.settingsAbout a {
+    color: var(--muted);
+    border-bottom: 1px solid var(--stroke);
+    text-decoration: none;
+}
+.settingsAbout a:hover {
+    color: var(--text);
+    border-bottom-color: var(--stroke-2);
+}
+.settingsAbout a:focus-visible {
+    outline: 2px solid rgb(var(--accent-2) / 0.85);
+    outline-offset: 2px;
 }
