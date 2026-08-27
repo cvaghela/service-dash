@@ -546,6 +546,11 @@ python3 scripts/check-compose-networks.py   # every nginx upstream is reachable
 python3 scripts/check-release.py            # one version, stated the same everywhere
 ```
 
+```sh
+# Render the official-store variant of the app entry and read the diff
+python3 scripts/sync-appstore-upstream.py --check
+```
+
 Both scripts cover all three Compose files. The third is the ZimaOS app-store entry in [`appstore/`](appstore/) — same
 stack, so it can break the same ways; see [`appstore/README.md`](appstore/README.md).
 
