@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "updated_at": "2026-08-27T03:57:46Z",
+  "updated_at": "2026-08-27T04:23:57Z",
   "app_count": 1,
   "base_url": "https://cdn.jsdelivr.net/gh/cvaghela/service-dash@gh-pages",
   "apps": [
@@ -15,14 +15,15 @@
       "author": "Chintan Vaghela",
       "developer": "Chintan Vaghela",
       "architectures": [
-        "amd64"
+        "amd64",
+        "arm64"
       ],
       "icon": "/apps/io.github.cvaghela.servicedash/assets/icon.png",
       "thumbnail": "/apps/io.github.cvaghela.servicedash/assets/thumbnail.webp",
       "compose_url": "/apps/io.github.cvaghela.servicedash/docker-compose.yml",
       "meta_url": "/apps/io.github.cvaghela.servicedash/meta.json",
-      "content_hash": "978c1f74",
-      "version": "1.3.2"
+      "content_hash": "47094bb9",
+      "version": "1.3.3"
     }
   ]
 }

@@ -90,7 +90,7 @@ services:
     restart: unless-stopped
 
   docker-metadata:
-    image: ghcr.io/hectorm/cetusguard:v1
+    image: ghcr.io/hectorm/cetusguard:v1@sha256:4d8ef3e97e5c13e0255419823a26da0c8154abcd7d4d30e026aefbc9f51465f9
     container_name: service-dash-docker-metadata
     read_only: true
     environment:
@@ -111,7 +111,7 @@ services:
     restart: unless-stopped
 
   netdata:
-    image: netdata/netdata:stable
+    image: netdata/netdata:stable@sha256:3b0f7047857f2e1528918ebc0fb2e15118a8037b5e763e2b3bcdc7127d95e4f2
     container_name: service-dash-netdata
     pid: host
     environment:
