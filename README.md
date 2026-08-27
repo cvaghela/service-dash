@@ -4,7 +4,7 @@
 
 # Service Dash
 
-**A homelab dashboard that turns your Uptime Kuma status page into a live view of your services — and the machine running them.**
+**One dashboard for everything you host — each service's local *and* public URL on a single card, next to the live health of the machine running them.**
 
 [![Validate](https://github.com/cvaghela/service-dash/actions/workflows/validate.yml/badge.svg)](https://github.com/cvaghela/service-dash/actions/workflows/validate.yml)
 [![Release](https://img.shields.io/github/v/release/cvaghela/service-dash?color=6c5cff)](https://github.com/cvaghela/service-dash/releases/latest)
@@ -22,8 +22,14 @@
 
 ## Why
 
-Uptime Kuma tells you whether a service is up. It does not tell you what the box is doing, where the service actually
-lives, or how much of your RAM that one container is eating. Service Dash puts all of that on one page.
+Uptime Kuma tells you whether a service is up. It does not tell you what the box is doing, or how much of your RAM that
+one container is eating. Service Dash puts all of that on one page.
+
+It also solves the two-bookmarks problem. Most self-hosted services end up with two addresses — a LAN one that is fast
+and never leaves the house, and a public one for when you are out — and most dashboards make you pick a side, or keep
+two dashboards. Here both live on the same card, and a single switch in the top bar decides which one a click opens. At
+home, flip it to Local and every card opens over the LAN. On mobile data, flip it to External and the same cards open
+over the internet. Nothing is duplicated and nothing is hidden: you can always see both.
 
 It is one Compose stack — the dashboard, a bundled Netdata Agent, and three small sidecars. No build step, no Node.js
 runtime, no separate Netdata install. nginx serves the page and proxies everything else, so the browser only ever talks
@@ -33,7 +39,8 @@ to one origin.
 
 |  | |
 | --- | --- |
-| **Live service cards** | Status, uptime and both endpoints for every monitor on your Kuma status page. Search, filter by status or category, and click a card to open it. |
+| **Local and public links, one card** | Each service shows both its LAN address and its public URL. One switch in the top bar decides which a click opens, so the same dashboard works at home and away — the active endpoint is tinted so you always know which you will get. |
+| **Live service cards** | Status and uptime for every monitor on your Kuma status page. Search, filter by status or category, and click a card to open it. |
 | **Real host metrics** | CPU with normalised load, RAM, storage, and network throughput from a bundled Netdata Agent — plus package power and temperature where the hardware exposes them. |
 | **Per-container CPU and RAM** | Map a card to one container or several; an app plus its database, cache and worker are added together into one figure. |
 | **Real service icons** | Automatic matching against the full [selfh.st](https://github.com/selfhst/icons) catalogue — 2,880 icons and growing — with a live picker per card. No internet? Every card falls back to a monogram drawn in the browser. |
@@ -218,8 +225,13 @@ are locked the same way.
 
 ## Using the dashboard
 
-**Service cards** show each service's two endpoints, Local and External. The one a click will open is tinted; the
-Local/External switch in the top bar moves that highlight. A service with one endpoint shows one row.
+**Service cards** show each service's two endpoints, Local and External, on the same card. The one a click will open is
+tinted; the Local/External switch in the top bar moves that highlight across every card at once. A service with only one
+endpoint shows one row.
+
+The pairing comes from Uptime Kuma itself: two monitors named `Plex` and `Plex local` — also `Plex (local)`,
+`Plex - local` or `Plex.local` — are recognised as one service with two addresses. Nothing to configure here; name the
+monitors that way in Kuma and the card builds itself.
 
 **Card settings** — hover a card, click the pencil on its icon:
 
