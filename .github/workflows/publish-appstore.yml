@@ -80,37 +80,47 @@ jobs:
       # assets are content-addressed by the build and change name when they
       # change, so they do not need it.
       #
-      # Then check, rather than trust: a purge can report "finished" and still
-      # leave the CDN stale if it re-fetched before GitHub had propagated the
-      # push. So compare what the CDN actually serves against what was built,
-      # and purge again if they differ.
-      - name: Purge the jsDelivr cache and confirm it took
+      # Then check every one of them, rather than trusting the purge. Two ways
+      # this has already gone wrong: a purge reported "finished" and left the
+      # edge stale because it re-fetched before GitHub had propagated the push,
+      # and files expire independently -- meta.json came good while store.json
+      # stayed stale, so checking a single canary reported success while users
+      # were still being served an old catalogue.
+      - name: Purge the jsDelivr cache and confirm every file took
         if: github.event_name != 'pull_request'
         run: |
           cdn="https://cdn.jsdelivr.net/gh/${{ github.repository }}@gh-pages"
           purge="https://purge.jsdelivr.net/gh/${{ github.repository }}@gh-pages"
-          files=$(cd dist && find . -name '*.json' -o -name '*.yml' -o -name 'metadata.*' | sed 's|^\./||' | sort)
+          cd dist
 
-          # A canary that changes whenever any app metadata changes.
-          canary=$(cd dist && find . -name 'meta.json' | sed 's|^\./||' | head -1)
-          want=$(sha256sum "dist/$canary" | cut -d' ' -f1)
-          echo "canary: $canary ($want)"
+          stale=$(find . -name '*.json' -o -name '*.yml' -o -name 'metadata.*' | sed 's|^\./||' | sort)
+          echo "checking $(echo "$stale" | wc -l | tr -d ' ') metadata files"
 
-          for attempt in 1 2 3 4; do
-            echo "-- attempt $attempt: letting the push propagate"
-            sleep $((attempt * 20))
-            for path in $files; do
+          for attempt in 1 2 3 4 5; do
+            echo "-- attempt $attempt: waiting for the push to propagate"
+            sleep $((attempt * 15))
+
+            for path in $stale; do
               curl -sS --retry 2 --retry-delay 3 -o /dev/null "$purge/$path" || true
             done
             sleep 10
-            got=$(curl -sSL "$cdn/$canary" | sha256sum | cut -d' ' -f1)
-            if [ "$got" = "$want" ]; then
-              echo "::notice::jsDelivr is serving the new store (attempt $attempt)."
+
+            next=""
+            for path in $stale; do
+              want=$(sha256sum "$path" | cut -d' ' -f1)
+              got=$(curl -sSL "$cdn/$path" | sha256sum | cut -d' ' -f1)
+              [ "$want" = "$got" ] || next="$next $path"
+            done
+
+            stale=$(printf '%s' "$next" | tr ' ' '\n' | sed '/^$/d')
+            if [ -z "$stale" ]; then
+              echo "::notice::jsDelivr is serving the new store in full (attempt $attempt)."
               exit 0
             fi
-            echo "   CDN still stale (got $got)"
+            echo "   still stale: $(printf '%s' "$stale" | tr '\n' ' ')"
           done
 
-          echo "::warning::jsDelivr is still serving stale store metadata."
+          echo "::warning::jsDelivr is still serving stale store metadata for:"
+          for path in $stale; do echo "::warning::  $path"; done
           echo "::warning::gh-pages is correct -- the CDN should catch up within 12 hours."
           echo "::warning::If this persists, check that the deploy step is not rewriting gh-pages history."
