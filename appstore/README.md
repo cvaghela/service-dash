@@ -49,8 +49,21 @@ change this one too.
 
 Beyond valid YAML, IceWhale's build fails an app on: a missing or non
 reverse-domain `x-casaos.id`, a missing referenced icon/thumbnail/screenshot,
-and **a declared architecture the image does not actually publish**. This app
-declares `amd64` only, matching what `publish-images.yml` builds.
+and **a declared architecture the image does not actually publish** — verified
+against the real registry manifests, not taken on trust.
+
+That last one sequences the arm64 rollout. `publish-images.yml` now builds
+`linux/amd64,linux/arm64`, but the images released as 1.3.2 are amd64-only, so
+this entry still declares `amd64` alone. Declaring `arm64` before an arm64 image
+exists fails the build outright:
+
+```
+ERROR App declares architecture 'arm64', but service 'service-dash' image
+'ghcr.io/cvaghela/service-dash:1.3.2' does not provide that platform.
+```
+
+Add `arm64` here in the **same release** that first publishes multi-arch images
+— not before it, and not a release later.
 
 ## Submitting to the official store
 

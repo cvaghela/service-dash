@@ -12,6 +12,22 @@ All notable changes to Service Dash are recorded here. This project follows
   and served from the `gh-pages` branch. ZimaOS users add
   `https://cdn.jsdelivr.net/gh/cvaghela/service-dash@gh-pages/store.json` once,
   then install and update from the UI without SSH. No change to the app itself.
+- **arm64 images.** All three images now build for `linux/arm64` as well as
+  `linux/amd64`, which brings CasaOS on a Raspberry Pi and other ARM boards into
+  range. Both bundled third-party images already published arm64.
+
+  The app-store entry cannot advertise `arm64` until images carrying it exist —
+  the store verifies the claim against the registry manifest and fails the whole
+  build otherwise. So it still reads `amd64` here, and gains `arm64` in the same
+  release that first publishes multi-arch images.
+
+### Fixed
+
+- **The app-store listing described features that do not exist** — cards being
+  renamed, re-categorised and reordered, and public URLs being set per card.
+  Both addresses come from how the Uptime Kuma monitors are named, and the
+  install tips now say so, with an example. The tips also no longer tell people
+  to install Uptime Kuma "from this store", which carries only Service Dash.
 
 ## [1.3.2] — 2026-08-26
 

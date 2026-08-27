@@ -198,10 +198,13 @@ x-casaos:
       Service Dash turns an existing Uptime Kuma status page into a homelab
       dashboard. Each service gets one card carrying both of its addresses --
       the internal (local) URL you use at home and the external (public) URL you
-      use away from it -- so you open, copy or hand out either one without
-      keeping a second bookmark list. Cards can be renamed, re-iconed,
-      re-categorised and reordered, and those settings are shared across every
-      browser that opens the dashboard.
+      use away from it -- so you open either one without keeping a second
+      bookmark list. A switch in the top bar moves every card between the two at
+      once.
+
+      The pairing comes from Uptime Kuma itself: two monitors named `Plex` and
+      `Plex local` become one card with two addresses. Nothing to configure --
+      name the monitors that way and the card builds itself.
 
       Alongside the cards, an embedded Netdata Agent reports the health of the
       host itself: CPU, RAM, storage and live network throughput, plus the
@@ -209,12 +212,13 @@ x-casaos:
 
       **What it does**
 
-      - Local and public URLs on the same card, managed from one place
+      - Local and public URLs side by side on one card, switched together
       - Live up/down state pulled straight from your Uptime Kuma status page
-      - Host CPU, RAM, storage and network graphs from a bundled Netdata Agent
-      - Around 2,900 service icons, searchable, with a custom-URL fallback
-      - Shared card settings and notes, gated behind your Uptime Kuma sign-in
-      - Locked or blurred URLs, so a shared screen never leaks an address
+      - Host CPU, RAM, storage and network throughput from a bundled Netdata Agent
+      - Around 2,900 service icons, searchable, or paste an image link
+      - Per-card icon and Docker container mapping, shared across every browser
+      - A shared notes panel, gated behind your Uptime Kuma sign-in
+      - Addresses stay locked signed out, and unreadable until pointed at signed in
       - No build step, no account, no telemetry -- static files behind nginx
 
       **Requires an Uptime Kuma instance already running on this host.** See the
@@ -226,19 +230,38 @@ x-casaos:
       en_US: |
         ### Before you install
 
-        Service Dash reads your monitors from **Uptime Kuma**, which it does not
-        install for you. Set that up first:
+        Service Dash reads your monitors from **Uptime Kuma**. It does not
+        install Kuma for you, so set that up first:
 
-        1. Install **Uptime Kuma** from this store, and leave it on its default
-           port `3001`. If you run it on another port, change `KUMA_PORT` below
-           and the `KUMA_URL` on the `kuma-auth` service to match.
+        1. Install **Uptime Kuma** -- it is in the official ZimaOS app store --
+           and leave it on its default port `3001`. If you run it on another
+           port, change `KUMA_PORT` below and `KUMA_URL` on the `kuma-auth`
+           service to match. Kuma must be on this same host.
         2. In Uptime Kuma, create a **status page** and add the monitors you
            want on the dashboard.
-        3. Note the status page's **slug** (the last part of its URL). If it is
+        3. Note the status page's **slug** -- the last part of its URL. If it is
            not `homelab`, change `STATUS_SLUG` below to match.
 
-        Each monitor's own URL becomes the card's local link. To add a public
-        link, sign in to Uptime Kuma from the dashboard and set it per card.
+        ### Getting local and public URLs on one card
+
+        Both addresses come from Uptime Kuma, from **how you name the
+        monitors**. Give a service two monitors:
+
+        | Monitor name | Points at | Shows on the card as |
+        | --- | --- | --- |
+        | `Plex` | your public URL | **External** |
+        | `Plex local` | your LAN URL | **Local** |
+
+        Service Dash pairs them by name into a single card carrying both.
+        `Plex (local)`, `Plex - local` and `Plex.local` are recognised the same
+        way. A service with only one monitor simply shows one address.
+
+        Each address is the monitor's own URL in Kuma, so it is set in Kuma, not
+        here. The **Local / External** switch in the top bar decides which one a
+        click opens, across every card at once.
+
+        Both addresses read **URL Locked** until you sign in to Uptime Kuma from
+        the dashboard -- signed out, they are never sent to the browser at all.
 
         Then open Service Dash on port **8888**.
   release_notes:

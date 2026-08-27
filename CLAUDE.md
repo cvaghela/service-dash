@@ -79,6 +79,12 @@ never offered.
 stack, so it is subject to the same failure that broke 1.2.1 — both release
 guards and CI now cover it. See `appstore/README.md`.
 
+`x-casaos.architectures` is checked against the real registry manifests, so it
+cannot be bumped ahead of the images. `publish-images.yml` builds
+`linux/amd64,linux/arm64` as of this change, but the 1.3.2 images are amd64-only
+— add `arm64` to the store entry in the same release that first publishes
+multi-arch images, or the store build fails and no app is produced at all.
+
 ## Conventions
 
 - Match the surrounding code: no framework, no build step, plain DOM APIs.
