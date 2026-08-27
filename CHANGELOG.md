@@ -3,12 +3,14 @@
 All notable changes to Service Dash are recorded here. This project follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.3.3] — 2026-08-27
+
+**Drop-in.** No Compose file changed shape this release, on any platform — `docker compose pull && docker compose up -d` is the whole upgrade.
 
 ### Added
 
 - **A ZimaOS app store source.** `appstore/` publishes Service Dash as a
-  subscribable ZimaOS/CasaOS store, built by IceWhale's official build action
+  subscribable ZimaOS store, built by IceWhale's official build action
   and served from the `gh-pages` branch. ZimaOS users add
   `https://cdn.jsdelivr.net/gh/cvaghela/service-dash@gh-pages/store.json` once,
   then install and update from the UI without SSH. No change to the app itself.
@@ -16,10 +18,10 @@ All notable changes to Service Dash are recorded here. This project follows
   `linux/amd64`, which brings CasaOS on a Raspberry Pi and other ARM boards into
   range. Both bundled third-party images already published arm64.
 
-  The app-store entry cannot advertise `arm64` until images carrying it exist —
-  the store verifies the claim against the registry manifest and fails the whole
-  build otherwise. So it still reads `amd64` here, and gains `arm64` in the same
-  release that first publishes multi-arch images.
+  This is the release that first publishes them, so the app-store entry
+  advertises `arm64` from here too. The store verifies that claim against the
+  real registry manifest, which is exactly why it could not be declared any
+  earlier.
 
 - **A scripted submission to IceWhale's official store.**
   `scripts/sync-appstore-upstream.py` renders that store's variant of the app
@@ -393,6 +395,7 @@ Housekeeping for the first public release. No functional changes to the dashboar
 
 See the [release history](https://github.com/cvaghela/service-dash/releases).
 
+[1.3.3]: https://github.com/cvaghela/service-dash/releases/tag/v1.3.3
 [1.3.2]: https://github.com/cvaghela/service-dash/releases/tag/v1.3.2
 [1.3.1]: https://github.com/cvaghela/service-dash/releases/tag/v1.3.1
 [1.3.0]: https://github.com/cvaghela/service-dash/releases/tag/v1.3.0
