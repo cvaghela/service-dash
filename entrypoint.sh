@@ -1,4 +1,15 @@
 #!/bin/sh
+# Service Dash — container entrypoint.
+# Copyright (C) 2026 Chintan Vaghela
+#
+# This program is free software: you can redistribute it and/or modify it
+# under the terms of the GNU General Public License as published by the Free
+# Software Foundation, either version 3 of the License, or (at your option)
+# any later version. See the LICENSE file, or <https://www.gnu.org/licenses/>.
+#
+# Attribution notice (GPLv3 section 7b): the attribution shown in this
+# program's interface must be preserved in modified versions.
+
 set -eu
 
 : "${KUMA_PORT:?Set KUMA_PORT under environment in docker-compose.yml}"

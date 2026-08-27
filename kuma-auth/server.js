@@ -14,6 +14,9 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ *
+ * Attribution notice (GPLv3 section 7b): the attribution shown in this
+ * program's interface must be preserved in modified versions.
  */
 
 /*

@@ -36,9 +36,8 @@ to one origin.
 | **Live service cards** | Status, uptime and both endpoints for every monitor on your Kuma status page. Search, filter by status or category, and click a card to open it. |
 | **Real host metrics** | CPU with normalised load, RAM, storage, and network throughput from a bundled Netdata Agent — plus package power and temperature where the hardware exposes them. |
 | **Per-container CPU and RAM** | Map a card to one container or several; an app plus its database, cache and worker are added together into one figure. |
-| **Real service icons** | Automatic matching against the full [selfh.st](https://github.com/selfhst/icons) catalogue — around 2,900 icons — with a live picker per card. No internet? Every card falls back to a monogram drawn in the browser. |
-| **Shared settings** | Card icons, container mappings, filters, storage selection and notes follow you to every browser and device. |
-| **Signed in with Uptime Kuma** | No second account. Reading is open; changing anything asks Kuma whether your session is real. |
+| **Real service icons** | Automatic matching against the full [selfh.st](https://github.com/selfhst/icons) catalogue — 2,880 icons and growing — with a live picker per card. No internet? Every card falls back to a monogram drawn in the browser. |
+| **Settings that follow you, with no second account** | Card icons, container mappings, filters, storage selection and notes are shared by every browser and device — kept on the server, not in one browser's storage. Reading them is open; changing anything asks Uptime Kuma whether your session is real, so there is no separate login to create. |
 | **Private by default** | Service URLs and the host's own LAN and WAN addresses are withheld until you sign in, so the dashboard can sit on a screen other people can see. |
 | **Offline-tolerant** | Fonts, icons and the icon catalogue all degrade to local fallbacks. Nothing on the page depends on reaching the internet. |
 
@@ -51,26 +50,33 @@ to one origin.
 
 ## Requirements
 
-- Linux **AMD64** host with Docker Engine 24+ and Compose v2
-- **Rootful** Docker — host PID access, capabilities and read-only host mounts are needed for host metrics
+- Linux **AMD64** host — the published images are `linux/amd64` only
+- **Docker Engine with Compose v2**, running **rootful**
 - An **Uptime Kuma** instance on the same host, with its HTTP port published
-- Outbound HTTPS and DNS, for WAN-address detection
+- Outbound HTTPS and DNS — needed only for WAN-address detection and the icon catalogue
+
+Rootful is not a preference. The bundled Netdata Agent runs with `pid: host`, `SYS_PTRACE` and `SYS_ADMIN`, an
+unconfined AppArmor profile and read-only mounts of the host root, `/proc` and `/sys`; the network helper uses host
+networking to read the default route. Those are what produce real host metrics, and rootless Docker cannot grant them.
+Nothing else in the stack is privileged — the dashboard itself asks for nothing, and the Docker socket goes only to
+CetusGuard, restricted to read-only network queries.
 
 <details>
 <summary><strong>Platform support</strong></summary>
 
 <br>
 
-| Platform | Support |
-| --- | --- |
-| ZimaOS on ZimaBoard | Supported — the primary target |
-| CasaOS on Linux AMD64 | Supported — use `docker-compose.casaos.yml` |
-| Debian / Ubuntu AMD64 | Supported |
-| Other Linux AMD64 | Best effort — AppArmor, SELinux or mount policy may need adjusting |
-| Synology / QNAP | Best effort — vendor Docker restrictions may block host metrics |
-| Linux ARM64 | Not published yet |
-| Docker Desktop (macOS / Windows) | Not supported — it would measure Docker's Linux VM, not your machine |
-| Rootless Docker, Podman, Kubernetes | Not supported |
+| Platform | Support | Why |
+| --- | --- | --- |
+| ZimaOS on ZimaBoard | **Supported** | The primary target, and where releases are tested |
+| CasaOS on Linux AMD64 | **Supported** | Use `docker-compose.casaos.yml`; take it from the release rather than adapting the standard file |
+| Debian / Ubuntu AMD64 | **Supported** | Stock Docker Engine, nothing special needed |
+| Other Linux AMD64 | Best effort | AppArmor, SELinux or mount policy may need adjusting for the Netdata Agent |
+| Synology / QNAP | Best effort | Vendor Docker builds often withhold `pid: host` and the capabilities Netdata needs |
+| Linux ARM64 | Not yet | Images are built `linux/amd64` only — the stack has no ARM-specific blocker, the images simply are not published |
+| Docker Desktop (macOS / Windows) | Not supported | Containers would measure Docker's Linux VM, not your machine, so host metrics would be fiction |
+| Rootless Docker | Not supported | Cannot grant `pid: host`, `SYS_ADMIN` or the host mounts Netdata needs |
+| Podman / Kubernetes | Not supported | The stack is written for Docker Compose; neither is tested |
 
 </details>
 
@@ -432,7 +438,7 @@ Compose files ship as release assets so you can take the correct one.
 
 | Release | What had to change |
 | --- | --- |
-| 1.2.1 | Added the `kuma-auth` service and `KUMA_URL`; mounted `settings` into `network-info`; removed `SHARED_SETTINGS`, `SHARED_SETTINGS_USER`, `SHARED_SETTINGS_PASSWORD_FILE`, `SERVICE_ICONS` and the `settings_password` secret |
+| 1.2.1 | Added the `kuma-auth` service and `KUMA_URL`, mounted `settings` into `network-info`, and dropped several environment variables that had been added one release earlier — see the [changelog](CHANGELOG.md) if you are coming from 1.2.0 |
 | 1.2.2 | CasaOS only: `kuma-auth` had to move onto `service-dash-network`, or the stack could not start |
 
 To roll back, take the previous release's Compose file and run the same commands. Preferences and remembered tokens live
@@ -469,8 +475,16 @@ checks exist.
 
 ## License
 
+Copyright © 2026 Chintan Vaghela.
+
 [GNU General Public License v3.0](LICENSE) or, at your option, any later version. You may run, study, modify and
 redistribute it; if you distribute a modified version, your changes must be released under the GPLv3 too. Running a
 modified copy on your own server is not distribution.
+
+**Attribution — additional term under GPLv3 §7(b).** The dashboard displays an attribution in its footer, and every
+source file carries a copyright header. Both are Appropriate Legal Notices: if you distribute this work or a modified
+version, you must keep them. You are free to add your own alongside. This is the one additional term, and §7 permits it
+expressly — it does not restrict your other freedoms under the licence, and it is not an advertising clause: nothing
+obliges you to mention this project in your own materials.
 
 Distributed WITHOUT ANY WARRANTY — see sections 15 and 16 of the license.

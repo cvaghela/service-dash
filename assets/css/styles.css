@@ -1,3 +1,16 @@
+/*
+ * Service Dash — stylesheet for the dashboard.
+ * Copyright (C) 2026 Chintan Vaghela
+ *
+ * This program is free software: you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License as published by the Free
+ * Software Foundation, either version 3 of the License, or (at your option)
+ * any later version. See the LICENSE file, or <https://www.gnu.org/licenses/>.
+ *
+ * Attribution notice (GPLv3 section 7b): the attribution shown in this
+ * program's interface must be preserved in modified versions.
+ */
+
 /* =========================
  SERVICE DASH (Glassy Kuma)
  Single-file HTML + CSS + JS
@@ -3855,4 +3868,36 @@ body.mobile-topbar-open .mobile-menu-icon span:nth-child(3) {
         flex-direction: column;
         align-items: stretch;
     }
+}
+
+/* The attribution the running dashboard shows. It is deliberately part of the
+   page rather than a comment in the source: GPLv3 s5(d) obliges a modified
+   version to preserve the Appropriate Legal Notices a work already displays,
+   and a notice nobody can see is not one of them. */
+.siteFooter {
+    grid-column: 1 / -1;
+    margin: 22px 14px 18px;
+    padding-top: 14px;
+    border-top: 1px solid var(--stroke);
+    text-align: center;
+    font-size: 12px;
+    color: var(--muted-2);
+}
+.siteFooter b {
+    font-family: var(--font-head);
+    font-weight: 600;
+    color: var(--muted);
+}
+.siteFooter a {
+    color: var(--muted);
+    text-decoration: none;
+    border-bottom: 1px solid var(--stroke);
+}
+.siteFooter a:hover {
+    color: var(--text);
+    border-bottom-color: var(--stroke-2);
+}
+.siteFooter a:focus-visible {
+    outline: 2px solid rgb(var(--accent-2) / 0.85);
+    outline-offset: 2px;
 }
