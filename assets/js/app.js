@@ -565,6 +565,17 @@ function isLocalishName(name) {
     return /(\.local|local)$/.test(cleaned);
 }
 
+// baseServiceKey lowercases, because it is a matching key. The card title needs
+// the same suffix removed but the author's capitalisation kept: a service with
+// only a LAN monitor would otherwise be titled "Duplicati local", turning a
+// pairing hint into part of the name.
+function stripLocalSuffix(name) {
+    let n = safeStr(name).trim().replace(/\s+/g, " ");
+    n = n.replace(/\.local\s*$/i, "");
+    n = n.replace(/\s*[\(\[\{]?\s*(?:-|\u2013|\u2014|:|_)?\s*local\s*[\)\]\}]?\s*$/i, "");
+    return n.replace(/\s+/g, " ").trim() || safeStr(name).trim();
+}
+
 function baseServiceKey(name) {
     let n = safeStr(name).trim().toLowerCase();
 
@@ -3427,7 +3438,9 @@ function buildServicesFromKuma() {
         if (!byKey.has(key)) {
             byKey.set(key, {
                 key,
-                nameBase: m.name, // will be refined below
+                // A local monitor's name carries a suffix that is not part of
+                // the service's name. An external one, seen later, still wins.
+                nameBase: isLocal ? stripLocalSuffix(m.name) : m.name,
                 local: null,
                 external: null,
             });
