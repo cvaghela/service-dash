@@ -1,6 +1,10 @@
-# ZimaOS / CasaOS app store source
+# ZimaOS app store source
 
 This directory is a one-app store source in the ZimaOS **v2 app-store protocol**.
+
+**ZimaOS only.** The build publishes v2 output alone — no legacy `store/main.zip`
+— so older CasaOS clients, whose custom-source feature expects that bundle,
+cannot subscribe to it. CasaOS users install from `docker-compose.casaos.yml`.
 `.github/workflows/publish-appstore.yml` builds it with IceWhale's official
 [`build-appstore-action`][action] and publishes the generated `dist/` to the
 `gh-pages` branch, where jsDelivr serves it. GitHub Pages does not need to be
@@ -29,8 +33,8 @@ appstore/
 ## The compose file is a third copy
 
 `Apps/ServiceDash/docker-compose.yml` is the same stack as the root
-`docker-compose.casaos.yml`, with a v2 `x-casaos` block instead of the legacy
-one. Keeping it in this repository rather than only in a store fork is what lets
+`docker-compose.casaos.yml` — ZimaOS shares CasaOS's `/DATA/AppData` layout —
+with a v2 `x-casaos` block instead of the legacy one. Keeping it in this repository rather than only in a store fork is what lets
 the existing release guards cover it:
 
 - `scripts/check-release.py` fails if its three image tags or its

@@ -57,7 +57,7 @@ to one origin.
 
 ## Requirements
 
-- Linux **AMD64** host — the published images are `linux/amd64` only
+- Linux **AMD64** host — the published images are `linux/amd64`. arm64 images build on `main` and ship with the next release
 - **Docker Engine with Compose v2**, running **rootful**
 - An **Uptime Kuma** instance on the same host, with its HTTP port published
 - Outbound HTTPS and DNS — needed only for WAN-address detection and the icon catalogue
@@ -80,7 +80,7 @@ CetusGuard, restricted to read-only network queries.
 | Debian / Ubuntu AMD64 | **Supported** | Stock Docker Engine, nothing special needed |
 | Other Linux AMD64 | Best effort | AppArmor, SELinux or mount policy may need adjusting for the Netdata Agent |
 | Synology / QNAP | Best effort | Vendor Docker builds often withhold `pid: host` and the capabilities Netdata needs |
-| Linux ARM64 | Not yet | Images are built `linux/amd64` only — the stack has no ARM-specific blocker, the images simply are not published |
+| Linux ARM64 | Next release | Nothing in the stack is AMD64-specific, and both bundled third-party images already publish arm64. `main` now builds `linux/amd64,linux/arm64`; the released `1.3.2` images are still AMD64 only |
 | Docker Desktop (macOS / Windows) | Not supported | Containers would measure Docker's Linux VM, not your machine, so host metrics would be fiction |
 | Rootless Docker | Not supported | Cannot grant `pid: host`, `SYS_ADMIN` or the host mounts Netdata needs |
 | Podman / Kubernetes | Not supported | The stack is written for Docker Compose; neither is tested |
@@ -90,6 +90,8 @@ CetusGuard, restricted to read-only network queries.
 ---
 
 ## Quick start
+
+**On ZimaOS, skip this** — add the app store source below and install from the UI.
 
 ```sh
 mkdir -p /opt/service-dash && cd /opt/service-dash
@@ -157,6 +159,9 @@ named volumes or the default network, so the CasaOS file uses explicit `/DATA/Ap
 named bridge network with service aliases.
 
 **App Store → Custom Install → Docker Compose**, paste the file, install, then open `http://CASAOS-IP:8888`.
+
+The ZimaOS store source above will not help here: it is published in ZimaOS's v2 app-store protocol, and CasaOS's
+custom-source feature expects the older v1 `main.zip` bundle, which this project does not build.
 
 </details>
 
@@ -474,6 +479,11 @@ docker compose pull && docker compose up -d
 Some change the Compose file, and an image pull cannot carry that. Each release's notes say so explicitly, and both
 Compose files ship as release assets so you can take the correct one.
 
+**Installed from the ZimaOS app store?** Updates arrive on the app's tile — the store entry is republished with each
+release, and ZimaOS compares its version against what you have. A release that changes the Compose file changes it
+there too, so there is nothing to hand-edit; check the release notes for anything that needs a setting changed at
+install time.
+
 ### Upgrading from 1.3.1
 
 **CasaOS and ZimaOS: one line has to change, or your storage picker keeps showing a single `/`.** Netdata's disk
@@ -531,11 +541,15 @@ docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
 # The checks CI runs
 docker compose -f docker-compose.yml config --quiet
 docker compose -f docker-compose.casaos.yml config --quiet
+docker compose -f appstore/Apps/ServiceDash/docker-compose.yml config --quiet
 python3 scripts/check-compose-networks.py   # every nginx upstream is reachable
 python3 scripts/check-release.py            # one version, stated the same everywhere
 ```
 
-[CLAUDE.md](CLAUDE.md) documents the release process and the conventions this codebase follows — including why those two
+Both scripts cover all three Compose files. The third is the ZimaOS app-store entry in [`appstore/`](appstore/) — same
+stack, so it can break the same ways; see [`appstore/README.md`](appstore/README.md).
+
+[CLAUDE.md](CLAUDE.md) documents the release process and the conventions this codebase follows — including why those
 checks exist.
 
 ## Built with
