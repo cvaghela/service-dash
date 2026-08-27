@@ -23,10 +23,19 @@ All notable changes to Service Dash are recorded here. This project follows
 
 ### Fixed
 
-- **Store updates reached users up to 12 hours late.** jsDelivr serves the
-  `@gh-pages` URL with `s-maxage=43200`, so a published release kept being
-  handed out as the previous one until the edge expired. Publishing now purges
-  the CDN for every metadata file it wrote.
+- **The store served users a stale catalogue indefinitely.** Publishing pushed
+  `gh-pages` with `force_orphan`, replacing its history with a fresh root commit
+  every time. That left jsDelivr's `@gh-pages` resolution pinned to a commit no
+  longer on the branch, and it kept serving that content — purging a path does
+  not invalidate a stuck ref. A commit-pinned URL returned the new store while
+  the branch URL returned an old one, which is how it was found. gh-pages now
+  accumulates ordinary commits.
+
+  Publishing also purges the CDN for every metadata file it writes, since
+  jsDelivr serves `@gh-pages` with `s-maxage=43200`, and then **checks that the
+  purge took** by comparing what the CDN serves against what was just built —
+  a purge can report success and still leave the edge stale if it re-fetched
+  before GitHub had propagated the push.
 - **The app-store listing described features that do not exist** — cards being
   renamed, re-categorised and reordered, and public URLs being set per card.
   Both addresses come from how the Uptime Kuma monitors are named, and the
