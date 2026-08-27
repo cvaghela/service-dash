@@ -16,6 +16,31 @@ turned on — jsDelivr reads the branch directly.
 https://cdn.jsdelivr.net/gh/cvaghela/service-dash@gh-pages/store.json
 ```
 
+**Mirror**, served by GitHub Pages from the same branch, for when jsDelivr is
+stale:
+
+```
+https://cvaghela.github.io/service-dash/pages/store.json
+```
+
+## Why the mirror is a second build, not a copy
+
+jsDelivr serves a `@branch` URL with `s-maxage=43200` and, in practice, keeps
+serving a cached file well past a purge that reports `finished`. 1.3.3 was
+published, correct on `gh-pages`, and still advertised as 1.3.2 by the CDN --
+which is the one thing that actually matters, because ZimaOS reads `index.json`
+to decide an update exists.
+
+The mirror cannot be a copy of the same output. Paths inside the generated files
+are root-relative and are joined onto the `base_url` baked in at build time, so
+a client that fetched the store from Pages would still be sent to jsDelivr for
+the compose file and the assets -- the copy that goes stale. Two base URLs means
+two builds, which is why `publish-appstore.yml` runs the build action twice and
+puts the second at `dist/pages/`.
+
+jsDelivr stays the documented URL: it is reachable from places GitHub Pages is
+not, notably mainland China, where a large share of ZimaOS users are.
+
 ## Layout
 
 ```

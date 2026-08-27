@@ -43,6 +43,21 @@ jobs:
           base-url: https://cdn.jsdelivr.net/gh/${{ github.repository }}@gh-pages
           report-json: out/build-report.json
 
+      # A second copy, built for the GitHub Pages mirror. It cannot share the
+      # first: the paths inside the generated files are root-relative and are
+      # joined onto the baked-in base_url, so a client that fetched the store
+      # from Pages would still be sent to jsDelivr for the compose file and
+      # assets -- which is precisely the copy that goes stale. Two base-urls
+      # means two builds.
+      #
+      # It lands at dist/pages/, so Pages serves it from /service-dash/pages/.
+      - name: Build the Pages mirror
+        uses: IceWhaleTech/build-appstore-action@v1
+        with:
+          source: appstore
+          output: dist/pages
+          base-url: https://cvaghela.github.io/service-dash/pages
+
       - name: Upload build report
         if: always()
         uses: actions/upload-artifact@v4
@@ -93,7 +108,10 @@ jobs:
           purge="https://purge.jsdelivr.net/gh/${{ github.repository }}@gh-pages"
           cd dist
 
-          stale=$(find . -name '*.json' -o -name '*.yml' -o -name 'metadata.*' | sed 's|^\./||' | sort)
+          # -path prune: dist/pages/ is the Pages mirror, served by Pages and
+          # not by jsDelivr, so it has no cache to purge.
+          stale=$(find . -path ./pages -prune -o \( -name '*.json' -o -name '*.yml' -o -name 'metadata.*' \) -print \
+                  | sed 's|^\./||' | sort)
           echo "checking $(echo "$stale" | wc -l | tr -d ' ') metadata files"
 
           for attempt in 1 2 3 4 5; do
