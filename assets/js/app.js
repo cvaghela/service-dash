@@ -24,6 +24,20 @@ CONFIG (edit for your setup)
 ========================= */
 
 // Uptime Kuma Setup
+// The release this page was served from. index.html cache-busts its assets with
+// ?v=<version>, and scripts/check-release.py fails the build if that disagrees
+// with the changelog -- so the running version can be read straight off the tag
+// rather than plumbed through another environment variable. Empty when the page
+// is served without one, and the About line simply omits it.
+const APP_VERSION = (() => {
+    try {
+        const src = document.querySelector('script[src*="app.js"]')?.getAttribute("src") || "";
+        return /[?&]v=([\w.-]+)/.exec(src)?.[1] || "";
+    } catch {
+        return "";
+    }
+})();
+
 const RUNTIME_CONFIG = window.__DASHBOARD_CONFIG__ || {};
 const KUMA_BASE = "/kuma";
 const STATUS_SLUG = String(RUNTIME_CONFIG.statusSlug || "homelab");
@@ -293,6 +307,7 @@ const els = {
     setNetworkRefreshValue: document.getElementById("setNetworkRefreshValue"),
     setFixedSlug: document.getElementById("setFixedSlug"),
     setFixedMount: document.getElementById("setFixedMount"),
+    aboutVersion: document.getElementById("aboutVersion"),
     setBlurCardLinks: document.getElementById("setBlurCardLinks"),
     setBlurNetworkAddresses: document.getElementById("setBlurNetworkAddresses"),
     settingsStatus: document.getElementById("settingsStatus"),
@@ -2776,6 +2791,13 @@ function openSettings() {
     // knowing the status page is "homelab" is the reason to look.
     if (els.setFixedSlug) setTextIfChanged(els.setFixedSlug, STATUS_SLUG);
     if (els.setFixedMount) setTextIfChanged(els.setFixedMount, STORAGE_MOUNT || "auto");
+
+    // Shown only when it is actually known, rather than printing "unknown" at
+    // someone who came here to find out.
+    if (els.aboutVersion) {
+        els.aboutVersion.hidden = !APP_VERSION;
+        if (APP_VERSION) setTextIfChanged(els.aboutVersion, APP_VERSION);
+    }
 
     // Opens quiet. The line under the dialog title already says these apply
     // everywhere, and a status that repeats it has nothing left to say when it

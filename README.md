@@ -481,8 +481,8 @@ Copyright © 2026 Chintan Vaghela.
 redistribute it; if you distribute a modified version, your changes must be released under the GPLv3 too. Running a
 modified copy on your own server is not distribution.
 
-**Attribution — additional term under GPLv3 §7(b).** The dashboard displays an attribution in its footer, and every
-source file carries a copyright header. Both are Appropriate Legal Notices: if you distribute this work or a modified
+**Attribution — additional term under GPLv3 §7(b).** The dashboard displays an attribution under **Settings → About**,
+and every source file carries a copyright header. Both are Appropriate Legal Notices: if you distribute this work or a modified
 version, you must keep them. You are free to add your own alongside. This is the one additional term, and §7 permits it
 expressly — it does not restrict your other freedoms under the licence, and it is not an advertising clause: nothing
 obliges you to mention this project in your own materials.
