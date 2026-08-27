@@ -4,7 +4,10 @@
 #
 # Users subscribe to:
 #   https://cdn.jsdelivr.net/gh/cvaghela/service-dash@gh-pages/store.json
-name: Publish app store
+#
+# The same branch carries the public demo at /demo/, built from the real
+# index.html, styles.css and app.js with stand-in backends in front.
+name: Publish store and demo
 
 on:
   # No tag trigger: a tag push carries no appstore/** change of its own, so the
@@ -15,10 +18,19 @@ on:
       - main
     paths:
       - "appstore/**"
+      - "demo/**"
+      # The demo inlines these three verbatim, so it goes stale without them.
+      - "index.html"
+      - "assets/css/styles.css"
+      - "assets/js/app.js"
       - ".github/workflows/publish-appstore.yml"
   pull_request:
     paths:
       - "appstore/**"
+      - "demo/**"
+      - "index.html"
+      - "assets/css/styles.css"
+      - "assets/js/app.js"
       - ".github/workflows/publish-appstore.yml"
   workflow_dispatch:
 
@@ -57,6 +69,18 @@ jobs:
           source: appstore
           output: dist/pages
           base-url: https://cvaghela.github.io/service-dash/pages
+
+      - name: Build the public demo
+        run: |
+          python3 demo/build-demo.py --out dist/demo/index.html
+          # A demo whose stylesheet or script silently went missing still
+          # renders something, so check the three inlined sources are in there.
+          # -F -- because one needle starts with dashes and would otherwise be
+          # read as an option, failing the build on a demo that is perfectly fine.
+          for needle in '--accent' 'function saveSettings' 'Stand-in backends'; do
+            grep -qF -- "$needle" dist/demo/index.html \
+              || { echo "::error::demo is missing '$needle' -- build-demo.py needs updating"; exit 1; }
+          done
 
       - name: Upload build report
         if: always()

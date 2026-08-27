@@ -11,6 +11,9 @@
 [![License](https://img.shields.io/github/license/cvaghela/service-dash?color=2ea043)](LICENSE)
 [![Container](https://img.shields.io/badge/ghcr.io-service--dash-2496ed?logo=docker&logoColor=white)](https://github.com/cvaghela/service-dash/pkgs/container/service-dash)
 [![Platform](https://img.shields.io/badge/platform-amd64%20%7C%20arm64-lightgrey)](#requirements)
+[![Live demo](https://img.shields.io/badge/live%20demo-try%20it-6c5cff)](https://cvaghela.github.io/service-dash/demo/)
+
+**[Try the live demo →](https://cvaghela.github.io/service-dash/demo/)** — the real dashboard on sample data. Sign in as `test` / `Test`.
 
 [Quick start](#quick-start) · [Configuration](#configuration) · [How it works](#how-it-works) · [Troubleshooting](#troubleshooting)
 
@@ -88,6 +91,18 @@ CetusGuard, restricted to read-only network queries.
 </details>
 
 ---
+
+## Live demo
+
+**[cvaghela.github.io/service-dash/demo](https://cvaghela.github.io/service-dash/demo/)**
+
+The actual `index.html`, `styles.css` and `app.js` this repository ships, with stand-in backends in place of Uptime Kuma,
+Netdata and the sidecars. Every number and address is invented; the icons are real, fetched from the same catalogue a
+real deployment uses.
+
+Signed out it behaves as it would on a screen anyone can see — service URLs read **URL Locked** and the settings gear is
+hidden. **Sign in as `test` / `Test`** (leave 2FA blank) to reveal the addresses and unlock settings. Changes you make
+are kept in your own browser and affect nobody else.
 
 ## Quick start
 

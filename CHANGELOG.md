@@ -7,6 +7,12 @@ All notable changes to Service Dash are recorded here. This project follows
 
 ### Added
 
+- **A live demo**, at
+  [cvaghela.github.io/service-dash/demo](https://cvaghela.github.io/service-dash/demo/),
+  so the dashboard can be tried before anything is installed. It inlines the
+  real `index.html`, stylesheet and `app.js` and fakes only the backends, so it
+  is the application rather than a mock-up of it. Sign in as `test` / `Test`.
+  The icons and the ~2,900-entry catalogue behind the picker are the real ones.
 - **A GitHub Pages mirror of the app store**, at
   `https://cvaghela.github.io/service-dash/pages/store.json`, for when jsDelivr
   is serving a stale catalogue — as it was for several hours after 1.3.3, still

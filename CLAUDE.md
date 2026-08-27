@@ -122,5 +122,9 @@ Nothing enforces these, so they are easy to half-do:
 - Anything that runs on every poll must be idempotent: compare before writing.
   `.card` carries a `backdrop-filter`, so a pointless DOM write costs a real
   repaint across the whole grid.
-- Verify in a browser rather than by reading. There is a preview harness in the
-  session scratchpad that inlines the real sources behind stand-in backends.
+- Verify in a browser rather than by reading. `demo/build-demo.py` inlines the
+  real sources behind stand-in backends and needs no Docker:
+  `python3 demo/build-demo.py --out /tmp/d/index.html && python3 -m http.server
+  8000 --directory /tmp/d`, then sign in as `test` / `Test`. Serve it rather
+  than opening the file — the shim answers absolute paths. It is also what is
+  published as the public demo, so it must keep working.
