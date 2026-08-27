@@ -1,0 +1,5 @@
+ghcr.io/cvaghela/service-dash-kuma-auth:1.3.3 sha256:4dd626ffc3fa5e1b549530a4754cc3f17dc684e499f4858bf0193d61dd8d8526
+ghcr.io/cvaghela/service-dash-network-info:1.3.3 sha256:aef7d5cfdc44697aa4e05d69a9d25e29fb7eabbf9ac53002afe9fc9d0e61acf2
+ghcr.io/cvaghela/service-dash:1.3.3 sha256:008632b347f6683cae85114680f38580ceb5536d96e8ca865d20015828883a4f
+ghcr.io/hectorm/cetusguard:v1 sha256:9e75fdf5ccf53021905143d4dc93335a25be2558a2b894cdeae28c1538bdc4a4
+netdata/netdata:stable sha256:d9f6f14c2fb0517168bd9c5da952f6cb735df757919c37172695c2fbb63c3252
