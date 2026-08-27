@@ -437,7 +437,7 @@ Then hard-refresh the browser.
 
 ## Updating
 
-The current release is **1.3.1**; the Compose files in this repository reference the matching `1.3.1` images.
+The current release is **1.3.2**; the Compose files in this repository reference the matching `1.3.2` images.
 
 Most releases are drop-in:
 
@@ -448,10 +448,43 @@ docker compose pull && docker compose up -d
 Some change the Compose file, and an image pull cannot carry that. Each release's notes say so explicitly, and both
 Compose files ship as release assets so you can take the correct one.
 
+### Upgrading from 1.3.1
+
+**CasaOS and ZimaOS: one line has to change, or your storage picker keeps showing a single `/`.** Netdata's disk
+collector walks the host's mount table and needs the host root bound into its container. The CasaOS Compose file bound
+only `/DATA`, so the collector fell back to reporting the container's own root — the picker was faithfully showing the
+one mount Netdata claimed existed. Under the `netdata` service's `volumes`, replace:
+
+```yaml
+- /DATA:/host/root/DATA:ro,rslave
+```
+
+with:
+
+```yaml
+- /:/host/root:ro,rslave
+```
+
+Then recreate that container — a restart is not enough, because a running container cannot gain a bind mount:
+
+```sh
+docker compose -f docker-compose.casaos.yml up -d --force-recreate netdata
+```
+
+Taking `docker-compose.casaos.yml` from this release does the same thing. The standard `docker-compose.yml` was never
+affected and needs no edit.
+
+Everything else in 1.3.2 arrives with the images:
+
+```sh
+docker compose pull && docker compose up -d
+```
+
 | Release | What had to change |
 | --- | --- |
 | 1.2.1 | Added the `kuma-auth` service and `KUMA_URL`, mounted `settings` into `network-info`, and dropped several environment variables that had been added one release earlier — see the [changelog](CHANGELOG.md) if you are coming from 1.2.0 |
 | 1.2.2 | CasaOS only: `kuma-auth` had to move onto `service-dash-network`, or the stack could not start |
+| 1.3.2 | CasaOS only: Netdata needs `/:/host/root:ro,rslave` instead of `/DATA`, or storage reports one mount |
 
 To roll back, take the previous release's Compose file and run the same commands. Preferences and remembered tokens live
 in each browser; Netdata data lives in named volumes, or under `/DATA/AppData/service-dash/netdata` on CasaOS.

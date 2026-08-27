@@ -3,6 +3,55 @@
 All notable changes to Service Dash are recorded here. This project follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.2] — 2026-08-26
+
+**CasaOS and ZimaOS deployments need a one-line Compose edit** — see
+"Upgrading from 1.3.1" in the README. Everything else arrives with the images.
+
+### Added
+
+- **Two privacy settings.** Service links and the host's LAN and WAN addresses
+  stay unreadable until pointed at; either cover can now be turned off. Both
+  default on, and a settings document written before this release keeps
+  behaving as it did.
+- **An About section in Settings**, showing the running version, the copyright
+  and links to the source and licence. The version is read from the asset
+  cache-buster, so it cannot disagree with the release it claims to be.
+
+### Changed
+
+- **The refresh interval is a stepped slider** over the intervals someone would
+  actually pick — 30 seconds through 24 hours — rather than a number field. A
+  value that is not one of those stops keeps its own stop, so opening the dialog
+  and saving cannot quietly round it.
+- **The settings dialog was rebuilt around one row.** Every setting reads the
+  same way: what it is on the left, the control on the right. "Fixed at
+  deployment" now shows the values it previously only named, and the status line
+  sits beside Save instead of adrift above it.
+- **The dashboard's own switch is used for the privacy toggles**, which turned up
+  two faults in it: its track and on-state colours pointed at CSS variables that
+  are declared nowhere, and its input was `display: none`, so it could not be
+  reached from the keyboard. Both are fixed for the top bar too.
+- **Attribution** is shown in Settings → About, and every source file carries a
+  copyright header. The README states the attribution term GPLv3 §7(b) permits.
+
+### Fixed
+
+- **Storage reported a single `/` on CasaOS and ZimaOS**, and had since the
+  CasaOS Compose file was first added. Netdata's disk collector needs the host
+  root bound into its container to walk the mount table; the file bound only
+  `/DATA`, so the collector fell back to the container's own root. Confirmed on
+  a real host.
+
+### Documentation
+
+- The README was rewritten and now leads with what is actually distinctive:
+  every service's local *and* public URL on one card, with a single switch
+  deciding which a click opens. It gains screenshots, an architecture diagram,
+  and platform claims that carry their reasons. It also loses a section
+  documenting `SERVICE_ICONS` as an environment variable — that was removed in
+  1.2.1, and following it would have done nothing.
+
 ## [1.3.1] — 2026-08-26
 
 A drop-in upgrade from 1.3.0: only the dashboard's own JavaScript and markup
@@ -287,6 +336,7 @@ Housekeeping for the first public release. No functional changes to the dashboar
 
 See the [release history](https://github.com/cvaghela/service-dash/releases).
 
+[1.3.2]: https://github.com/cvaghela/service-dash/releases/tag/v1.3.2
 [1.3.1]: https://github.com/cvaghela/service-dash/releases/tag/v1.3.1
 [1.3.0]: https://github.com/cvaghela/service-dash/releases/tag/v1.3.0
 [1.2.2]: https://github.com/cvaghela/service-dash/releases/tag/v1.2.2
