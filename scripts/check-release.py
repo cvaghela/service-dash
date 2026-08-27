@@ -15,7 +15,15 @@ import pathlib
 
 REPO = pathlib.Path(__file__).resolve().parent.parent
 IMAGES = ["service-dash", "service-dash-kuma-auth", "service-dash-network-info"]
-COMPOSE_FILES = ["docker-compose.yml", "docker-compose.casaos.yml"]
+COMPOSE_FILES = [
+    "docker-compose.yml",
+    "docker-compose.casaos.yml",
+    "appstore/Apps/ServiceDash/docker-compose.yml",
+]
+# The app-store entry states the version a second time, in x-casaos.version.
+# ZimaOS shows that string and uses it to decide an update is available, so a
+# stale value leaves store users on the previous release with no prompt.
+STORE_COMPOSE = "appstore/Apps/ServiceDash/docker-compose.yml"
 
 
 def newest_changelog_version(text: str) -> str | None:
@@ -63,6 +71,15 @@ def main() -> int:
         problems.append(f"index.html: asset versions {sorted(set(stale))}, expected {version}")
     if f"?v={version}" not in index:
         problems.append(f"index.html: no asset pinned to {version}")
+
+    # x-casaos.version drives the update prompt in the ZimaOS app store.
+    store = (REPO / STORE_COMPOSE).read_text()
+    store_versions = re.findall(r'^  version:\s*"([^"]+)"', store, re.M)
+    if not store_versions:
+        problems.append(f"{STORE_COMPOSE}: no x-casaos.version found")
+    for tag in store_versions:
+        if tag != version:
+            problems.append(f"{STORE_COMPOSE}: x-casaos.version is {tag}, expected {version}")
 
     # The README tells people which images to pull.
     readme = (REPO / "README.md").read_text()

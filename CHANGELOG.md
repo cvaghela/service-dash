@@ -3,6 +3,16 @@
 All notable changes to Service Dash are recorded here. This project follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **A ZimaOS app store source.** `appstore/` publishes Service Dash as a
+  subscribable ZimaOS/CasaOS store, built by IceWhale's official build action
+  and served from the `gh-pages` branch. ZimaOS users add
+  `https://cdn.jsdelivr.net/gh/cvaghela/service-dash@gh-pages/store.json` once,
+  then install and update from the UI without SSH. No change to the app itself.
+
 ## [1.3.2] — 2026-08-26
 
 **CasaOS and ZimaOS deployments need a one-line Compose edit** — see

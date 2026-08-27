@@ -33,6 +33,9 @@ jobs:
           docker compose config --quiet
           docker compose -f docker-compose.casaos.yml config --quiet
           docker compose -f docker-compose.yml -f docker-compose.build.yml config --quiet
+          # The app-store copy is what ZimaOS users install, and the store's own
+          # CI gates on exactly this command.
+          docker compose -f appstore/Apps/ServiceDash/docker-compose.yml config --quiet
           node --check assets/js/app.js
           node --check kuma-auth/server.js
           sh -n entrypoint.sh

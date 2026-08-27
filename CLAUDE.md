@@ -31,6 +31,7 @@ Run all of these, and read the output rather than the exit code alone:
 docker compose -f docker-compose.yml config --quiet
 docker compose -f docker-compose.casaos.yml config --quiet
 docker compose -f docker-compose.yml -f docker-compose.build.yml config --quiet
+docker compose -f appstore/Apps/ServiceDash/docker-compose.yml config --quiet
 python3 scripts/check-compose-networks.py   # every nginx upstream is reachable
 python3 scripts/check-release.py            # one version, stated the same everywhere
 ```
@@ -47,8 +48,11 @@ run, and recommend a smoke test on a real host.
 
 ### The rest of the release
 
-1. Bump the three image tags in both Compose files, the `?v=` query strings in
-   `index.html`, and the README's current-release line.
+1. Bump the three image tags in **all three** Compose files — the two at the
+   root and `appstore/Apps/ServiceDash/docker-compose.yml` — plus that file's
+   `x-casaos.version` and `update_at`, the `?v=` query strings in `index.html`,
+   and the README's current-release line. `check-release.py` enforces every one
+   of these except `update_at`.
 2. Date the CHANGELOG entry and add its link reference.
 3. Add a README "Upgrading from <previous>" section **whenever the Compose file
    changes** — an image bump alone cannot carry a Compose edit, and saying so is
@@ -56,6 +60,24 @@ run, and recommend a smoke test on a real host.
 4. PR, wait for CI, merge.
 5. Tag and release. Pushing the tag is what triggers `publish-images.yml`; check
    that all three images actually built.
+
+## The ZimaOS app store
+
+`appstore/` is a one-app store source in ZimaOS's v2 protocol, published to the
+`gh-pages` branch by `publish-appstore.yml` and served from there by jsDelivr.
+ZimaOS users subscribe to
+`https://cdn.jsdelivr.net/gh/cvaghela/service-dash@gh-pages/store.json`.
+
+The workflow fires on pushes to `main` that touch `appstore/**` — **not** on
+tags, because a tag push carries no `appstore/**` change of its own and the
+paths filter would drop it. The release commit that bumps `x-casaos.version` is
+what republishes the store, so step 1 above is what makes an update appear on
+users' tiles. A release that skips it ships new images that store users are
+never offered.
+
+`appstore/Apps/ServiceDash/docker-compose.yml` is a third copy of the CasaOS
+stack, so it is subject to the same failure that broke 1.2.1 — both release
+guards and CI now cover it. See `appstore/README.md`.
 
 ## Conventions
 

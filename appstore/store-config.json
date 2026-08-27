@@ -1,0 +1,13 @@
+{
+  "version": 2,
+  "store_id": "cvaghela-service-dash",
+  "name": {
+    "en_US": "Service Dash"
+  },
+  "description": {
+    "en_US": "The Service Dash app source for ZimaOS and CasaOS. One app: a homelab dashboard that shows every service's local and public URL on one card, beside the live health of the host running them."
+  },
+  "maintainer": "cvaghela",
+  "url": "https://github.com/cvaghela/service-dash",
+  "icon": "https://cdn.jsdelivr.net/gh/cvaghela/service-dash@main/appstore/Apps/ServiceDash/icon.png"
+}

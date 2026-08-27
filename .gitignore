@@ -2,3 +2,8 @@
 *.zip
 settings-password.txt
 kuma-auth/node_modules/
+
+# Written by the ZimaOS store build (IceWhale's build_appstore.py) when run
+# locally; the workflow keeps its own copy in the Actions cache.
+appstore/.cache/
+dist/
