@@ -116,6 +116,13 @@ Service Dash publishes its own ZimaOS app-store source, so it installs and updat
    https://cdn.jsdelivr.net/gh/cvaghela/service-dash@gh-pages/store.json
    ```
 
+   If the store shows an older version than the [latest release](https://github.com/cvaghela/service-dash/releases/latest),
+   use the always-fresh mirror instead — jsDelivr can cache a source for up to 12 hours:
+
+   ```
+   https://cvaghela.github.io/service-dash/pages/store.json
+   ```
+
 2. Open the **Service Dash** source and install the app.
 3. Open `http://ZIMAOS-IP:8888`.
 

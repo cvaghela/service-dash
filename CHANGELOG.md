@@ -3,6 +3,19 @@
 All notable changes to Service Dash are recorded here. This project follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **A GitHub Pages mirror of the app store**, at
+  `https://cvaghela.github.io/service-dash/pages/store.json`, for when jsDelivr
+  is serving a stale catalogue — as it was for several hours after 1.3.3, still
+  advertising 1.3.2 while `gh-pages` was correct. It is a second build rather
+  than a copy: the generated paths are joined onto the `base_url` fixed at build
+  time, so a one-build mirror would have sent clients back to the stale copy for
+  everything but the index. jsDelivr stays the documented URL, being reachable
+  where Pages is not.
+
 ## [1.3.3] — 2026-08-27
 
 **Drop-in.** No Compose file changed shape this release, on any platform — `docker compose pull && docker compose up -d` is the whole upgrade.
