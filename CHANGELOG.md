@@ -3,6 +3,25 @@
 All notable changes to Service Dash are recorded here. This project follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **Content ran under the iPhone status bar.** `viewport-fit=cover` in 1.4.1
+  correctly took the background edge to edge, but nothing then held the cards
+  clear of the notch, so the date and time panel sat behind the clock and signal
+  icons and the hamburger landed on the battery. The inset now goes on `.app`
+  and on the two pieces of fixed mobile chrome — never on the background, which
+  is painted by `.bg` and `.noise`, fixed siblings covering the whole viewport.
+  The gradient still runs under the notch and behind the home indicator; only
+  the content moves. `env()` is zero on every device without a notch, so
+  nothing about the desktop layout changes.
+- **The header would have been inset twice.** `.topbar` lives inside `.app` and
+  carried its own `env(safe-area-inset-top)` in `padding-top`. With `.app` now
+  supplying the inset, that padding pushed the header down by twice the notch;
+  it is a flat 14px again. The sticky offset keeps its inset, because that one
+  is measured from the viewport rather than from `.app`.
+
 ## [1.4.1] — 2026-08-28
 
 **Drop-in.** No Compose file changed shape on any platform — `docker compose pull && docker compose up -d` is the whole upgrade. Phone-only changes; nothing about the desktop layout moves.
