@@ -153,6 +153,19 @@ deleting any one of them brings the problem back.** They are not redundant:
 without it every `env(safe-area-inset-*)` in the stylesheet resolves to zero,
 which silently undoes five rules that already depend on it.
 
+**Inset the content, never the background.** `viewport-fit=cover` hands the page
+the whole screen, notch included, and the background is meant to have it: `.bg`
+and `.noise` are fixed siblings of `.app` covering the viewport, so no margin on
+`.app` can shrink them. The top inset therefore goes on `.app` and on the two
+fixed pieces of mobile chrome (`.mobile-menu-btn`, `--mobile-topbar-offset`),
+and nowhere else. Putting it on `body` or on a background layer is the mistake
+that trades a full-bleed gradient for a letterboxed one.
+
+The corollary catches people out: anything *inside* `.app` must not add the
+inset again. `.topbar` did, and its header content sat two notches down. A
+sticky or fixed `top` is the exception — that is measured from the viewport, not
+from `.app`, so it still needs `env()`.
+
 **Haptics are Android-only, and that is not a bug to fix.** iOS Safari has never
 implemented the Vibration API. `haptic()` is also gated on a coarse pointer,
 because Chrome on a desktop exposes `navigator.vibrate()` — verified: without

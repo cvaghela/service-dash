@@ -652,7 +652,13 @@ html {
 /* Layout */
 .app {
     width: min(2440px, calc(100% - 32px));
-    margin: 22px auto 28px;
+    /* Inset the CONTENT, never the background. .bg and .noise are fixed
+       siblings of .app covering the whole viewport, so margin here cannot
+       shrink them -- the gradient still runs edge to edge, under the notch and
+       behind the home indicator, while the cards start below the status bar.
+       env() resolves to 0 on every non-notched device, so desktop is unchanged
+       at exactly 22px/28px. */
+    margin: calc(22px + env(safe-area-inset-top)) auto calc(28px + env(safe-area-inset-bottom));
     display: grid;
     grid-template-columns: 340px 1fr;
     gap: 18px;
@@ -827,7 +833,12 @@ html {
     gap: 12px;
     align-items: center;
     justify-content: space-between;
-    padding-top: calc(14px + env(safe-area-inset-top));
+    /* No safe-area inset in this padding any more: .app now carries the top
+       inset for everything inside it, and the topbar is inside .app, so adding
+       it here again pushed the header content down by twice the notch. The
+       sticky offset below is a different measurement -- it is relative to the
+       viewport, not to .app -- and does still need it. */
+    padding-top: 14px;
     /* Keep the top bar pinned while scrolling */
     position: sticky;
     top: calc(16px + env(safe-area-inset-top));
@@ -3443,14 +3454,17 @@ html {
 
 /* --- Mobile Topbar Toggle --- */
 :root {
-    --mobile-topbar-offset: 12px;
+    /* The mobile topbar and the hamburger are position:fixed, so they are
+       measured from the viewport edge and land squarely on the status bar
+       without this. */
+    --mobile-topbar-offset: calc(12px + env(safe-area-inset-top));
     --mobile-topbar-radius: 16px;
 }
 
 /* Hamburger: fixed, always visible on mobile */
 .mobile-menu-btn {
     position: fixed;
-    top: 12px;
+    top: calc(12px + env(safe-area-inset-top));
     right: 12px;
     z-index: 9999;
 
