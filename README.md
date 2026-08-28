@@ -53,6 +53,7 @@ to one origin.
 | **Real service icons** | Automatic matching against the full [selfh.st](https://github.com/selfhst/icons) catalogue — 2,880 icons and growing — with a live picker per card. No internet? Every card falls back to a monogram drawn in the browser. |
 | **Settings that follow you, with no second account** | Card icons, container mappings, filters, storage selection and notes are shared by every browser and device — kept on the server, not in one browser's storage. Reading them is open; changing anything asks Uptime Kuma whether your session is real, so there is no separate login to create. |
 | **Private by default** | Service URLs and the host's own LAN and WAN addresses are withheld until you sign in, so the dashboard can sit on a screen other people can see. |
+| **Behaves like an app on a phone** | No stray pinch-zoom, no double-tap zoom, and no lurch when a field takes focus — the three separate causes are each dealt with. Taps, switches and saves carry haptic feedback where the browser supports it (Android and Chrome; iOS Safari has no Vibration API). |
 | **Offline-tolerant** | Fonts, icons and the icon catalogue all degrade to local fallbacks. Nothing on the page depends on reaching the internet. |
 
 <div align="center">

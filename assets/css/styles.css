@@ -2507,6 +2507,56 @@ html {
 .card.is-filtered-out {
     display: none !important;
 }
+/* =========================
+   TOUCH: TAP, DO NOT ZOOM
+   ========================= */
+
+/* Three separate mechanisms, because no single one covers a phone.
+   `user-scalable=no` in the viewport meta stops pinch-zoom where it is
+   honoured -- Safari has ignored it deliberately since iOS 10, so it cannot be
+   the whole answer. */
+
+/* This is the part iOS does honour. "manipulation" drops double-tap-to-zoom on
+   anything interactive, and with it the ~300ms delay the browser used to spend
+   waiting to see whether a tap was the first half of a double-tap. Removing
+   that delay is most of what makes a web page feel like an app. */
+button,
+a,
+label,
+summary,
+select,
+input,
+textarea,
+.card,
+.pill,
+.chip,
+.iconbtn,
+.link-toggle,
+.mobile-menu-btn,
+.scroll-top,
+[role="button"] {
+    touch-action: manipulation;
+}
+
+/* And this is the zoom people actually complain about: iOS scales the whole
+   page up when a field smaller than 16px takes focus, and does not scale back
+   out afterwards. The viewport meta does not prevent it. 16px is the browser's
+   threshold, not a design preference -- 15.5px still zooms. */
+@media (max-width: 820px) {
+    input,
+    textarea,
+    select,
+    .search input {
+        font-size: 16px;
+    }
+}
+
+/* Rotating the phone must not resize the type on its own. */
+html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+}
+
 /* Toast */
 .toast {
     position: fixed;

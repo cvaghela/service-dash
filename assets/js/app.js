@@ -1966,6 +1966,40 @@ const fmtTime = (d) =>
 
 const isTouch = window.matchMedia("(pointer: coarse)").matches;
 
+/* =========================
+   HAPTICS
+   ========================= */
+
+// A small fixed vocabulary, so the whole app buzzes in the same language and
+// there is exactly one place to change or silence it.
+//
+// Android and Chrome only. iOS Safari has never shipped the Vibration API and
+// no shim changes that -- an iPhone stays silent here, by Apple's choice, not
+// by omission. Gated on a coarse pointer as well: a desktop paired with a
+// gamepad can expose navigator.vibrate(), and buzzing somebody's laptop is not
+// feedback, it is a fault report.
+const HAPTIC_PATTERNS = {
+    tap: 8, // opening a card, flipping a switch
+    press: 18, // the long-press peek, which should feel heavier than a tap
+    success: [10, 40, 10],
+    warn: [20, 50, 20],
+};
+
+const canVibrate = isTouch && typeof navigator.vibrate === "function";
+
+function haptic(kind) {
+    if (!canVibrate) return;
+    const pattern = HAPTIC_PATTERNS[kind];
+    if (!pattern) return;
+    try {
+        navigator.vibrate(pattern);
+    } catch {
+        // A browser can expose vibrate() and still refuse the call -- a
+        // backgrounded tab, a permissions policy. Feedback is a nicety and must
+        // never be the thing that throws.
+    }
+}
+
 function toast(html, ms = 2600) {
     els.toastMsg.innerHTML = html;
     els.toast.classList.add("show");
@@ -3175,9 +3209,11 @@ function saveSettings() {
     // dropping the signed-out caveat entirely would be the one message worth
     // keeping, since that save only reached this browser.
     if (notes.length) {
+        haptic("warn");
         setSettingsStatus("error", notes.join(" "));
         toast(`⚠️ ${notes.join(" ")}`, 5200);
     } else {
+        haptic("success");
         setSettingsStatus("ok", "Saved.");
         toast("✅ <b>Settings saved.</b>", 2400);
     }
@@ -3977,6 +4013,7 @@ function buildDomOnceIfNeeded() {
 
             // If URLs aren't unlocked/available
             if (!usableLocal && !usableExt) {
+                haptic("warn");
                 toast(
                     `🔒 <b>${escapeHtml(name)}</b> • URLs are hidden. Sign in to Uptime Kuma to reveal them.`,
                     2600
@@ -3992,9 +4029,11 @@ function buildDomOnceIfNeeded() {
 
             const ok = openUrlNow(chosenUrl);
             if (!ok) {
+                haptic("warn");
                 toast(`⚠️ <b>${escapeHtml(name)}</b> • No URL to open`, 2200);
                 return;
             }
+            haptic("tap");
 
             toast(
                 chosenLabel === "Local"
@@ -4019,10 +4058,12 @@ function buildDomOnceIfNeeded() {
                     const usableLocal = !localHidden && !!localUrl;
 
                     if (!usableLocal) {
+                        haptic("warn");
                         toast(`🔒 <b>${escapeHtml(name)}</b> • Local URL unavailable`, 2200);
                         return;
                     }
 
+                    haptic("press");
                     openUrlNow(localUrl);
                     toast(`🏠 <b>${escapeHtml(name)}</b> • Opening <b>Local</b> (long-press)`, 1800);
                 }, 520);
@@ -4953,6 +4994,7 @@ async function initialLoad() {
         // Driven off the mode rather than off checked, because a checkbox has
         // two states and this has three. updateLinkModeUI() puts the control
         // back in step immediately afterwards.
+        haptic("tap");
         setLinkMode(nextLinkMode());
         toastLinkMode();
     });
@@ -4964,6 +5006,7 @@ async function initialLoad() {
     updateLinkModeUI();
 
     els.btnLinkMode?.addEventListener("click", () => {
+        haptic("tap");
         setLinkMode(nextLinkMode());
         toastLinkMode();
     });
@@ -5066,7 +5109,10 @@ async function initialLoad() {
     });
 
     // buttons
-    els.btnTheme.addEventListener("click", () => setTheme(state.theme === "dark" ? "light" : "dark"));
+    els.btnTheme.addEventListener("click", () => {
+        haptic("tap");
+        setTheme(state.theme === "dark" ? "light" : "dark");
+    });
     els.btnAuth.addEventListener("click", openAuth);
     els.btnLogout.addEventListener("click", doLogout);
     els.toastClose.addEventListener("click", () => els.toast.classList.remove("show"));
