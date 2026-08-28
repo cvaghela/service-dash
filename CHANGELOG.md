@@ -3,7 +3,9 @@
 All notable changes to Service Dash are recorded here. This project follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.4.2] — 2026-08-28
+
+**Drop-in.** No Compose file changed shape — `docker compose pull && docker compose up -d` is the whole upgrade. Fixes the iPhone layout shipped in 1.4.1.
 
 ### Fixed
 
@@ -520,6 +522,7 @@ Housekeeping for the first public release. No functional changes to the dashboar
 
 See the [release history](https://github.com/cvaghela/service-dash/releases).
 
+[1.4.2]: https://github.com/cvaghela/service-dash/releases/tag/v1.4.2
 [1.4.1]: https://github.com/cvaghela/service-dash/releases/tag/v1.4.1
 [1.4.0]: https://github.com/cvaghela/service-dash/releases/tag/v1.4.0
 [1.3.3]: https://github.com/cvaghela/service-dash/releases/tag/v1.3.3
