@@ -20,11 +20,18 @@ DEMO = REPO / "demo"
 BANNER = """
 <div id="demoBanner" role="note">
   <strong>Live demo</strong>
-  <span>Sample data, nothing real. Sign in as <code>test</code> / <code>Test</code> to unlock URLs and settings.</span>
+  <span><i class="demoWordy">Sample data, nothing real.</i> Sign in as <code>test</code> / <code>Test</code><i class="demoWordy"> to unlock URLs and settings.</i></span>
   <a href="https://github.com/cvaghela/service-dash" rel="noopener">Get&nbsp;it&nbsp;&rarr;</a>
 </div>
 <style>
-#demoBanner{position:fixed;left:50%;bottom:14px;transform:translateX(-50%);z-index:9999;
+/* Centred with auto margins rather than left:50% + translateX(-50%). With
+   left:50% and right:auto a fixed element's shrink-to-fit width is capped at
+   the space from that point to the right edge -- half the viewport -- so the
+   banner could never be wider than 50vw no matter what max-width said, and
+   wrapped on any window under roughly twice its content width (~1300px). That
+   is why it looked wrong well beyond phones. Pinning both edges gives
+   shrink-to-fit the whole viewport to work with. */
+#demoBanner{position:fixed;left:0;right:0;bottom:14px;margin-inline:auto;width:fit-content;z-index:9999;
   display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:center;
   max-width:min(94vw,760px);padding:9px 15px;border-radius:999px;
   font:500 13px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif;
@@ -36,8 +43,55 @@ BANNER = """
   font:600 12px/1 ui-monospace,SFMono-Regular,Menlo,monospace}
 #demoBanner a{color:#c9c2ff;text-decoration:none;font-weight:600;white-space:nowrap}
 #demoBanner a:hover{text-decoration:underline}
-@media (max-width:560px){#demoBanner{font-size:12px;bottom:8px}}
+#demoBanner i.demoWordy{font-style:normal}
+/* The banner has to outrank the dashboard, but not a dialog: at z-index 9999
+   over an overlay's 100 it was sitting on top of the settings panel's own
+   Close and Save buttons. */
+body:has(.overlay.show) #demoBanner{display:none}
+/* Measured, not guessed: the full sentence needs 659px on one line at 13px,
+   and the banner is capped at min(94vw,760px) -- so it wraps below a ~700px
+   window, far above the phone range. A 560px cutoff left every window between
+   561px and 700px showing the wordy version wrapped inside a pill. Trimmed to
+   the one thing a visitor needs, the text fits on one line down to ~330px. */
+@media (max-width:720px){
+  #demoBanner{max-width:calc(100vw - 16px);padding:8px 12px;gap:7px}
+  #demoBanner i.demoWordy{display:none}
+}
+/* Phone-only sizing. env() resolves to 0 everywhere else, so it is harmless
+   above this width, but the smaller type is not wanted on a desktop window. */
+@media (max-width:560px){
+  #demoBanner{font-size:12px;bottom:calc(8px + env(safe-area-inset-bottom))}
+}
+/* A 999px radius on a block that has wrapped bows the sides inwards and eats
+   the text. Driven by the measured height rather than a breakpoint, so it is
+   right at every width -- see the script below. */
+#demoBanner[data-wrapped]{border-radius:16px}
+
+/* The banner is bottom-centred in exactly the place the toast is, and both
+   carry z-index 9999 -- so raising one only reverses which of the two is
+   unreadable. Lift the toast clear of the banner instead. The height is
+   measured rather than guessed because the banner wraps to two lines on a
+   narrow screen. Demo-only: the app has no banner to avoid. */
+.toast{bottom:calc(24px + var(--demo-banner-h,52px))}
 </style>
+<script>
+(function () {
+    var banner = document.getElementById("demoBanner");
+    // One line is ~37px at 13px and ~35px at 12px, two lines ~56px. Anything
+    // above this has wrapped.
+    var SINGLE_LINE_MAX = 44;
+    var apply = function () {
+        var height = Math.ceil(banner.getBoundingClientRect().height);
+        // Safe inside a ResizeObserver: the radius cannot change the height,
+        // so this cannot feed back and retrigger the observer.
+        banner.toggleAttribute("data-wrapped", height > SINGLE_LINE_MAX);
+        document.documentElement.style.setProperty("--demo-banner-h", height + "px");
+    };
+    apply();
+    if (window.ResizeObserver) new ResizeObserver(apply).observe(banner);
+    else addEventListener("resize", apply);
+})();
+</script>
 """
 
 

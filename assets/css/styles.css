@@ -1217,6 +1217,24 @@ html {
         background 0.2s ease;
 }
 
+/* Auto (indeterminate). The thumb rests between the two explicit ends and the
+   track only half-fills, so auto does not read as either "on" or "off" --
+   which is the point: it is neither. Using the checkbox's own indeterminate
+   flag keeps a three-state control in one-checkbox markup. */
+.link-toggle input:indeterminate + .track {
+    background: linear-gradient(90deg, var(--chip) 0%, rgb(var(--accent-2) / 0.45) 100%);
+}
+
+.link-toggle input:indeterminate + .track .thumb {
+    /* (38px track - 18px thumb) / 2 - 2px inset = 8px, i.e. centred. */
+    transform: translateX(8px);
+    background: rgb(var(--accent-2) / 0.95);
+}
+
+.link-toggle input:indeterminate ~ .modeIcon {
+    opacity: 1;
+}
+
 /* External (checked) */
 .link-toggle input:checked + .track {
     background: rgb(var(--accent-2) / 0.9);
@@ -2512,7 +2530,8 @@ html {
     transition:
         opacity var(--t-med) ease,
         transform var(--t-med) ease;
-    z-index: 9999;
+    /* One above .overlay -- see the note there. */
+    z-index: 10001;
 }
 .toast-emoji {
     font-size: 18px;
@@ -2642,9 +2661,29 @@ html {
 .overlay {
     position: fixed;
     inset: 0;
-    z-index: 100;
+    /* Above the mobile chrome, not below it. On a phone the hamburger (9999),
+       the expanded topbar (9998) and the scroll-top button (9998) are all
+       position:fixed, so at z-index 100 a dialog opened underneath them: the
+       topbar sat on top of the sign-in fields and had to be dismissed by hand
+       before the form could be used. The toast stays above dialogs, because
+       feedback about a dialog has to be readable while it is open. */
+    z-index: 10000;
     display: none;
-    place-items: center;
+    /* A panel taller than the viewport has to stay reachable. Two things are
+       needed and neither works alone: the overlay must scroll, and centring
+       must give way when it cannot fit. A centred grid item overflows its
+       container equally at both ends, and the half above the top edge sits at
+       negative scroll offset, where no amount of scrolling reaches it -- so
+       plain "center" left the settings heading permanently off-screen on a
+       phone. "safe" falls back to start-alignment exactly when that would
+       happen. The unprefixed line before it is the fallback for browsers that
+       drop the "safe" declaration as invalid. */
+    align-items: center;
+    align-items: safe center;
+    justify-items: center;
+    overflow-y: auto;
+    /* Scrolling the panel must not scroll the dashboard behind it. */
+    overscroll-behavior: contain;
     padding: 18px;
     background: rgb(0, 0, 0, 0.3);
     backdrop-filter: blur(10px);

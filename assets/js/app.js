@@ -239,7 +239,14 @@ const STATUS_MAP = {
 const state = {
     theme: "dark",
     accent: "aurora", // ✅ NEW: persisted accent
-    linkMode: "local",
+    // "auto" works out Local or External per card; "local" and "external"
+    // force one. A document written before auto existed carries "local" or
+    // "external" and is left exactly as it is -- an upgrade must not silently
+    // start sending clicks somewhere else.
+    linkMode: "auto",
+    // Overrides remembered against the address they were made at. See
+    // rememberLinkModeForOrigin().
+    linkModeByOrigin: {},
     statusFilter: "all",
     categoryFilter: "all",
     query: "",
@@ -540,6 +547,19 @@ function initGlobalHaptics() {
         },
         { passive: true }
     );
+}
+
+// No single-key shortcut may fire while somebody is typing. Each one of them
+// has been a bug at least once: "l" cycled the link mode from inside the search
+// box, whose own placeholder suggests typing "plex", and "/" jumped focus out
+// of the notes mid-sentence -- and because it calls preventDefault(), it ate
+// the character on the way out. Checking it in one place is what stops the
+// next shortcut from having to remember.
+function isTypingTarget() {
+    const el = document.activeElement;
+    if (!el) return false;
+    if (el.isContentEditable) return true;
+    return ["INPUT", "TEXTAREA", "SELECT"].includes(el.tagName);
 }
 
 function openUrlNow(url) {
@@ -1967,6 +1987,7 @@ function savePrefs() {
         theme: state.theme,
         accent: state.accent, // ✅ NEW
         linkMode: state.linkMode,
+        linkModeByOrigin: state.linkModeByOrigin,
         statusFilter: state.statusFilter,
         categoryFilter: state.categoryFilter,
         query: state.query,
@@ -1994,7 +2015,28 @@ function loadPrefs() {
         const p = JSON.parse(raw);
         if (p.theme) state.theme = p.theme;
         if (p.accent) state.accent = normalizeAccent(p.accent); // ✅ NEW + legacy fix
-        if (p.linkMode === "local" || p.linkMode === "external") state.linkMode = p.linkMode;
+        if (p.linkModeByOrigin && typeof p.linkModeByOrigin === "object") {
+            for (const [origin, mode] of Object.entries(p.linkModeByOrigin)) {
+                if (mode === "local" || mode === "external") state.linkModeByOrigin[origin] = mode;
+            }
+        }
+        // An override made at this address wins outright. Otherwise the
+        // document-wide mode is honoured only while no override has ever been
+        // recorded -- which is exactly a document written before auto existed,
+        // so upgrading changes nothing for anybody who already had a
+        // preference. Once overrides exist, an address without one falls to
+        // auto rather than inheriting a choice made somewhere it cannot work:
+        // "Local", picked at http://192.168.1.50:8888, would otherwise still
+        // be in force at https://dash.example.com and open a dead link.
+        const forOrigin = state.linkModeByOrigin[location.origin];
+        if (forOrigin) {
+            state.linkMode = forOrigin;
+        } else if (
+            !Object.keys(state.linkModeByOrigin).length &&
+            (p.linkMode === "local" || p.linkMode === "external")
+        ) {
+            state.linkMode = p.linkMode;
+        }
         if (p.statusFilter) state.statusFilter = p.statusFilter;
         if (p.categoryFilter) state.categoryFilter = p.categoryFilter;
         if (typeof p.query === "string") state.query = p.query;
@@ -2036,8 +2078,207 @@ function setAccent(accent) {
     savePrefs();
 }
 
+/* =========================
+               WHERE THE VIEWER IS
+               ========================= */
+
+// Auto link mode answers one question: can this browser reach a LAN address?
+//
+// It is answered from the address bar rather than by testing the service,
+// because the dashboard's own CSP ("connect-src 'self'", see
+// nginx.conf.template) blocks a fetch to any service URL, and an unreachable
+// LAN address would stall every card for the TCP timeout even if it did not.
+// Reaching the dashboard at http://192.168.1.50:8888 is already proof that
+// this browser routes to 192.168.1.50, so nothing has to be probed.
+//
+// The two possible mistakes cost very different amounts. Opening the public
+// URL while sitting on the LAN still works -- the traffic just leaves the
+// house and comes back. Opening the LAN URL from a cafe is a dead link. So
+// "local" is only chosen on evidence, and anything unproven falls to
+// "external".
+
+function ipv4ToInt(host) {
+    const parts = safeStr(host).split(".");
+    if (parts.length !== 4) return null;
+    let value = 0;
+    for (const part of parts) {
+        if (!/^\d{1,3}$/.test(part)) return null;
+        const octet = Number(part);
+        if (octet > 255) return null;
+        value = value * 256 + octet;
+    }
+    return value;
+}
+
+// RFC1918, plus loopback and link-local. 100.64.0.0/10 is deliberately absent:
+// carrier-grade NAT and Tailscale both live there, and an address in that
+// range says nothing about whether the LAN is reachable.
+const PRIVATE_V4_BLOCKS = [
+    ["10.0.0.0", 8],
+    ["172.16.0.0", 12],
+    ["192.168.0.0", 16],
+    ["169.254.0.0", 16],
+    ["127.0.0.0", 8],
+];
+
+function isPrivateV4(host) {
+    const value = ipv4ToInt(host);
+    if (value === null) return false;
+    return PRIVATE_V4_BLOCKS.some(([base, bits]) => {
+        const mask = (-1 << (32 - bits)) >>> 0;
+        return ((value & mask) >>> 0) === ((ipv4ToInt(base) & mask) >>> 0);
+    });
+}
+
+function isPrivateV6(host) {
+    const h = safeStr(host).toLowerCase();
+    if (!h.includes(":")) return false;
+    if (h === "::1") return true; // loopback
+    if (/^fe[89ab]/.test(h)) return true; // fe80::/10 link-local
+    if (/^f[cd]/.test(h)) return true; // fc00::/7 unique local
+    return false;
+}
+
+// Suffixes a LAN hands out. A name with no dot at all is the same thing: a
+// single-label host only resolves through a local resolver or mDNS.
+const LOCAL_HOST_SUFFIXES = [
+    ".local",
+    ".lan",
+    ".home",
+    ".home.arpa",
+    ".internal",
+    ".localdomain",
+    ".intranet",
+];
+
+function classifyHost(rawHost) {
+    const host = safeStr(rawHost)
+        .trim()
+        .toLowerCase()
+        .replace(/^\[|\]$/g, "")
+        .replace(/\.$/, "");
+    if (!host) return "unknown";
+    if (host === "localhost" || host.endsWith(".localhost")) return "local";
+    if (isPrivateV6(host)) return "local";
+    if (ipv4ToInt(host) !== null) return isPrivateV4(host) ? "local" : "external";
+    if (host.includes(":")) return "external"; // a public IPv6 literal
+    if (LOCAL_HOST_SUFFIXES.some((suffix) => host.endsWith(suffix))) return "local";
+    if (!host.includes(".")) return "local";
+    return "external";
+}
+
+// The address bar cannot change without a reload, so this is settled once.
+let _viewerLocality = null;
+
+function viewerLocality() {
+    if (!_viewerLocality) _viewerLocality = classifyHost(location.hostname);
+    return _viewerLocality;
+}
+
+function urlHost(url) {
+    const normalized = normalizeMaybeUrl(url);
+    if (!normalized) return "";
+    try {
+        return new URL(normalized).hostname;
+    } catch {
+        return "";
+    }
+}
+
+// Availability is decided by the caller, because the two callers disagree on
+// purpose: the row hints go by which monitors exist, a click goes by which
+// URLs are actually usable, and those differ while signed out.
+function autoEndpointKind(card, hasLocal, hasExternal) {
+    if (!hasLocal) return hasExternal ? "external" : "";
+    if (!hasExternal) return "local";
+
+    if (viewerLocality() !== "local") return "external";
+
+    // On the LAN, but a "local" URL that is really a public name is still the
+    // wrong link to prefer. This cannot catch a private address the browser
+    // has no route to -- a Docker bridge address looks exactly like a LAN one
+    // from here -- which is what the remembered override is for. Empty while
+    // signed out, so this only ever narrows.
+    const target = urlHost(card.dataset.localUrl || "");
+    if (target && classifyHost(target) !== "local") return "external";
+
+    // Kuma probes from the host rather than from here, so this cannot confirm
+    // the link works -- only that it is already known not to.
+    if (card.dataset.localId && card.dataset.externalId) {
+        const localDown = statusForIdFromHeartbeat(card.dataset.localId) === "offline";
+        const externalUp = statusForIdFromHeartbeat(card.dataset.externalId) === "online";
+        if (localDown && externalUp) return "external";
+    }
+
+    return "local";
+}
+
+// The single place that turns the mode plus a card into "local" or "external".
+// Both the row hint and the click go through here, so they cannot disagree.
+function endpointKindFor(card, hasLocal, hasExternal) {
+    if (state.linkMode === "local") return hasLocal ? "local" : hasExternal ? "external" : "";
+    if (state.linkMode === "external") return hasExternal ? "external" : hasLocal ? "local" : "";
+    return autoEndpointKind(card, hasLocal, hasExternal);
+}
+
+function normalizeLinkMode(mode) {
+    return mode === "local" || mode === "external" ? mode : "auto";
+}
+
+const LINK_MODE_CYCLE = ["auto", "local", "external"];
+
+const LINK_MODE_LABELS = {
+    auto: {
+        icon: "✨",
+        title: "Auto — each card opens its Local or External address, whichever this browser can reach",
+        aria: "Link mode: automatic",
+    },
+    local: { icon: "🏠", title: "Always open the Local (LAN) address", aria: "Link mode: local" },
+    external: { icon: "🌐", title: "Always open the External (public) address", aria: "Link mode: external" },
+};
+
+function nextLinkMode() {
+    const index = LINK_MODE_CYCLE.indexOf(state.linkMode);
+    return LINK_MODE_CYCLE[(index + 1) % LINK_MODE_CYCLE.length];
+}
+
+function toastLinkMode() {
+    if (state.linkMode === "auto") {
+        toast(
+            // No leading emoji: the toast already carries a static ✨ of its
+            // own, so one here reads as a stutter -- "✨ ✨ Link mode".
+            viewerLocality() === "local"
+                ? `Link mode: <b>Auto</b> • this browser looks like it is <b>on the LAN</b>`
+                : `Link mode: <b>Auto</b> • this browser looks like it is <b>away from the LAN</b>`,
+            1800
+        );
+        return;
+    }
+    toast(state.linkMode === "local" ? `🏠 Link mode: <b>Local</b>` : `🌐 Link mode: <b>External</b>`, 1400);
+}
+
+// An override is remembered against the address it was made at. Choosing
+// "Local" at http://192.168.1.50:8888 should not still be in force at
+// https://dash.example.com, where a LAN link cannot resolve -- which is the
+// one way a manual choice can strand somebody.
+function rememberLinkModeForOrigin() {
+    const origin = safeStr(location.origin);
+    if (!origin || origin === "null") return;
+
+    if (state.linkMode === "auto") delete state.linkModeByOrigin[origin];
+    else state.linkModeByOrigin[origin] = state.linkMode;
+
+    // Bounded, because this rides along in the shared settings document.
+    // String keys keep insertion order, so this drops the oldest.
+    const origins = Object.keys(state.linkModeByOrigin);
+    for (const stale of origins.slice(0, Math.max(0, origins.length - 12))) {
+        delete state.linkModeByOrigin[stale];
+    }
+}
+
 function setLinkMode(mode) {
-    state.linkMode = mode === "external" ? "external" : "local";
+    state.linkMode = normalizeLinkMode(mode);
+    rememberLinkModeForOrigin();
     savePrefs();
     updateLinkModeUI();
 }
@@ -2047,19 +2288,25 @@ function setLinkMode(mode) {
 function markActiveEndpoint(card) {
     const hasLocal = !!card.dataset.localId;
     const hasExternal = !!card.dataset.externalId;
-    const preferred = state.linkMode === "external" ? "external" : "local";
-
-    let active = "";
-    if (preferred === "local") active = hasLocal ? "local" : hasExternal ? "external" : "";
-    else active = hasExternal ? "external" : hasLocal ? "local" : "";
+    const active = endpointKindFor(card, hasLocal, hasExternal);
+    const activeTitle = activeEndpointTitle();
 
     const refs = cardRefs(card.dataset.id, card);
     for (const kind of ["local", "external"]) {
         const row = kind === "local" ? refs.localLine : refs.externalLine;
         if (!row) continue;
         setDataIfChanged(row, "active", String(active === kind));
-        setTitleIfChanged(row, active === kind ? "Clicking the card opens this link" : "");
+        setTitleIfChanged(row, active === kind ? activeTitle : "");
     }
+}
+
+// Auto that guesses silently is worse than the manual toggle it replaces, so
+// the row says what it decided on.
+function activeEndpointTitle() {
+    if (state.linkMode !== "auto") return "Clicking the card opens this link";
+    return viewerLocality() === "local"
+        ? `Clicking the card opens this link — auto, because ${location.hostname} is a LAN address`
+        : `Clicking the card opens this link — auto, because ${location.hostname} is not a LAN address`;
 }
 
 function updateCardHintsInPlace() {
@@ -2072,14 +2319,23 @@ function updateCardHintsInPlace() {
 function updateLinkModeUI() {
     if (!els.linkModeToggle) return;
 
-    const isExternal = state.linkMode === "external";
-    els.linkModeToggle.checked = isExternal;
+    const mode = state.linkMode;
+    const labels = LINK_MODE_LABELS[mode] || LINK_MODE_LABELS.auto;
+
+    els.linkModeToggle.checked = mode === "external";
+    // The third position rides on the checkbox's own indeterminate flag, so
+    // the markup, the label and the tab order stay exactly as they were.
+    els.linkModeToggle.indeterminate = mode === "auto";
+    els.linkModeToggle.setAttribute("aria-label", labels.aria);
+
+    const pill = els.linkModeToggle.closest(".linkModePill");
+    if (pill) {
+        setDataIfChanged(pill, "mode", mode);
+        setTitleIfChanged(pill, labels.title);
+    }
 
     const icon = els.linkModeToggle.closest(".link-toggle")?.querySelector(".modeIcon");
-
-    if (icon) {
-        icon.textContent = isExternal ? "🌐" : "🏠";
-    }
+    if (icon) setTextIfChanged(icon, labels.icon);
 
     updateCardHintsInPlace();
 }
@@ -3728,27 +3984,11 @@ function buildDomOnceIfNeeded() {
                 return;
             }
 
-            // Decide based on toggle
-            let chosenUrl = "";
-            let chosenLabel = "";
-
-            if (state.linkMode === "local") {
-                if (usableLocal) {
-                    chosenUrl = localUrl;
-                    chosenLabel = "Local";
-                } else if (usableExt) {
-                    chosenUrl = extUrl; // fallback if local not available
-                    chosenLabel = "External";
-                }
-            } else {
-                if (usableExt) {
-                    chosenUrl = extUrl;
-                    chosenLabel = "External";
-                } else if (usableLocal) {
-                    chosenUrl = localUrl; // fallback if external not available
-                    chosenLabel = "Local";
-                }
-            }
+            // Same decision the row hint shows, from the same function, so
+            // the card cannot advertise one endpoint and open the other.
+            const kind = endpointKindFor(card, usableLocal, usableExt);
+            const chosenUrl = kind === "local" ? localUrl : kind === "external" ? extUrl : "";
+            const chosenLabel = kind === "local" ? "Local" : "External";
 
             const ok = openUrlNow(chosenUrl);
             if (!ok) {
@@ -4710,9 +4950,11 @@ async function initialLoad() {
     els.wan?.addEventListener("click", () => copyNetworkAddress(els.wan, "WAN"));
 
     els.linkModeToggle?.addEventListener("change", () => {
-        setLinkMode(els.linkModeToggle.checked ? "external" : "local");
-
-        toast(state.linkMode === "local" ? `🏠 Link mode: <b>Local</b>` : `🌐 Link mode: <b>External</b>`, 1400);
+        // Driven off the mode rather than off checked, because a checkbox has
+        // two states and this has three. updateLinkModeUI() puts the control
+        // back in step immediately afterwards.
+        setLinkMode(nextLinkMode());
+        toastLinkMode();
     });
 
     // ✅ Apply persisted theme + accent (and fix legacy data-accent="none")
@@ -4722,8 +4964,8 @@ async function initialLoad() {
     updateLinkModeUI();
 
     els.btnLinkMode?.addEventListener("click", () => {
-        setLinkMode(state.linkMode === "local" ? "external" : "local");
-        toast(state.linkMode === "local" ? `🏠 Link mode: <b>Local</b>` : `🌐 Link mode: <b>External</b>`, 1600);
+        setLinkMode(nextLinkMode());
+        toastLinkMode();
     });
 
     wireSections();
@@ -4787,27 +5029,31 @@ async function initialLoad() {
 
     // keyboard shortcuts
     window.addEventListener("keydown", (e) => {
-        if (e.key === "/" && document.activeElement !== els.q) {
-            e.preventDefault();
-            els.q.focus();
-        }
-        if (e.key.toLowerCase() === "a" && !e.metaKey && !e.ctrlKey && !e.altKey) {
-            if (document.activeElement && ["INPUT", "TEXTAREA"].includes(document.activeElement.tagName)) return;
-            openAuth();
-        }
+        // Escape is the one shortcut that must work from inside a field: it is
+        // how you get out of the dialog you are typing in.
         if (e.key === "Escape") {
             closeAuth();
             closeIconEditor();
             closeSettings();
+            return;
+        }
+
+        if (isTypingTarget()) return;
+
+        if (e.key === "/") {
+            e.preventDefault();
+            els.q.focus();
+        }
+        if (e.key.toLowerCase() === "a" && !e.metaKey && !e.ctrlKey && !e.altKey) {
+            openAuth();
         }
         // ✅ Optional: press "T" to cycle accents
         if (e.key.toLowerCase() === "t" && !e.metaKey && !e.ctrlKey && !e.altKey) {
-            if (document.activeElement && ["INPUT", "TEXTAREA"].includes(document.activeElement.tagName)) return;
             cycleAccent();
         }
-        if (e.key.toLowerCase() === "l" && !e.metaKey && !e.ctrlKey) {
-            setLinkMode(state.linkMode === "local" ? "external" : "local");
-            toast(state.linkMode === "local" ? `🏠 Local links` : `🌐 External links`, 1200);
+        if (e.key.toLowerCase() === "l" && !e.metaKey && !e.ctrlKey && !e.altKey) {
+            setLinkMode(nextLinkMode());
+            toastLinkMode();
         }
     });
 
