@@ -128,3 +128,46 @@ Nothing enforces these, so they are easy to half-do:
   8000 --directory /tmp/d`, then sign in as `test` / `Test`. Serve it rather
   than opening the file — the shim answers absolute paths. It is also what is
   published as the public demo, so it must keep working.
+
+## Three things that look arbitrary and are not
+
+**Single-key shortcuts go through `isTypingTarget()`, always.** The global
+`keydown` listener fires on the window, so a bare-letter shortcut reaches it
+from inside every field on the page. Two shortcuts shipped without a guard and
+both were real bugs: `l` cycled the link mode while you typed `plex` into the
+search box, and `/` jumped focus out of the notes and ate the character, since
+it calls `preventDefault()`. The guard is one function called once, before any
+key is matched, rather than a line each handler has to remember. `Escape` is
+checked first and exempt on purpose — it is how you leave the field you are in.
+
+**Auto link mode never probes.** `autoEndpointKind()` decides Local vs External
+from `location.hostname` alone. That is not laziness — the dashboard's own CSP
+(`connect-src 'self'` in `nginx.conf.template`) blocks a `fetch` to any service
+URL, `img-src` blocks an `http://` image probe, and Chrome's Private Network
+Access rules would block it from an HTTPS origin regardless. Even if all three
+relented, an unreachable LAN address costs a TCP timeout on every card at load.
+Reaching the dashboard at `http://192.168.1.50:8888` already proves the browser
+routes to that network, so there is nothing left to test.
+
+The rule is deliberately one-sided, and a "fix" that makes it symmetrical is a
+regression: opening the public URL from the LAN works and merely hairpins, while
+opening a LAN URL from outside is a dead link. Everything unproven — CGNAT and
+Tailscale's `100.64/10` especially — must resolve to External. `100.64/10` is
+absent from `PRIVATE_V4_BLOCKS` on purpose; adding it would break exactly the
+people it looks like it would help.
+
+Top-level navigation from HTTPS to `http://` is *not* mixed content and is not
+blocked, so there is no rule forcing External on an HTTPS dashboard. Adding one
+would break every local link for anyone behind a TLS proxy.
+
+**The z-index ladder is load-bearing.** On mobile the hamburger (`9999`), the
+expanded topbar (`9998`) and the scroll-top button (`9998`) are all fixed. Any
+dialog must sit above them or it opens underneath the chrome — which is what
+`.overlay` at `100` used to do, leaving the sign-in fields untappable. The order
+is: mobile chrome < `.overlay` (`10000`) < `.toast` (`10001`). The toast is last
+because feedback about a dialog has to be readable while the dialog is open.
+
+`.overlay` also needs `overflow-y: auto` *and* `align-items: safe center`. Either
+alone leaves a panel taller than the viewport unreachable: a centred grid item
+overflows at both ends, and the half above the top edge sits at negative scroll
+offset where no scrolling reaches it.

@@ -30,9 +30,13 @@ one container is eating. Service Dash puts all of that on one page.
 
 It also solves the two-bookmarks problem. Most self-hosted services end up with two addresses — a LAN one that is fast
 and never leaves the house, and a public one for when you are out — and most dashboards make you pick a side, or keep
-two dashboards. Here both live on the same card, and a single switch in the top bar decides which one a click opens. At
-home, flip it to Local and every card opens over the LAN. On mobile data, flip it to External and the same cards open
-over the internet. Nothing is duplicated and nothing is hidden: you can always see both.
+two dashboards. Here both live on the same card, and the dashboard works out which one to open by itself.
+
+The trick is that it does not have to guess. Load the dashboard from `192.168.1.50` and your browser has already proved
+it can reach that network; load it from `dash.example.com` and it plainly has not. So there is nothing to probe and
+nothing to wait for — the answer is sitting in the address bar before the first card renders. At home, cards open over
+the LAN. On mobile data, the same cards open over the internet. Nothing is duplicated, nothing is hidden, and the manual
+switch is still there for the days you would rather decide yourself.
 
 It is one Compose stack — the dashboard, a bundled Netdata Agent, and three small sidecars. No build step, no Node.js
 runtime, no separate Netdata install. nginx serves the page and proxies everything else, so the browser only ever talks
@@ -42,7 +46,7 @@ to one origin.
 
 |  | |
 | --- | --- |
-| **Local and public links, one card** | Each service shows both its LAN address and its public URL. One switch in the top bar decides which a click opens, so the same dashboard works at home and away — the active endpoint is tinted so you always know which you will get. |
+| **Local and public links, one card** | Each service shows both its LAN address and its public URL, and ✨ **Auto** opens whichever one this browser can actually reach — decided per card, not per dashboard. The active endpoint is tinted, hovering a card says *why* it chose, and pinning it to Local or External is one click away. |
 | **Live service cards** | Status and uptime for every monitor on your Kuma status page. Search, filter by status or category, and click a card to open it. |
 | **Real host metrics** | CPU with normalised load, RAM, storage, and network throughput from a bundled Netdata Agent — plus package power and temperature where the hardware exposes them. |
 | **Per-container CPU and RAM** | Map a card to one container or several; an app plus its database, cache and worker are added together into one figure. |
@@ -279,12 +283,47 @@ are locked the same way.
 ## Using the dashboard
 
 **Service cards** show each service's two endpoints, Local and External, on the same card. The one a click will open is
-tinted; the Local/External switch in the top bar moves that highlight across every card at once. A service with only one
-endpoint shows one row.
+tinted. A service with only one endpoint shows one row.
 
 The pairing comes from Uptime Kuma itself: two monitors named `Plex` and `Plex local` — also `Plex (local)`,
 `Plex - local` or `Plex.local` — are recognised as one service with two addresses. Nothing to configure here; name the
 monitors that way in Kuma and the card builds itself.
+
+### Which address a click opens
+
+The switch in the top bar has three positions. Press <kbd>L</kbd> to cycle them.
+
+| | |
+| --- | --- |
+| ✨ **Auto** | Each card opens whichever address this browser can reach. The default on a new install. |
+| 🏠 **Local** | Always the LAN address. |
+| 🌐 **External** | Always the public one. |
+
+**Auto reads the answer off the address bar, because the address bar already knows it.** If you loaded the dashboard
+from `http://192.168.1.50:8888`, your browser has *proved* it can route to that network — so a service at
+`192.168.1.9` is reachable by construction. Nothing is tested, which is the point: probing a dead LAN address costs a
+TCP timeout on every card, and the dashboard's own `connect-src 'self'` policy forbids the request anyway.
+
+The two possible mistakes do not cost the same, so the rule is deliberately one-sided. Opening the public URL from your
+own sofa still works — the traffic just leaves the house and comes back. Opening a LAN address from a café is a dead
+link. **Local is only chosen on evidence.** Anything unproven — a Tailscale or carrier-NAT address, a hostname it does
+not recognise — resolves to public.
+
+Three details sharpen it further:
+
+- A monitor named `…local` whose URL is really a public name is not a LAN shortcut, so the public address is used
+  instead. The suffix is a label you typed; the address is the fact.
+- If Kuma reports the LAN monitor down and the public one up, the public one wins.
+- A card with only one address opens that one, in every mode.
+
+Hover any card and it tells you what it decided and why — *"auto, because 192.168.1.50 is a LAN address"*. A switch
+that guesses silently is worse than the manual one it replaces.
+
+**Overrides are remembered against the address you set them at.** Pin Local at home and you will not find it still
+pinned — and broken — when you open `dash.example.com` from a train later. That address gets its own answer.
+
+> **Upgrading?** Nothing changes on its own. A saved Local or External preference is kept exactly as it was, on every
+> device that shares your settings. Auto is one click away when you want it.
 
 **Card settings** — hover a card, click the pencil on its icon:
 
@@ -490,7 +529,7 @@ Then hard-refresh the browser.
 
 ## Updating
 
-The current release is **1.3.3**; the Compose files in this repository reference the matching `1.3.3` images.
+The current release is **1.4.0**; the Compose files in this repository reference the matching `1.4.0` images.
 
 Most releases are drop-in:
 

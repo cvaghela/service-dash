@@ -3,10 +3,40 @@
 All notable changes to Service Dash are recorded here. This project follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.4.0] — 2026-08-28
+
+**Drop-in.** No Compose file changed shape on any platform — `docker compose pull && docker compose up -d` is the whole upgrade. Your saved Local/External preference is kept exactly as it was; the new Auto mode is opt-in with one click.
 
 ### Fixed
 
+- **Dialogs opened underneath the mobile chrome.** On a phone the hamburger
+  (z-index 9999), the expanded topbar (9998) and the scroll-top button (9998)
+  are all fixed, while every dialog sat at 100 — so the topbar covered the
+  sign-in fields and had to be dismissed by hand before the form could be used.
+  Tapping where the username field appears hit the topbar instead. Dialogs now
+  outrank the mobile chrome, and the toast outranks dialogs so feedback about a
+  dialog stays readable.
+- **The settings panel could not be reached on a short screen.** The overlay had
+  no overflow handling, and a centred grid item overflows its container at
+  *both* ends — the half above the top edge sits at negative scroll offset,
+  where nothing reaches it. At 500×603 the heading measured at -138px. The
+  overlay now scrolls, centring gives way to start-alignment when it cannot fit,
+  and scrolling a dialog no longer scrolls the dashboard behind it.
+- **Single-key shortcuts fired while you were typing.** Every one of them had
+  to remember its own guard, and two had forgotten. <kbd>L</kbd> cycled the link
+  mode on every `l` typed anywhere — including the search box, whose placeholder
+  suggests typing `plex`. <kbd>/</kbd> was worse: typing a slash in the notes
+  jumped focus to the search field *and* swallowed the character, because the
+  handler calls `preventDefault()`. The check now lives in one place
+  (`isTypingTarget()`), covers `select` and `contenteditable` as well, and
+  <kbd>Escape</kbd> is deliberately exempt — it is how you leave the field you
+  are typing in.
+- **The demo banner wrapped on almost every window.** Centring it with
+  `left: 50%` capped its shrink-to-fit width at half the viewport, whatever
+  `max-width` said, so the full sentence wrapped below roughly 1300px. It is now
+  centred with auto margins, trims to just the credentials when the window is
+  genuinely narrow, squares its corners only when it has actually wrapped, and
+  steps aside for the toast and for any open dialog.
 - **A service with only a LAN monitor was titled "Duplicati local".** The
   `local` suffix is a pairing hint, not part of the service's name, and it was
   only being stripped when a matching public monitor existed to supply a
@@ -14,6 +44,23 @@ All notable changes to Service Dash are recorded here. This project follows
 
 ### Added
 
+- **Automatic link mode.** The header toggle gains a third position, ✨ Auto,
+  which is now the default for a new install. Each card opens its LAN address
+  when this browser can reach one and its public address otherwise, decided per
+  card rather than for the whole dashboard. The evidence is the address bar: a
+  dashboard loaded from `http://192.168.1.50:8888` has already proved this
+  browser routes to that LAN, so nothing is probed — which also keeps the
+  dashboard's `connect-src 'self'` policy intact and costs no time on load. The
+  two mistakes are not equally cheap, so the rule is one-sided: the public
+  address still works from the sofa, a LAN address from a café does not, and
+  anything unproven — a Tailscale or carrier-NAT address, an unrecognised name
+  — resolves to public. Kuma's own heartbeat breaks the tie when the LAN
+  monitor is down and the public one is up. Hovering a card says which address
+  it picked and why. An upgrade changes nothing on its own: a saved Local or
+  External preference is kept exactly as it was, and Auto is one click away.
+  Choosing Local or External is remembered against the address it was chosen
+  at, so "Local", picked at home, is no longer still in force on a public URL
+  where it would open a dead link.
 - **A live demo**, at
   [cvaghela.github.io/service-dash/demo](https://cvaghela.github.io/service-dash/demo/),
   so the dashboard can be tried before anything is installed. It inlines the
@@ -421,6 +468,7 @@ Housekeeping for the first public release. No functional changes to the dashboar
 
 See the [release history](https://github.com/cvaghela/service-dash/releases).
 
+[1.4.0]: https://github.com/cvaghela/service-dash/releases/tag/v1.4.0
 [1.3.3]: https://github.com/cvaghela/service-dash/releases/tag/v1.3.3
 [1.3.2]: https://github.com/cvaghela/service-dash/releases/tag/v1.3.2
 [1.3.1]: https://github.com/cvaghela/service-dash/releases/tag/v1.3.1

@@ -38,6 +38,25 @@ there the catalogue and artwork are embedded instead.
 Settings and notes are written to the visitor's own `localStorage`. Nothing
 reaches a server, and no two visitors share state.
 
+## The banner
+
+The "Live demo" pill is the only markup the demo adds to the page, and it earns
+three lines of care because it shares the bottom of the screen with the toast.
+
+- It is centred with `left: 0; right: 0; margin-inline: auto`, **not**
+  `left: 50%` with a transform. With `left: 50%` and `right: auto` a fixed
+  element's shrink-to-fit width is capped at half the viewport, whatever
+  `max-width` says — so the pill wrapped on any window under about 1300px.
+- Its measured height is published as `--demo-banner-h`, and the app's `.toast`
+  is offset by it. Both are bottom-centred with the same z-index, so raising one
+  would only reverse which of them is unreadable; the toast has to move instead.
+  The height is remeasured because the pill wraps on a narrow screen.
+- It hides itself whenever a dialog is open, because at z-index 9999 against an
+  overlay it would otherwise sit on top of the settings panel's own buttons.
+
+None of this exists in the app. Nothing here should ever need a change in
+`assets/css/styles.css`.
+
 ## Keeping it honest
 
 The build asserts on each of the three sources it inlines and fails loudly if
