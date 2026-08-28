@@ -2,7 +2,7 @@ name: service-dash
 
 services:
   service-dash:
-    image: ghcr.io/cvaghela/service-dash:1.4.1
+    image: ghcr.io/cvaghela/service-dash:1.4.1@sha256:099a84d2fcb2d5933921eea8c683412ca035f719e2d405089f410e36129dd921
     container_name: service-dash
     ports:
       - target: 80
@@ -39,7 +39,7 @@ services:
     # the official store, which still packages a v1 main.zip for older clients,
     # and it documents the three settings worth changing at install time.
   kuma-auth:
-    image: ghcr.io/cvaghela/service-dash-kuma-auth:1.4.1
+    image: ghcr.io/cvaghela/service-dash-kuma-auth:1.4.1@sha256:72cb7c4eb2385054a0d9f2e5911a8e2cc153bab77730e8480600c70c0779b32c
     container_name: service-dash-kuma-auth
     environment:
       # Must point at the same Uptime Kuma as KUMA_PORT above.
@@ -63,7 +63,7 @@ services:
     restart: unless-stopped
 
   network-info:
-    image: ghcr.io/cvaghela/service-dash-network-info:1.4.1
+    image: ghcr.io/cvaghela/service-dash-network-info:1.4.1@sha256:515dbfba2ca143d71eef0bb21bb8712eeff705ccf5360650a8591f657cf7e64b
     container_name: service-dash-network-info
     network_mode: host
     read_only: true
