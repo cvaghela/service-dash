@@ -530,7 +530,7 @@ Then hard-refresh the browser.
 
 ## Updating
 
-The current release is **1.4.1**; the Compose files in this repository reference the matching `1.4.1` images.
+The current release is **1.4.2**; the Compose files in this repository reference the matching `1.4.2` images.
 
 Most releases are drop-in:
 
