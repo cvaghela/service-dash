@@ -2,7 +2,7 @@ name: service-dash
 
 services:
   service-dash:
-    image: ghcr.io/cvaghela/service-dash:1.4.0@sha256:18604e4e4bf097aaf6e382fd31a7bfbc0e7f88f360aecc6ca899e86f13447d80
+    image: ghcr.io/cvaghela/service-dash:1.4.1
     container_name: service-dash
     ports:
       - target: 80
@@ -39,7 +39,7 @@ services:
     # the official store, which still packages a v1 main.zip for older clients,
     # and it documents the three settings worth changing at install time.
   kuma-auth:
-    image: ghcr.io/cvaghela/service-dash-kuma-auth:1.4.0@sha256:4258f9d414343ca8de132f1069cbf9b0d737dfdb3b43fd8537630ecabcfd633a
+    image: ghcr.io/cvaghela/service-dash-kuma-auth:1.4.1
     container_name: service-dash-kuma-auth
     environment:
       # Must point at the same Uptime Kuma as KUMA_PORT above.
@@ -63,7 +63,7 @@ services:
     restart: unless-stopped
 
   network-info:
-    image: ghcr.io/cvaghela/service-dash-network-info:1.4.0@sha256:532da97339b1f0271fbc2137633b06b50796592d638464f86b0e221e1f5bb8b0
+    image: ghcr.io/cvaghela/service-dash-network-info:1.4.1
     container_name: service-dash-network-info
     network_mode: host
     read_only: true
@@ -158,7 +158,7 @@ x-casaos:
   index: /
   port_map: "8888"
   scheme: http
-  version: "1.4.0"
+  version: "1.4.1"
   icon: https://cvaghela.github.io/service-dash/pages/apps/io.github.cvaghela.servicedash/assets/icon.png
   title:
     en_US: Service Dash

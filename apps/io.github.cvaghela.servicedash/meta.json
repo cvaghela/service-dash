@@ -26,13 +26,13 @@
   "release_note": "1.3.2 fixes the storage picker on ZimaOS, which previously offered a\nsingle \"/\" instead of the host's real mounts, and adds a social preview\nand a rewritten README.\n",
   "base_url": "https://cdn.jsdelivr.net/gh/cvaghela/service-dash@gh-pages",
   "id": "io.github.cvaghela.servicedash",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "categories": [
     "networking"
   ],
   "min_memory": 0,
   "min_image_size": {
-    "amd64": 407406495,
-    "arm64": 401590923
+    "amd64": 317941186,
+    "arm64": 310513182
   }
 }
