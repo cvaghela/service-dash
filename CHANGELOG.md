@@ -3,6 +3,37 @@
 All notable changes to Service Dash are recorded here. This project follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Haptic feedback on phones.** Opening a card, flipping the link-mode or theme
+  switch, the long-press peek and a settings save each carry a distinct buzz,
+  through one small vocabulary so the whole app speaks the same language.
+  Android and Chrome only — iOS Safari has never implemented the Vibration API,
+  and no shim changes that. Gated on a coarse pointer too, since a desktop
+  paired with a gamepad can expose `navigator.vibrate()` and buzzing a laptop is
+  a fault report, not feedback.
+
+### Changed
+
+- **The page no longer zooms on a phone.** Three mechanisms, because no single
+  one covers it: `user-scalable=no` stops pinch-zoom where it is honoured,
+  `touch-action: manipulation` removes double-tap-to-zoom and the ~300ms tap
+  delay that came with it — which is the part iOS actually respects — and form
+  controls step up to 16px below 820px.
+
+### Fixed
+
+- **iOS zoomed the page in whenever a field took focus, and never zoomed back
+  out.** Every input, textarea and select was inheriting a ~13.3px default, and
+  iOS scales the viewport up for anything under 16px. This is the zoom people
+  actually hit; the viewport meta tag does not prevent it.
+- **`env(safe-area-inset-*)` was resolving to zero on iOS.** Five rules already
+  used it — the top bar, the scroll-top button, the side stack, the demo banner
+  — but it only returns a real value with `viewport-fit=cover` in the viewport
+  meta, which was missing. The notch and home indicator were being ignored.
+
 ## [1.4.0] — 2026-08-28
 
 **Drop-in.** No Compose file changed shape on any platform — `docker compose pull && docker compose up -d` is the whole upgrade. Your saved Local/External preference is kept exactly as it was; the new Auto mode is opt-in with one click.

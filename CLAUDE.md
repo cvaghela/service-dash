@@ -129,7 +129,37 @@ Nothing enforces these, so they are easy to half-do:
   than opening the file — the shim answers absolute paths. It is also what is
   published as the public demo, so it must keep working.
 
-## Three things that look arbitrary and are not
+## Load-bearing decisions that look arbitrary
+
+Each of these reads as removable. Each has been a real bug. The heading used to
+carry a count and the count kept going stale, so it does not any more.
+
+**Stopping the page zooming on a phone takes three separate mechanisms, and
+deleting any one of them brings the problem back.** They are not redundant:
+
+1. `user-scalable=no, maximum-scale=1` in the viewport meta — stops pinch-zoom
+   *where it is honoured*. Safari has ignored it deliberately since iOS 10, so
+   it can never be the whole answer on an iPhone.
+2. `touch-action: manipulation` on anything interactive — this is the part iOS
+   does honour. It drops double-tap-to-zoom and with it the ~300ms delay the
+   browser spent waiting to see whether a tap was half of a double-tap.
+   Removing that delay is most of what makes the page feel like an app.
+3. Form controls at 16px below 820px — iOS scales the whole viewport up when a
+   field under 16px takes focus and does not scale back out. 16px is the
+   browser's threshold, not a design preference: 15.5px still zooms. The rule
+   has to name `.search input` explicitly, which carries its own smaller size.
+
+`viewport-fit=cover` belongs in the same meta tag for a different reason:
+without it every `env(safe-area-inset-*)` in the stylesheet resolves to zero,
+which silently undoes five rules that already depend on it.
+
+**Haptics are Android-only, and that is not a bug to fix.** iOS Safari has never
+implemented the Vibration API. `haptic()` is also gated on a coarse pointer,
+because Chrome on a desktop exposes `navigator.vibrate()` — verified: without
+that gate a laptop buzzes on every card click. Every call goes through the one
+helper and its fixed pattern table, so there is a single place to retune or
+silence it.
+
 
 **Single-key shortcuts go through `isTypingTarget()`, always.** The global
 `keydown` listener fires on the window, so a bare-letter shortcut reaches it
