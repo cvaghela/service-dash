@@ -2,7 +2,7 @@ name: service-dash
 
 services:
   service-dash:
-    image: ghcr.io/cvaghela/service-dash:1.5.0
+    image: ghcr.io/cvaghela/service-dash:1.5.0@sha256:871e7c1f1c9dce42da09e7d1b5650eab24239001bb6f39a7153939ad3878b161
     container_name: service-dash
     ports:
       - target: 80
@@ -45,7 +45,7 @@ services:
     # the official store, which still packages a v1 main.zip for older clients,
     # and it documents the three settings worth changing at install time.
   kuma-auth:
-    image: ghcr.io/cvaghela/service-dash-kuma-auth:1.5.0
+    image: ghcr.io/cvaghela/service-dash-kuma-auth:1.5.0@sha256:f9d20fabf346ca74b2635b3664572ef32121b32326df8873772734c36bbf7575
     container_name: service-dash-kuma-auth
     environment:
       # Must point at the same Uptime Kuma as KUMA_PORT above.
@@ -69,7 +69,7 @@ services:
     restart: unless-stopped
 
   network-info:
-    image: ghcr.io/cvaghela/service-dash-network-info:1.5.0
+    image: ghcr.io/cvaghela/service-dash-network-info:1.5.0@sha256:9e56c50fd3bf3cda3c114ad19bb354b5f40a8770a65afb225307d08f2dbc5963
     container_name: service-dash-network-info
     network_mode: host
     read_only: true
@@ -164,7 +164,7 @@ services:
   #   docker compose exec claude-usage claude auth login
   claude-usage:
     profiles: ["ai-usage"]
-    image: ghcr.io/cvaghela/service-dash-claude-usage:1.5.0
+    image: ghcr.io/cvaghela/service-dash-claude-usage:1.5.0@sha256:fffbc36dbe7024c74254b16dbfdbd541afa41d3bbe4e2de90bdce44e654fa98c
     container_name: service-dash-claude-usage
     environment:
       # Plan windows move slowly; polling harder gains nothing.
@@ -193,7 +193,7 @@ services:
   #   docker exec -it service-dash-codex-usage codex login --device-auth
   codex-usage:
     profiles: ["ai-usage"]
-    image: ghcr.io/cvaghela/service-dash-codex-usage:1.5.0
+    image: ghcr.io/cvaghela/service-dash-codex-usage:1.5.0@sha256:a457795ad210c572322bca856407fd770450298019e580325c770dfb4d7c6fea
     container_name: service-dash-codex-usage
     environment:
       CODEX_USAGE_REFRESH_SECONDS: "300"
