@@ -105,12 +105,25 @@ PR, and it is now load-bearing in two ways that fail quietly if forgotten:
 
 - **`appstore/supported-languages.json` is what the v2 store build reads to
   decide which languages to emit, and it is the easiest half of this to
-  forget.** It listed only `en_US` while the app entry carried fifteen, so the
-  build flattened every translated field back to English: the published
-  `meta.json` shipped one language and the other fourteen translations reached
-  nobody, while sitting correctly in the repository the whole time. Every
-  locale in the app entry must appear there, and `store-config.json` needs a
-  `name` and `description` for each. `check-release.py` enforces both.
+  forget.** It listed only `en_US` while the app entry carried fifteen, so
+  fourteen translations sat correctly in the repository and reached nobody.
+  Every locale in the app entry must appear there, and `store-config.json`
+  needs a `name` and `description` for each. `check-release.py` enforces both.
+
+  **Check the right file when verifying this.** The build does not put the
+  locale maps into `meta.json`; it emits a *text overlay per language* beside
+  it — `meta.<locale>.json`, plus `index.<locale>.json` and
+  `store.<locale>.json` — each carrying only the translated `tagline`,
+  `description`, `tips.before_install` and `release_note`. `meta.json` itself
+  is the English default and holds flat strings **by design**. So a store
+  publishing correctly and one publishing English-only look identical in
+  `meta.json`; what tells them apart is whether the siblings exist:
+
+      git fetch origin gh-pages
+      git ls-tree -r --name-only origin/gh-pages | grep 'meta\..*\.json'
+
+  Fifteen locales means fourteen `meta.<locale>.json` files, because `en_US`
+  is the base rather than an overlay.
 - **`check-release.py` requires the current version in every locale's release
   notes, and requires all four fields to carry an identical locale set.** A
   language added to the description but not to the release notes is a
