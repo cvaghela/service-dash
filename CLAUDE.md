@@ -249,6 +249,15 @@ reads an unquoted `{` or `}` in a location regex as a block delimiter, so the
 `{0,30}` ends the directive mid-pattern and nginx dies at boot with "missing
 closing parenthesis" naming a regex nobody wrote.
 
+**The CI job names are load-bearing.** Every job in `validate.yml` is a
+required status check in the "Protect main" ruleset. Rename one, or add an
+image or an architecture, and the ruleset still demands the old context:
+GitHub waits forever for a status nobody will report, and every PR blocks on
+"Expected -- Waiting for status to be reported". Splitting that workflow into
+per-architecture builds did exactly this. Update the ruleset in the same change
+(Settings -> Rules -> Protect main), listing `Checks` plus one
+`Build <image> (<arch>)` per combination.
+
 **Every fix ships with something that fails if it comes back.** `scripts/`
 holds a guard per outage — network reachability (1.2.1), version drift and a
 store "What's New" frozen three releases back, services silently dropped by
