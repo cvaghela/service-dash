@@ -9,6 +9,15 @@ on:
 permissions:
   contents: read
 
+# NOTE: every job name below is a REQUIRED STATUS CHECK in the repository's
+# "Protect main" ruleset -- "Checks" plus one "Build <image> (<arch>)" per
+# combination. Renaming a job, or adding an image or architecture, orphans a
+# context: GitHub then waits forever for a status that will never be reported
+# and every pull request blocks with "Expected -- Waiting for status to be
+# reported". That happened when this file was split into per-architecture
+# builds. Change a name here and update the ruleset in the same breath
+# (Settings -> Rules -> Protect main), or the next PR cannot merge.
+
 jobs:
   # The static checks do not depend on any image, so they run once rather than
   # once per image per architecture.
