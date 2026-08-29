@@ -308,7 +308,7 @@ dashboard — only the plan name and the window figures cross over.
 
 ```bash
 # 1. Add the reporters. Finds your Compose file wherever it lives.
-sudo docker compose -f "$(sudo docker inspect service-dash --format '{{index .Config.Labels "com.docker.compose.project.config_files"}}')" --profile ai-usage up -d
+sudo docker compose -f "$(sudo docker inspect service-dash --format '{{index .Config.Labels "com.docker.compose.project.config_files"}}')" up -d
 
 # 2. Sign in once, to whichever you use. Both CLIs are inside their containers.
 sudo docker exec -it service-dash-claude-usage claude auth login
@@ -502,8 +502,8 @@ flowchart LR
 | `kuma-auth` | Asks Kuma whether a browser's token is real, so nginx can allow a settings write |
 | `network-info` | Reads the host's default route and looks up the WAN address |
 | `docker-metadata` | CetusGuard, allowing only read-only Docker **network** queries |
-| `claude-usage` | **Optional**, behind the `ai-usage` profile. Reads your Claude plan's usage limits and nothing else |
-| `codex-usage` | **Optional**, same profile. Reads your ChatGPT plan's Codex usage limits and nothing else |
+| `claude-usage` | Reads your Claude plan's usage limits and nothing else. Idle until you sign in |
+| `codex-usage` | Reads your ChatGPT plan's Codex usage limits and nothing else. Idle until you sign in |
 
 **LAN** comes from the host's actual default route, not the browser's address. `network-info` runs with host networking,
 reads the route directly, and writes the address, prefix, interface and gateway to a private volume the dashboard mounts
@@ -516,8 +516,8 @@ host's public IP and nothing else — no browser identifiers, no dashboard or Ku
 listing and inspection alone. Container creation, exec, logs and secrets stay blocked. It exists so `veth` interface
 names can be shown as container names.
 
-**AI usage.** The two reporters exist only if you started the `ai-usage` profile. They hold real logins, so it is worth
-being precise about what that buys. Each calls one endpoint returning usage percentages and reset times; neither reads
+**AI usage.** The two reporters run always and do nothing until you sign in. They can hold real logins, so it is
+worth being precise about what that buys. Each calls one endpoint returning usage percentages and reset times; neither reads
 conversations, projects or files. Neither publishes a port, and each writes only to its own status document — the login
 itself never appears there, and nothing leaves the host except the request to the provider.
 
@@ -655,7 +655,7 @@ Then hard-refresh the browser.
 
 ## Updating
 
-The current release is **1.5.0**; the Compose files in this repository reference the matching `1.5.0` images.
+The current release is **1.5.1**; the Compose files in this repository reference the matching `1.5.1` images.
 
 Most releases are drop-in:
 
@@ -673,9 +673,36 @@ install time.
 
 ### Upgrading from 1.4.2
 
-**The Compose file changed, so an image pull alone will not carry it.** Take the new file from the release page —
-`docker-compose.yml` for a standard host, `docker-compose.casaos.yml` for CasaOS/ZimaOS — or let the ZimaOS app store
-update the tile, which replaces it for you.
+**The Compose file changed, so an image pull alone will not carry it.** On a standard host, take
+`docker-compose.yml` from the release page.
+
+**On CasaOS/ZimaOS, updating the app is not enough.** A CasaOS app update rewrites the **image tags** in its managed
+Compose file and leaves the service list alone, so an install updated to 1.5.0 runs the new images without ever gaining
+`claude-usage` or `codex-usage`.
+
+**Check which case you are in — run the enable command and read what it says.** If the output lists
+`service-dash-claude-usage` among the containers, you are done; skip to the sign-in. If it lists only the five existing
+containers as `Running`, your Compose file has no reporters in it and you need the overlay below. That check takes a
+second and is reliable whichever way your install got here.
+
+```bash
+sudo curl -fsSL -o /DATA/AppData/service-dash/ai-usage.override.yml \
+  https://raw.githubusercontent.com/cvaghela/service-dash/main/docs/ai-usage.override.yml
+
+sudo docker compose \
+  -f "$(sudo docker inspect service-dash --format '{{index .Config.Labels "com.docker.compose.project.config_files"}}')" \
+  -f /DATA/AppData/service-dash/ai-usage.override.yml \
+  up -d
+```
+
+The dashboard container is recreated, because it needs a read-only mount to see what the reporters write. The overlay
+is harmless if your file already defines the services — Compose merges it and nothing changes — so when in doubt, use
+it.
+
+> **A note on fresh installs.** The store entry does define both services, and CasaOS copies a store app's service list
+> faithfully on install, so a fresh install *should* include them without the overlay. That path has not been tested end
+> to end, so it is written here as an expectation rather than a promise — use the check above, which does not depend on
+> it being true.
 
 Nothing breaks if you do not. The new services are optional and sit behind a Compose profile, so an existing deployment
 that only pulls images keeps working exactly as before; it simply will not offer the AI usage panel. The dashboard
@@ -683,12 +710,13 @@ serves the panel's route as a 404 when the reporters are absent, which it reads 
 
 What the new file adds:
 
-- Two optional services, `claude-usage` and `codex-usage`, both behind `profiles: ["ai-usage"]` — they start for nobody
-  by default
+- Two services, `claude-usage` and `codex-usage`. They run from the start and stay idle until you sign in — with no
+  credential each writes an honest "nobody has signed in yet" document, the panel stays hidden, and together they cost
+  about 12MB of RAM and no measurable CPU
 - The volumes they need: a shared status volume, plus one per provider for its login
 - A read-only mount of that status volume on the dashboard, so it can serve what they write
 
-If you never enable the profile, none of this runs and nothing about your deployment changes.
+If you never sign in, the reporters sit idle and nothing about your deployment changes.
 
 ### Upgrading from 1.3.1
 
@@ -744,8 +772,8 @@ and `assets/js/app.js` are what the browser runs, so a change is a file edit and
 # Build the Service Dash images from source
 docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
 
-# Include the optional AI reporters (they are far larger; skipped otherwise)
-docker compose -f docker-compose.yml -f docker-compose.build.yml --profile ai-usage build
+# The AI reporters are much larger than the rest; build them only when needed
+docker compose -f docker-compose.yml -f docker-compose.build.yml build claude-usage codex-usage
 
 # The checks CI runs
 docker compose -f docker-compose.yml config --quiet
@@ -753,6 +781,7 @@ docker compose -f docker-compose.casaos.yml config --quiet
 docker compose -f appstore/Apps/ServiceDash/docker-compose.yml config --quiet
 python3 scripts/check-compose-networks.py   # every nginx upstream is reachable
 python3 scripts/check-release.py            # one version, stated the same everywhere
+python3 scripts/check-service-additions.py  # a new service must come with an upgrade path
 sh -n entrypoint.sh network-info.sh claude-usage.sh codex-usage.sh
 node --check assets/js/app.js
 ```

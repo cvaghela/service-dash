@@ -2,7 +2,7 @@ name: service-dash
 
 services:
   service-dash:
-    image: ghcr.io/cvaghela/service-dash:1.5.0
+    image: ghcr.io/cvaghela/service-dash:1.5.1
     container_name: service-dash
     ports:
       # Change 8888 only when a different host port is required.
@@ -37,7 +37,7 @@ services:
   # Answers one question for nginx: is this browser really signed in to Uptime
   # Kuma? Without it, saving settings would have to trust the browser's word.
   kuma-auth:
-    image: ghcr.io/cvaghela/service-dash-kuma-auth:1.5.0
+    image: ghcr.io/cvaghela/service-dash-kuma-auth:1.5.1
     container_name: service-dash-kuma-auth
     environment:
       # Must point at the same Uptime Kuma as KUMA_PORT above — if you change
@@ -57,7 +57,7 @@ services:
     restart: unless-stopped
 
   network-info:
-    image: ghcr.io/cvaghela/service-dash-network-info:1.5.0
+    image: ghcr.io/cvaghela/service-dash-network-info:1.5.1
     container_name: service-dash-network-info
     network_mode: host
     read_only: true
@@ -122,18 +122,24 @@ services:
       - /run/dbus:/run/dbus:ro
     restart: unless-stopped
 
-  # Optional: reports your Claude plan usage to the dashboard panel.
+  # Reports your Claude plan usage to the dashboard panel.
   #
-  # Off unless you ask for it -- `docker compose --profile ai-usage up -d`.
-  # It carries Claude Code, so the image is far larger than the other sidecars,
-  # and it holds a full Claude login. Neither cost is worth paying for someone
-  # who does not want the panel, so nothing here runs by default.
+  # Runs always, and does nothing until you sign in: with no credential it
+  # writes an honest "nobody has signed in yet" document, the panel stays
+  # hidden, and it costs about 6MB of RAM and no measurable CPU.
   #
-  # One-time sign-in, after starting it:
-  #   docker compose exec claude-usage claude auth login
+  # It used to sit behind a Compose profile so it started for nobody. That was
+  # the wrong mechanism: a CasaOS app update rewrites image tags but does NOT
+  # add services a release introduced, so profile-gated services never reached
+  # anyone upgrading -- and the enable command the settings page printed found
+  # nothing to start. Shipping it present-but-idle makes "enable" a sign-in.
+  #
+  # The trade is the image size, which is large because it carries Claude Code.
+  # `docker compose stop claude-usage` if you never want it.
+  #
+  #   docker exec -it service-dash-claude-usage claude auth login
   claude-usage:
-    profiles: ["ai-usage"]
-    image: ghcr.io/cvaghela/service-dash-claude-usage:1.5.0
+    image: ghcr.io/cvaghela/service-dash-claude-usage:1.5.1
     container_name: service-dash-claude-usage
     environment:
       # Plan windows move slowly; polling harder gains nothing.
@@ -146,17 +152,15 @@ services:
       - no-new-privileges:true
     restart: unless-stopped
 
-  # Optional: reports your Codex plan usage to the dashboard panel.
-  # Same profile as claude-usage -- one switch turns the AI panel on, and each
-  # provider is connected (or not) by signing in to it.
+  # Reports your Codex plan usage to the dashboard panel. Same deal as
+  # claude-usage above: always present, idle until you sign in.
   #
   # One-time sign-in, after starting it. --device-auth is not optional in a
   # container: the default flow opens a browser at the container's own
   # localhost and hangs.
   #   docker exec -it service-dash-codex-usage codex login --device-auth
   codex-usage:
-    profiles: ["ai-usage"]
-    image: ghcr.io/cvaghela/service-dash-codex-usage:1.5.0
+    image: ghcr.io/cvaghela/service-dash-codex-usage:1.5.1
     container_name: service-dash-codex-usage
     environment:
       CODEX_USAGE_REFRESH_SECONDS: "300"

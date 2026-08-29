@@ -34,6 +34,7 @@ docker compose -f docker-compose.yml -f docker-compose.build.yml config --quiet
 docker compose -f appstore/Apps/ServiceDash/docker-compose.yml config --quiet
 python3 scripts/check-compose-networks.py   # every nginx upstream is reachable
 python3 scripts/check-release.py            # one version, stated the same everywhere
+python3 scripts/check-service-additions.py  # a new service must come with an upgrade path
 ```
 
 `check-compose-networks.py` exists because of that outage: it cross-references
@@ -41,6 +42,19 @@ every `proxy_pass` host in `nginx.conf.template` against each Compose file's
 networks. `check-release.py` takes the newest CHANGELOG heading as the intended
 version and fails if any image tag, asset cache-buster, or the README's
 current-release line disagrees.
+
+`check-service-additions.py` exists because 1.5.0 shipped a wrong claim rather
+than wrong code: it told CasaOS users the store update would bring the new
+services along. **A CasaOS app update rewrites image tags and does not add
+services.** Every static check passed, the images were right, the stack was
+healthy — and existing installs still could not enable the feature. If a release
+adds a service, the README's upgrade section must name it; the script enforces
+that, and `docs/ai-usage.override.yml` is the path for installs already out
+there.
+
+The wider rule that came out of it: **anything the smoke host can verify, verify
+before publishing it.** Upgrade instructions especially — they are read once, by
+people who cannot easily recover when they are wrong.
 
 Static checks cannot boot the stack. When a release changes anything about the
 Compose files, the images, or `entrypoint.sh`, say plainly that it has not been
@@ -111,7 +125,16 @@ Nothing enforces these, so they are easy to half-do:
 
 ## The AI usage reporter
 
-`claude-usage` is optional and profile-gated (`--profile ai-usage`). It is the
+`claude-usage` **runs always and idles until signed in**. It was profile-gated
+once; that was wrong, and the reason is worth keeping because it is invisible
+from this repository: **CasaOS silently drops any service that declares
+`profiles:`.** Proven by installing 1.5.0 fresh from the store — the resulting
+Compose file carried correct 1.5.0 image tags and no reporters, so it was not a
+stale CDN entry. A CasaOS *update* separately rewrites image tags without adding
+new services. Between them, a profile-gated service reaches ZimaOS users by no
+route at all, and the enable command the settings page printed found nothing to
+start. Present-but-idle costs ~6MB of RAM
+and makes "enable" a sign-in. Do not reintroduce a profile here. It is the
 only service that holds a credential, and the only one whose image carries
 Claude Code — which is why it starts for nobody by default. Adding it to the
 three Compose files means three different shapes: named volumes at the root,
@@ -197,7 +220,7 @@ value leaking in there is a value published. `describe_shape` builds it with
 
 ## The Codex usage reporter
 
-`codex-usage` is the second provider, on the same `ai-usage` profile. Three
+`codex-usage` is the second provider, on the same always-running footing. Three
 things about it are load-bearing and were each found the hard way on a real
 host:
 
