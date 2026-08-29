@@ -2,7 +2,7 @@ name: service-dash
 
 services:
   service-dash:
-    image: ghcr.io/cvaghela/service-dash:1.5.1
+    image: ghcr.io/cvaghela/service-dash:1.5.1@sha256:901ed40c7801436e1d5f254abf7624661a2ceb6c4b9772a063fe9ae43e918318
     container_name: service-dash
     ports:
       - target: 80
@@ -45,7 +45,7 @@ services:
     # the official store, which still packages a v1 main.zip for older clients,
     # and it documents the three settings worth changing at install time.
   kuma-auth:
-    image: ghcr.io/cvaghela/service-dash-kuma-auth:1.5.1
+    image: ghcr.io/cvaghela/service-dash-kuma-auth:1.5.1@sha256:6e34f5742eb2972f058e75797538b8e6d0d597af8a32a889ef30331939650196
     container_name: service-dash-kuma-auth
     environment:
       # Must point at the same Uptime Kuma as KUMA_PORT above.
@@ -69,7 +69,7 @@ services:
     restart: unless-stopped
 
   network-info:
-    image: ghcr.io/cvaghela/service-dash-network-info:1.5.1
+    image: ghcr.io/cvaghela/service-dash-network-info:1.5.1@sha256:5bb7446bdbc24c073ec560beff12c35346eab54b311517881688874874f2c935
     container_name: service-dash-network-info
     network_mode: host
     read_only: true
@@ -170,7 +170,7 @@ services:
   #
   #   docker exec -it service-dash-claude-usage claude auth login
   claude-usage:
-    image: ghcr.io/cvaghela/service-dash-claude-usage:1.5.1
+    image: ghcr.io/cvaghela/service-dash-claude-usage:1.5.1@sha256:9ce6a13af38118e3abf3bbe91c496802aa84ebbbe8465451472220f80e4b7360
     container_name: service-dash-claude-usage
     environment:
       # Plan windows move slowly; polling harder gains nothing.
@@ -197,7 +197,7 @@ services:
   # localhost and hangs.
   #   docker exec -it service-dash-codex-usage codex login --device-auth
   codex-usage:
-    image: ghcr.io/cvaghela/service-dash-codex-usage:1.5.1
+    image: ghcr.io/cvaghela/service-dash-codex-usage:1.5.1@sha256:6bd0cf62e1d8cb139a8a01c80c24108508fc7c1f01a744425ddbcdb11d82762d
     container_name: service-dash-codex-usage
     environment:
       CODEX_USAGE_REFRESH_SECONDS: "300"

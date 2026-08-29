@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "updated_at": "2026-08-29T07:02:03Z",
+  "updated_at": "2026-08-29T07:10:42Z",
   "app_count": 1,
   "base_url": "https://cvaghela.github.io/service-dash/pages",
   "apps": [
@@ -22,7 +22,7 @@
       "thumbnail": "/apps/io.github.cvaghela.servicedash/assets/thumbnail.webp",
       "compose_url": "/apps/io.github.cvaghela.servicedash/docker-compose.yml",
       "meta_url": "/apps/io.github.cvaghela.servicedash/meta.json",
-      "content_hash": "6d1f4f0d",
+      "content_hash": "0fa4ce0f",
       "version": "1.5.1"
     }
   ]
