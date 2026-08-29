@@ -339,6 +339,19 @@ x-casaos:
         Then open Service Dash on port **8888**.
   release_notes:
     en_US: |
-      1.3.2 fixes the storage picker on ZimaOS, which previously offered a
-      single "/" instead of the host's real mounts, and adds a social preview
-      and a rewritten README.
+      1.5.1 makes the AI usage panel actually reachable on ZimaOS. 1.5.0
+      shipped its two reporters behind a Compose profile, and CasaOS silently
+      drops any service that declares one -- so the panel could not be turned
+      on at all, by update or by fresh install. They are now ordinary services
+      that sit idle until you sign in, so enabling the feature is just:
+
+        sudo docker exec -it service-dash-claude-usage claude auth login
+
+      Idle they cost about 12MB of RAM and no measurable CPU. The trade is
+      disk: both images carry a vendor CLI and are pulled whether or not you
+      use them.
+
+      Also in this cycle, from 1.5.0: the AI usage panel itself -- how much of
+      your Claude and ChatGPT plan is left, as dials above the grid -- plus a
+      fix for iPhone Safari killing the tab after a few minutes of scrolling,
+      and dialogs no longer running under the notch.
