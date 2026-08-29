@@ -69,11 +69,15 @@ run, and recommend a smoke test on a real host.
    and the README's current-release line. `check-release.py` enforces every one
    of these except `update_at`.
 2. Date the CHANGELOG entry and add its link reference.
-3. Add a README "Upgrading from <previous>" section **whenever the Compose file
+3. Rewrite `x-casaos.release_notes` **in all fifteen locales**, not just
+   `en_US`. `check-release.py` checks each one separately and names the stale
+   ones; a single-locale update used to satisfy it, which is exactly how the
+   store's What's New sat at 1.3.2 for three releases.
+4. Add a README "Upgrading from <previous>" section **whenever the Compose file
    changes** — an image bump alone cannot carry a Compose edit, and saying so is
    the difference between a smooth upgrade and a restart loop.
-4. PR, wait for CI, merge.
-5. Tag and release. Pushing the tag is what triggers `publish-images.yml`; check
+5. PR, wait for CI, merge.
+6. Tag and release. Pushing the tag is what triggers `publish-images.yml`; check
    that all three images actually built.
 
 ## The ZimaOS app store
@@ -89,6 +93,34 @@ paths filter would drop it. The release commit that bumps `x-casaos.version` is
 what republishes the store, so step 1 above is what makes an update appear on
 users' tiles. A release that skips it ships new images that store users are
 never offered.
+
+### The store entry is translated, and that has upkeep
+
+`x-casaos.tagline`, `description`, `release_notes` and `tips.before_install`
+each carry the same fifteen locales — the set every app in IceWhale's store
+uses. `title` deliberately stays `en_US`: it is a product name.
+
+The set was added because IceWhale's maintainer asked for it on the upstream
+PR, and it is now load-bearing in two ways that fail quietly if forgotten:
+
+- **`check-release.py` requires the current version in every locale's release
+  notes, and requires all four fields to carry an identical locale set.** A
+  language added to the description but not to the release notes is a
+  half-translated store entry, and nothing else would have said so.
+- **`sync-appstore-upstream.py` swaps the install-Kuma sentence per locale.**
+  One sentence differs between the two stores — ours carries a single app so it
+  points at the official ZimaOS store for Uptime Kuma; theirs carries Kuma. The
+  swap was English-only when the tips were English-only. Translating the tips
+  without making the swap per-locale would have shipped fourteen translations
+  telling IceWhale's own users to go and find Kuma in somebody else's store.
+  Every locale's pair is required, so adding a language without its pair fails
+  the render rather than publishing a quietly wrong instruction.
+
+Product names, monitor names (`Plex local`), environment variables, ports and
+the on-screen **URL Locked** label stay in English in every locale. They are
+strings a user types or reads on screen, not prose: a translated `Plex local`
+names a monitor the pairing rule will not recognise, and a translated "URL
+Locked" sends someone hunting for text the interface never shows.
 
 ### Submitting to IceWhale's official store
 
