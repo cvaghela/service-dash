@@ -39,6 +39,26 @@ def newest_changelog_version(text: str) -> str | None:
     return m.group(1) if m else None
 
 
+def field_block(store: str, field: str) -> str:
+    """The body of a top-level x-casaos field, indented children included."""
+    match = re.search(rf"^  {field}:\n((?:(?:    |      |        ).*\n|\n)*)", store, re.M)
+    return match.group(1) if match else ""
+
+
+def split_locales(block: str) -> dict:
+    """Map locale -> its text, for a block of `<locale>: |` entries."""
+    out = {}
+    current = None
+    for line in block.split("\n"):
+        header = re.match(r"^\s+([a-z]{2}_[A-Z]{2}):\s*(.*)$", line)
+        if header:
+            current = header.group(1)
+            out[current] = header.group(2)
+        elif current is not None:
+            out[current] += "\n" + line
+    return out
+
+
 def main() -> int:
     problems: list[str] = []
 
@@ -95,16 +115,44 @@ def main() -> int:
     # offered 1.5.1 and described what 1.3.2 had fixed. Requiring the current
     # version to appear in it is crude, but it is enough to make the staleness
     # impossible to miss.
-    notes = re.search(r"^  release_notes:\n(?:.*\n)*?^\S", store + "\nX", re.M)
-    notes_text = notes.group(0) if notes else ""
+    notes_text = field_block(store, "release_notes")
     if not notes_text:
         problems.append(f"{STORE_COMPOSE}: no x-casaos.release_notes found")
-    elif version not in notes_text:
-        problems.append(
-            f"{STORE_COMPOSE}: x-casaos.release_notes does not mention {version} -- "
-            "it is what ZimaOS shows as What's New, so a stale one describes the "
-            "wrong release to everyone upgrading"
-        )
+    else:
+        # Per-locale, not a substring of the whole block. Once the notes are
+        # translated, "is the version in here somewhere" is satisfied by ONE
+        # updated locale while the other fourteen describe the previous
+        # release -- which is the same staleness this check was written for,
+        # merely harder to see.
+        by_locale = split_locales(notes_text)
+        if not by_locale:
+            problems.append(f"{STORE_COMPOSE}: x-casaos.release_notes has no locale entries")
+        for locale, body in sorted(by_locale.items()):
+            if version not in body:
+                problems.append(
+                    f"{STORE_COMPOSE}: x-casaos.release_notes[{locale}] does not mention "
+                    f"{version} -- it is what ZimaOS shows as What's New in that language, "
+                    "so a stale one describes the wrong release to everyone upgrading"
+                )
+
+    # Every translated field must carry the SAME locales. Adding a language to
+    # the description and forgetting the release notes leaves a store entry that
+    # is half translated, and nothing else would say so.
+    localised = {}
+    for field in ("tagline", "description", "release_notes"):
+        localised[field] = set(split_locales(field_block(store, field)))
+    tips = field_block(store, "tips")
+    if tips:
+        localised["tips.before_install"] = set(split_locales(tips))
+    reference = localised.get("description", set())
+    for field, locales in sorted(localised.items()):
+        if locales != reference:
+            missing = ", ".join(sorted(reference - locales)) or "none"
+            extra = ", ".join(sorted(locales - reference)) or "none"
+            problems.append(
+                f"{STORE_COMPOSE}: x-casaos.{field} locales do not match description "
+                f"(missing: {missing}; unexpected: {extra})"
+            )
 
     # The README tells people which images to pull.
     readme = (REPO / "README.md").read_text()
