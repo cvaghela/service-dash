@@ -15,24 +15,38 @@ concurrency:
   group: publish-${{ github.ref }}
   cancel-in-progress: false
 
+env:
+  REGISTRY_PREFIX: ghcr.io/cvaghela
+
 jobs:
-  publish:
-    name: Publish ${{ matrix.image }}
-    runs-on: ubuntu-latest
+  # Each architecture is built on a runner of that architecture and pushed by
+  # DIGEST only -- no tags yet. The `merge` job below then stitches the digests
+  # into one multi-arch tag.
+  #
+  # This used to be a single job building linux/amd64,linux/arm64 under QEMU.
+  # That produced intermittent `exit code: 132` -- SIGILL, logged as "qemu:
+  # uncaught target signal 4 (Illegal instruction) - core dumped" -- part way
+  # through `npm install` in the two reporter images, at roughly one build in
+  # three. On a release that is not a nuisance, it is a failed release, and
+  # re-running was the only remedy. Native runners remove the cause.
+  build:
+    name: Build ${{ matrix.image.name }} (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
       matrix:
+        arch: [amd64, arm64]
+        image:
+          - { name: service-dash, dockerfile: Dockerfile }
+          - { name: service-dash-network-info, dockerfile: Dockerfile.network-info }
+          - { name: service-dash-kuma-auth, dockerfile: Dockerfile.kuma-auth }
+          - { name: service-dash-claude-usage, dockerfile: Dockerfile.claude-usage }
+          - { name: service-dash-codex-usage, dockerfile: Dockerfile.codex-usage }
         include:
-          - image: service-dash
-            dockerfile: Dockerfile
-          - image: service-dash-network-info
-            dockerfile: Dockerfile.network-info
-          - image: service-dash-kuma-auth
-            dockerfile: Dockerfile.kuma-auth
-          - image: service-dash-claude-usage
-            dockerfile: Dockerfile.claude-usage
-          - image: service-dash-codex-usage
-            dockerfile: Dockerfile.codex-usage
+          - arch: amd64
+            runner: ubuntu-latest
+          - arch: arm64
+            runner: ubuntu-24.04-arm
 
     steps:
       - name: Check out source
@@ -45,10 +59,67 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4
+
+      - name: Build and push by digest
+        id: build
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
         with:
-          platforms: arm64
+          context: .
+          file: ${{ matrix.image.dockerfile }}
+          platforms: linux/${{ matrix.arch }}
+          # No tags here on purpose: a per-architecture image must never claim
+          # a release tag, or whichever job finishes last would win and publish
+          # a single-architecture image under it.
+          outputs: type=image,name=${{ env.REGISTRY_PREFIX }}/${{ matrix.image.name }},push-by-digest=true,name-canonical=true,push=true
+          cache-from: type=gha,scope=${{ matrix.image.name }}-${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image.name }}-${{ matrix.arch }}
+          provenance: mode=max
+          sbom: true
+
+      - name: Export the digest
+        run: |
+          mkdir -p /tmp/digests
+          echo "${{ steps.build.outputs.digest }}" > "/tmp/digests/${{ matrix.image.name }}.${{ matrix.arch }}"
+
+      - name: Upload the digest
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: digest-${{ matrix.image.name }}-${{ matrix.arch }}
+          path: /tmp/digests/${{ matrix.image.name }}.${{ matrix.arch }}
+          if-no-files-found: error
+          retention-days: 1
+
+  # Stitch each image's two per-architecture digests into one tagged manifest.
+  merge:
+    name: Publish ${{ matrix.image }}
+    runs-on: ubuntu-latest
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        image:
+          - service-dash
+          - service-dash-network-info
+          - service-dash-kuma-auth
+          - service-dash-claude-usage
+          - service-dash-codex-usage
+
+    steps:
+      - name: Download the digests
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: digest-${{ matrix.image }}-*
+          path: /tmp/digests
+          merge-multiple: true
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4
@@ -57,22 +128,50 @@ jobs:
         id: meta
         uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6
         with:
-          images: ghcr.io/cvaghela/${{ matrix.image }}
+          images: ${{ env.REGISTRY_PREFIX }}/${{ matrix.image }}
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=raw,value=latest,enable=${{ !contains(github.ref_name, '-') }}
 
-      - name: Build and publish image
-        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
-        with:
-          context: .
-          file: ${{ matrix.dockerfile }}
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha,scope=${{ matrix.image }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.image }}
-          provenance: mode=max
-          sbom: true
+      - name: Create the multi-architecture manifest
+        # TAGS arrives newline-separated; passing it through the environment
+        # keeps it out of the shell source, so nothing has to be quoted or
+        # heredoc'd inside YAML.
+        env:
+          TAGS: ${{ steps.meta.outputs.tags }}
+          IMAGE: ${{ env.REGISTRY_PREFIX }}/${{ matrix.image }}
+        run: |
+          set -eu
+          # Both architectures must be present. A tag backed by only one would
+          # leave x-casaos.architectures claiming an image that does not exist,
+          # and the app-store build then fails with no app produced at all.
+          count=$(find /tmp/digests -type f | wc -l)
+          if [ "$count" -ne 2 ]; then
+            echo "expected 2 digests for $IMAGE, found $count" >&2
+            find /tmp/digests -type f >&2
+            exit 1
+          fi
+
+          args=""
+          for t in $TAGS; do args="$args --tag $t"; done
+          for f in /tmp/digests/*; do args="$args $IMAGE@$(cat "$f")"; done
+
+          echo "creating: $args"
+          # shellcheck disable=SC2086
+          docker buildx imagetools create $args
+
+      - name: Verify both architectures are in the published tag
+        env:
+          TAGS: ${{ steps.meta.outputs.tags }}
+        run: |
+          set -eu
+          for tag in $TAGS; do
+            echo "inspecting $tag"
+            docker buildx imagetools inspect "$tag" --format '{{json .Manifest}}' \
+              | jq -r '.manifests[].platform | select(.architecture != "unknown") | .os + "/" + .architecture' \
+              | sort -u > /tmp/arches
+            cat /tmp/arches
+            grep -qx "linux/amd64" /tmp/arches || { echo "missing amd64 in $tag" >&2; exit 1; }
+            grep -qx "linux/arm64" /tmp/arches || { echo "missing arm64 in $tag" >&2; exit 1; }
+          done
