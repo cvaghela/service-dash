@@ -1,0 +1,5 @@
+{
+  "store_id": "cvaghela-service-dash",
+  "name": "Service Dash",
+  "description": "The Service Dash app source for ZimaOS. One app: a homelab dashboard that shows every service's local and public URL on one card, beside the live health of the host running them."
+}

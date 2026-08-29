@@ -1,0 +1,5 @@
+{
+  "store_id": "cvaghela-service-dash",
+  "name": "Service Dash",
+  "description": "面向 ZimaOS 的 Service Dash 应用源。仅含一个应用：一块家庭实验室仪表盘，把每个服务的局域网地址和公网地址放在同一张卡片上，旁边显示运行它们的主机的实时状态。"
+}

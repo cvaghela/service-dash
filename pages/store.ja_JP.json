@@ -1,0 +1,5 @@
+{
+  "store_id": "cvaghela-service-dash",
+  "name": "Service Dash",
+  "description": "ZimaOS 向けの Service Dash アプリソースです。収録アプリは 1 つ。各サービスのローカル URL と公開 URL を 1 枚のカードにまとめ、それらを動かしているホストの状態を隣に表示するホームラボ用ダッシュボードです。"
+}

@@ -1,0 +1,8 @@
+{
+  "apps": [
+    {
+      "id": "io.github.cvaghela.servicedash",
+      "tagline": "Die lokale und die öffentliche URL jedes Dienstes auf einer Karte, daneben der Live-Zustand des Rechners, auf dem sie laufen."
+    }
+  ]
+}

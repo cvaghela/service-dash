@@ -1,0 +1,5 @@
+{
+  "store_id": "cvaghela-service-dash",
+  "name": "Service Dash",
+  "description": "La source d'applications Service Dash pour ZimaOS. Une seule application : un tableau de bord homelab qui affiche l'URL locale et publique de chaque service sur une carte, à côté de l'état en direct de l'hôte qui les héberge."
+}

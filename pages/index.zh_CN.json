@@ -1,0 +1,8 @@
+{
+  "apps": [
+    {
+      "id": "io.github.cvaghela.servicedash",
+      "tagline": "每个服务的局域网地址和公网地址集中在一张卡片上，旁边是运行它们的主机的实时状态。"
+    }
+  ]
+}

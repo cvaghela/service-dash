@@ -1,0 +1,8 @@
+{
+  "apps": [
+    {
+      "id": "io.github.cvaghela.servicedash",
+      "tagline": "Lokalni i javni URL svake usluge na jednoj kartici, uz stanje uređaja na kojem rade u stvarnom vremenu."
+    }
+  ]
+}

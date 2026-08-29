@@ -1,0 +1,8 @@
+{
+  "apps": [
+    {
+      "id": "io.github.cvaghela.servicedash",
+      "tagline": "L'URL locale et l'URL publique de chaque service sur une seule carte, à côté de l'état en direct de la machine qui les héberge."
+    }
+  ]
+}

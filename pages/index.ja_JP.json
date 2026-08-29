@@ -1,0 +1,8 @@
+{
+  "apps": [
+    {
+      "id": "io.github.cvaghela.servicedash",
+      "tagline": "各サービスのローカル URL と公開 URL を 1 枚のカードにまとめ、それらを動かしているマシンの状態をリアルタイムで隣に表示します。"
+    }
+  ]
+}

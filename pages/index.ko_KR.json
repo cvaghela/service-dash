@@ -1,0 +1,8 @@
+{
+  "apps": [
+    {
+      "id": "io.github.cvaghela.servicedash",
+      "tagline": "각 서비스의 로컬 URL과 공개 URL을 한 카드에, 그 옆에는 이를 구동하는 장비의 실시간 상태를 함께."
+    }
+  ]
+}

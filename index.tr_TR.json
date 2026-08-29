@@ -1,0 +1,8 @@
+{
+  "apps": [
+    {
+      "id": "io.github.cvaghela.servicedash",
+      "tagline": "Her servisin yerel ve genel URL'si tek bir kartta, yanında bunları çalıştıran makinenin anlık durumu."
+    }
+  ]
+}

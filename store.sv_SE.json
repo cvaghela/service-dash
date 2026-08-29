@@ -1,0 +1,5 @@
+{
+  "store_id": "cvaghela-service-dash",
+  "name": "Service Dash",
+  "description": "Appkällan Service Dash för ZimaOS. En app: en homelab-instrumentpanel som visar varje tjänsts lokala och publika URL på ett kort, bredvid realtidsstatusen för värden som kör dem."
+}

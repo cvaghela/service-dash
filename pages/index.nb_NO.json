@@ -1,0 +1,8 @@
+{
+  "apps": [
+    {
+      "id": "io.github.cvaghela.servicedash",
+      "tagline": "Hver tjenestes lokale og offentlige URL på ett kort, ved siden av sanntidstilstanden til maskinen som kjører dem."
+    }
+  ]
+}

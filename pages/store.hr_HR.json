@@ -1,0 +1,5 @@
+{
+  "store_id": "cvaghela-service-dash",
+  "name": "Service Dash",
+  "description": "Izvor aplikacija Service Dash za ZimaOS. Jedna aplikacija: nadzorna ploča za homelab koja prikazuje lokalni i javni URL svake usluge na jednoj kartici, uz stanje poslužitelja na kojem rade u stvarnom vremenu."
+}

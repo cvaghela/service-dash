@@ -1,0 +1,5 @@
+{
+  "store_id": "cvaghela-service-dash",
+  "name": "Service Dash",
+  "description": "ZimaOS için Service Dash uygulama kaynağı. Tek uygulama: her servisin yerel ve genel URL'sini tek bir kartta, yanında bunları çalıştıran ana makinenin anlık durumuyla birlikte gösteren bir ev laboratuvarı panosu."
+}
