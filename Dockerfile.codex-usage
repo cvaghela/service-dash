@@ -1,0 +1,26 @@
+# The Codex usage reporter.
+#
+# Carries the Codex CLI for the same reason the Claude one carries Claude Code:
+# the usage endpoint needs a real ChatGPT login, and the CLI owns the credential
+# format, its refresh and the file it lives in. Reimplementing that here would
+# mean owning all three.
+#
+# Sign in with `codex login --device-auth`, NOT the plain `codex login`. The
+# default flow starts a callback server on the container's own localhost and
+# opens a browser at it -- unreachable from anywhere that matters, and it fails
+# by hanging rather than by saying so. Device auth prints a code instead.
+#
+# Runs as root, like every other sidecar here: both mounts are bind mounts on
+# ZimaOS/CasaOS, and a bind mount does not inherit ownership from the image the
+# way a named volume does, so an unprivileged user cannot write either of them.
+# `no-new-privileges` is set on the service instead.
+FROM node:22-alpine
+
+RUN apk add --no-cache curl jq \
+    && npm install -g @openai/codex \
+    && npm cache clean --force
+
+COPY codex-usage.sh /usr/local/bin/codex-usage
+RUN chmod 0555 /usr/local/bin/codex-usage
+
+CMD ["/usr/local/bin/codex-usage"]

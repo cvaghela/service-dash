@@ -14,7 +14,15 @@ import sys
 import pathlib
 
 REPO = pathlib.Path(__file__).resolve().parent.parent
-IMAGES = ["service-dash", "service-dash-kuma-auth", "service-dash-network-info"]
+IMAGES = [
+    "service-dash",
+    "service-dash-kuma-auth",
+    "service-dash-network-info",
+    # Optional at runtime, but its tag still has to move with the release --
+    # a stale one points the ai-usage profile at last version's reporter.
+    "service-dash-claude-usage",
+    "service-dash-codex-usage",
+]
 COMPOSE_FILES = [
     "docker-compose.yml",
     "docker-compose.casaos.yml",

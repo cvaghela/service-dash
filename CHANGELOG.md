@@ -3,6 +3,128 @@
 All notable changes to Service Dash are recorded here. This project follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.0] — 2026-08-29
+
+**Compose file changed.** A new optional service and, on ZimaOS/CasaOS, two new bind mounts. `docker compose pull` alone
+will not pick this up — take the new Compose file.
+
+### Added
+
+- **AI usage panel, starting with Claude.** An opt-in `claude-usage` sidecar signs in to your Claude account, reads your
+  plan's usage limits, and the dashboard shows them as dials above the service grid with a summary row per provider in
+  the sidebar. Session, weekly and the per-model windows; the tightest one is promoted so the number that will actually
+  stop you is the one you see first.
+
+  It sits behind a Compose profile (`--profile ai-usage`) and starts for nobody by default. Two reasons: the image
+  carries Claude Code and is far larger than the other sidecars, and it holds a real login. Neither is worth imposing on
+  someone who does not want the panel.
+
+  Server-side on purpose. Claude usage is account-wide and people use it from several devices; only a reporter on the
+  host that is always on sees the real total. A browser would report whatever that one machine happened to do.
+
+- **Codex, alongside Claude.** A second optional sidecar, `codex-usage`, reads your ChatGPT plan's Codex limits from
+  `https://chatgpt.com/backend-api/codex/usage` and renders in the same panel. Both sit behind the one `ai-usage`
+  profile: turn it on once and connect whichever you use — a provider you never sign in to simply does not appear.
+
+  Each reporter writes **its own document** (`claude.json`, `codex.json`) rather than sharing one, because two sidecars
+  writing one path would clobber each other and a lock between containers is a lot of machinery to avoid a rename. The
+  dashboard fetches each provider it knows about in parallel and merges them, so one reporter being down, absent or
+  signed out never describes another — verified.
+
+  Codex's response carries `email`, `user_id` and `account_id` next to the numbers. **Those are never copied into the
+  served document**, which has no authentication in front of it; only the plan name and the window figures cross over,
+  and the bug-report diagnostic emits field *names* only. There is a test for it.
+
+  Window labels are derived from the window's duration rather than looked up by id, so a plan whose windows differ
+  still reads correctly.
+
+- **The AI usage panel is hidden while signed out of Uptime Kuma**, joining the service URLs and the LAN and WAN
+  addresses. How much of your plan you have spent, and which plan you are on, is nobody else's business when the
+  dashboard is on a wall. Signing in or out applies immediately rather than at the next poll.
+
+  Screen-level, like the others: the documents behind it stay readable by anyone who can reach the dashboard. nginx
+  cannot verify a Kuma session on its own, and the one validator it consults passes every read by design.
+
+- **Gemini is listed as coming soon.** Its usage endpoint exists and is reachable, but authenticating to it from a
+  headless container is not solved, so the row carries no command — a sign-in button that goes nowhere is worse than an
+  honest gap. Nothing is fetched for it, so it costs no request.
+
+- **Settings → AI usage.** Three states, and the difference between them is the point: *Not running* is a Compose
+  change, *Sign-in needed* is one command in a container that is already up, and *Connected* says nothing at all,
+  because there is nothing left to do. Each state hands you the exact command, with a copy button.
+
+  Both commands run **from any folder**, carry `sudo`, and need nothing installed on the host but Docker. Nobody remembers where their
+  Compose file lives six months later — smoke-testing on a real ZimaOS box put it at
+  `/var/lib/casaos/apps/service-dash/docker-compose.yml` — so the enable command asks Docker, which stamped that path
+  onto the dashboard's own container when it created it. The sign-in runs Claude Code *inside* the reporter image and
+  addresses the container by name, so there is no Compose file and no host install involved at all.
+
+  The `sudo` is there because that same test proved it is required on ZimaOS twice over: CasaOS writes the Compose file
+  `0600 root:root`, and its users are not in the `docker` group by default, so even the inner `docker inspect` is
+  denied. Without it the command fails with a bare "permission denied" naming a file the reader has never seen.
+
+  The reporter says only **why** it is disconnected and whether signing in is the fix — so "Claude changed its response
+  shape" no longer offers a login that could not possibly help.
+
+- **A way out.** Once connected, Settings offers a quiet **Sign out** control that reveals `claude auth logout` for the
+  container. It stays folded away by default: disconnecting is rare, and a connected account should not look like it is
+  asking to be disconnected. Being connected was otherwise a dead end — the only documented path in was a path with no
+  exit.
+
+- **Report this on GitHub.** The one state no command can fix now has a button. It opens GitHub's new-issue form
+  prefilled with the Service Dash version and the field names the reporter did not recognise, so a report arrives with
+  the shape it broke on rather than "it stopped working". The reporter derives that list from names and window ids
+  only — never a value — so no usage figure, account detail or part of the login can ride along. It opens the form; you
+  decide whether to file it.
+
+- **A dropped request is not a signed-out account.** The reporter classifies what went wrong by HTTP status, and only
+  a 401 or 403 — the API looking at the credential and saying no — counts as a login problem. Everything else (no
+  network, DNS, a 5xx, a 429, a timeout) leaves the last good reading exactly where it is and lets the dashboard age it:
+  the timestamp dims at fifteen minutes and gives up at an hour. Polling every five minutes means these blips *will*
+  happen, and the alternative was telling someone to re-authenticate — and blanking the panel — over one lost packet.
+
+  Three remedies, so each state offers only what can actually help: `sign-in` (run the command), `report` (nothing you
+  can run fixes it; file the issue), `none` (transient; wait). A network hiccup no longer offers a bug report, and a
+  changed response shape no longer offers a login.
+
+- **New usage windows appear on their own.** The reporter labels the windows it knows about and passes through any
+  other one the endpoint offers, deriving a name from its id — so the day a model gets its own window it turns up as a
+  dial without waiting for a Service Dash release. It was a strict allowlist first, which would have silently ignored
+  exactly that, with no error and no way to tell "not reported" from "discarded". A window still has to carry both a
+  percentage and a reset time to be shown, which is what keeps the endpoint's internal fields out.
+
+### Fixed
+
+- **iPhone Safari killed the tab after a few minutes of scrolling** — "A problem repeatedly occurred", cured by a
+  reload, then recurring — and desktop scrolling was paying for the same thing without ever crashing. Every
+  `backdrop-filter` forces its own GPU compositing layer, and scrolling makes the compositor re-rasterise them.
+
+  **Area is what costs, not the number of elements.** One `.main` — the scroll container — held 84.6MB on a phone; the
+  78 small chrome elements held 3MB between them. `.glass`, `.card` and `.section` now carry no filter at any width, and
+  lose nothing visually: blurring a large flat surface that sits on a smooth gradient returns the same smooth gradient,
+  and before/after screenshots are indistinguishable.
+
+  Phone: **196MB → 14MB**. Desktop: **85MB → 7MB**, and scrolling went from ~23fps to ~42fps (average frame 39.3ms →
+  23.0ms), benchmarked in both orders to rule out warm-up bias. The topbar, pills, link rows, icon buttons and dialogs
+  all keep their glass, so the theme is unchanged — the sticky topbar declares its own filter, because cards scroll
+  under it and it is the one place the blur does real work.
+
+- **Dialogs ran under the iPhone notch and status bar.** 1.4.2 moved the *page* content clear of the notch, but
+  `.overlay` is `position: fixed`, so it is measured from the viewport and inherits none of that — its flat 18px padding
+  left the Settings heading sitting behind the clock. Its padding is now `max(18px, env(safe-area-inset-*))` per side.
+  `max()` rather than addition, so a device without a notch keeps exactly the 18px it had and nothing on the desktop
+  moves. The sign-in, settings and icon-picker dialogs all share `.overlay` and are fixed together.
+
+### Notes
+
+- Verified against the live endpoint on a real ZimaOS host. `resets_at` arrives as an ISO 8601 string with fractional
+  seconds and a UTC offset — not the epoch seconds first assumed — and per-model windows can be `null`. Only the
+  session and weekly windows carry data on a Max account today, and there is no separate Fable window.
+- The endpoint this reads is not part of Claude's documented API. If it changes, the panel disappears and Settings says
+  so, rather than showing a figure that quietly stopped being true.
+- `sh -n claude-usage.sh` and a build of `Dockerfile.claude-usage` are now part of CI, and `check-release.py` pins the
+  new image's tag along with the other three.
+
 ## [1.4.2] — 2026-08-28
 
 **Drop-in.** No Compose file changed shape — `docker compose pull && docker compose up -d` is the whole upgrade. Fixes the iPhone layout shipped in 1.4.1.
@@ -522,6 +644,7 @@ Housekeeping for the first public release. No functional changes to the dashboar
 
 See the [release history](https://github.com/cvaghela/service-dash/releases).
 
+[1.5.0]: https://github.com/cvaghela/service-dash/releases/tag/v1.5.0
 [1.4.2]: https://github.com/cvaghela/service-dash/releases/tag/v1.4.2
 [1.4.1]: https://github.com/cvaghela/service-dash/releases/tag/v1.4.1
 [1.4.0]: https://github.com/cvaghela/service-dash/releases/tag/v1.4.0

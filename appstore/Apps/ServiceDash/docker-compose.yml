@@ -2,7 +2,7 @@ name: service-dash
 
 services:
   service-dash:
-    image: ghcr.io/cvaghela/service-dash:1.4.2
+    image: ghcr.io/cvaghela/service-dash:1.5.0
     container_name: service-dash
     ports:
       - target: 80
@@ -25,6 +25,12 @@ services:
       - type: bind
         source: /DATA/AppData/service-dash/network-info
         target: /var/run/network-info
+        read_only: true
+      # Written by the optional claude-usage reporter. Absent unless that
+      # profile is running, which nginx handles by 404ing the route.
+      - type: bind
+        source: /DATA/AppData/service-dash/ai-usage
+        target: /var/run/ai-usage
         read_only: true
       # Holds shared card settings. Only written when SHARED_SETTINGS is "on".
       - type: bind
@@ -53,7 +59,7 @@ services:
   # Answers one question for nginx: is this browser really signed in to Uptime
   # Kuma? Without it, saving settings would have to trust the browser's word.
   kuma-auth:
-    image: ghcr.io/cvaghela/service-dash-kuma-auth:1.4.2
+    image: ghcr.io/cvaghela/service-dash-kuma-auth:1.5.0
     container_name: service-dash-kuma-auth
     environment:
       # Must point at the same Uptime Kuma as KUMA_PORT above.
@@ -77,7 +83,7 @@ services:
     restart: unless-stopped
 
   network-info:
-    image: ghcr.io/cvaghela/service-dash-network-info:1.4.2
+    image: ghcr.io/cvaghela/service-dash-network-info:1.5.0
     container_name: service-dash-network-info
     network_mode: host
     read_only: true
@@ -161,6 +167,63 @@ services:
           - netdata
     restart: unless-stopped
 
+  # Optional: reports your Claude plan usage to the dashboard panel.
+  #
+  # Off unless you ask for it -- `docker compose --profile ai-usage up -d`.
+  # It carries Claude Code, so the image is far larger than the other sidecars,
+  # and it holds a full Claude login. Neither cost is worth paying for someone
+  # who does not want the panel, so nothing here runs by default.
+  #
+  # One-time sign-in, after starting it:
+  #   docker compose exec claude-usage claude auth login
+  claude-usage:
+    profiles: ["ai-usage"]
+    image: ghcr.io/cvaghela/service-dash-claude-usage:1.5.0
+    container_name: service-dash-claude-usage
+    environment:
+      # Plan windows move slowly; polling harder gains nothing.
+      CLAUDE_USAGE_REFRESH_SECONDS: "300"
+    volumes:
+      - type: bind
+        source: /DATA/AppData/service-dash/ai-usage
+        target: /status
+      # The login. Without this a container rebuild signs you out.
+      - type: bind
+        source: /DATA/AppData/service-dash/claude-auth
+        target: /root/.claude
+    networks:
+      service-dash-network:
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
+
+  # Optional: reports your Codex plan usage to the dashboard panel.
+  # Same profile as claude-usage -- one switch turns the AI panel on, and each
+  # provider is connected (or not) by signing in to it.
+  #
+  # One-time sign-in, after starting it. --device-auth is not optional in a
+  # container: the default flow opens a browser at the container's own
+  # localhost and hangs.
+  #   docker exec -it service-dash-codex-usage codex login --device-auth
+  codex-usage:
+    profiles: ["ai-usage"]
+    image: ghcr.io/cvaghela/service-dash-codex-usage:1.5.0
+    container_name: service-dash-codex-usage
+    environment:
+      CODEX_USAGE_REFRESH_SECONDS: "300"
+    volumes:
+      - type: bind
+        source: /DATA/AppData/service-dash/ai-usage
+        target: /status
+      - type: bind
+        source: /DATA/AppData/service-dash/codex-auth
+        target: /root/.codex
+    networks:
+      service-dash-network:
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
+
 networks:
   service-dash-network:
     name: service-dash-network
@@ -176,8 +239,8 @@ x-casaos:
   architectures:
     - amd64
     - arm64
-  version: "1.4.2"
-  update_at: "2026-08-28"
+  version: "1.5.0"
+  update_at: "2026-08-29"
   author: Chintan Vaghela
   developer: Chintan Vaghela
   icon: https://cdn.jsdelivr.net/gh/cvaghela/service-dash@main/appstore/Apps/ServiceDash/icon.png
@@ -200,8 +263,9 @@ x-casaos:
       dashboard. Each service gets one card carrying both of its addresses --
       the internal (local) URL you use at home and the external (public) URL you
       use away from it -- so you open either one without keeping a second
-      bookmark list. A switch in the top bar moves every card between the two at
-      once.
+      bookmark list. Each card opens whichever address the browser you are
+      holding can actually reach -- LAN at home, public when you are out --
+      decided per card, with a manual switch still there if you want it.
 
       The pairing comes from Uptime Kuma itself: two monitors named `Plex` and
       `Plex local` become one card with two addresses. Nothing to configure --
@@ -213,13 +277,14 @@ x-casaos:
 
       **What it does**
 
-      - Local and public URLs side by side on one card, switched together
+      - Local and public URLs on one card, opening whichever one you can reach
       - Live up/down state pulled straight from your Uptime Kuma status page
       - Host CPU, RAM, storage and network throughput from a bundled Netdata Agent
       - Around 2,900 service icons, searchable, or paste an image link
       - Per-card icon and Docker container mapping, shared across every browser
       - A shared notes panel, gated behind your Uptime Kuma sign-in
       - Addresses stay locked signed out, and unreadable until pointed at signed in
+      - Optional: how much of your Claude or ChatGPT plan is left, on the wall
       - No build step, no account, no telemetry -- static files behind nginx
 
       **Requires an Uptime Kuma instance already running on this host.** See the

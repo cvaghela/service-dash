@@ -29,6 +29,10 @@ jobs:
             dockerfile: Dockerfile.network-info
           - image: service-dash-kuma-auth
             dockerfile: Dockerfile.kuma-auth
+          - image: service-dash-claude-usage
+            dockerfile: Dockerfile.claude-usage
+          - image: service-dash-codex-usage
+            dockerfile: Dockerfile.codex-usage
 
     steps:
       - name: Check out source

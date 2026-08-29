@@ -37,6 +37,10 @@
     --muted: rgb(255, 255, 255, 0.62);
     --muted-2: rgb(255, 255, 255, 0.45);
     --chip: rgb(255, 255, 255, 0.08);
+    /* Severity as TEXT. Separate from the stroke/fill colours below, which are
+       tuned for graphics on a dark ground and fail contrast when used on type. */
+    --sev-warn-text: rgb(255, 200, 90);
+    --sev-crit-text: rgb(255, 130, 142);
     /* neon accents (RGB triplets) */
     --pink: 255 77 223;
     --purple: 147 84 255;
@@ -592,6 +596,9 @@ html[data-accent="plum"],
     --chip: rgb(0, 0, 0, 0.05);
     --shadow-1: 0 12px 28px rgb(12, 16, 40 / 0.14);
     --shadow-2: 0 26px 80px rgb(12, 16, 40 / 0.18);
+    /* Darkened for a light ground; the ring keeps the vivid colour. */
+    --sev-warn-text: #7a5200;
+    --sev-crit-text: #b00020;
 }
 * {
     box-sizing: border-box;
@@ -738,8 +745,9 @@ html {
     border: 1px solid var(--stroke);
     border-radius: var(--radius-xl);
     box-shadow: var(--shadow-1);
-    backdrop-filter: blur(var(--blur-strong));
-    -webkit-backdrop-filter: blur(var(--blur-strong));
+    /* No backdrop-filter here, deliberately -- see the note by .topbar. Blurring
+       a large flat surface that sits on a smooth gradient returns the same
+       smooth gradient: it costs a full-size GPU layer and shows nothing. */
     position: relative;
     overflow: hidden;
 }
@@ -839,6 +847,15 @@ html {
        sticky offset below is a different measurement -- it is relative to the
        viewport, not to .app -- and does still need it. */
     padding-top: 14px;
+    /* The one large-ish surface that keeps its blur, and it earns it: .topbar
+       is position:sticky, so cards scroll UNDER it. Without the filter it
+       becomes a window onto whatever is passing behind, and a near-opaque
+       substitute reads as a flat slab that no longer matches the sign-in and
+       settings panels. At ~2MB on desktop and ~4MB on a phone it is a rounding
+       error next to the containers that gave theirs up. */
+    backdrop-filter: blur(var(--blur-strong));
+    -webkit-backdrop-filter: blur(var(--blur-strong));
+
     /* Keep the top bar pinned while scrolling */
     position: sticky;
     top: calc(16px + env(safe-area-inset-top));
@@ -1354,8 +1371,9 @@ html {
     border-radius: var(--radius-lg);
     border: 1px solid var(--stroke);
     background: var(--panel-2);
-    backdrop-filter: blur(var(--blur-medium));
-    -webkit-backdrop-filter: blur(var(--blur-medium));
+    /* No backdrop-filter here, deliberately -- see the note by .topbar. Blurring
+       a large flat surface that sits on a smooth gradient returns the same
+       smooth gradient: it costs a full-size GPU layer and shows nothing. */
     overflow: hidden;
 }
 .section[data-open="false"] .chev {
@@ -1427,7 +1445,11 @@ html {
     color: var(--text);
     font-variant-numeric: tabular-nums;
 }
-.metric .label > span:last-child {
+/* A trailing span is the row's VALUE and is styled like one. It has to be
+   trailing *and* not the only child: a label with a single span is a heading
+   with no value, and without :not(:first-child) it renders in value weight and
+   full-strength text, looking like a section title among its muted siblings. */
+.metric .label > span:last-child:not(:first-child) {
     color: var(--text);
     font-weight: 750;
     text-align: right;
@@ -1467,7 +1489,11 @@ html {
     border-top-color: rgb(0, 0, 0, 0.08);
 }
 .metric-submetric .load-bar {
-    height: 10px;
+    /* No height here on purpose: every bar in Host Metrics is the 8px set by
+       .bar, and this one inherits it so there is a single source of truth.
+       It previously carried its own height, which drifted from the others and
+       could not be corrected from a bare ".load-bar" rule -- this selector is
+       0,2,0 and outranks it. Only the spacing is local. */
     margin-top: 10px;
 }
 /* A quiet control, not a second panel. */
@@ -1587,9 +1613,6 @@ html {
     border: 0;
     background: rgb(255, 255, 255, 0.1);
     overflow: hidden;
-}
-.load-bar {
-    height: 5px;
 }
 [data-theme="light"] .bar {
     background: rgb(0, 0, 0, 0.1);
@@ -1865,8 +1888,9 @@ html {
     border: 1px solid var(--stroke);
     background: linear-gradient(180deg, rgb(255, 255, 255, 0.11), rgb(255, 255, 255, 0.06));
     background-color: rgb(255, 255, 255, 0.06);
-    backdrop-filter: blur(var(--blur-medium));
-    -webkit-backdrop-filter: blur(var(--blur-medium));
+    /* No backdrop-filter here, deliberately -- see the note by .topbar. Blurring
+       a large flat surface that sits on a smooth gradient returns the same
+       smooth gradient: it costs a full-size GPU layer and shows nothing. */
     box-shadow: 0 10px 30px rgb(0, 0, 0, 0.14);
     position: relative;
     overflow: hidden;
@@ -2568,7 +2592,301 @@ html {
     text-size-adjust: 100%;
 }
 
-/* Toast */
+/* AI usage. Two views, one job each: the sidebar rows answer "am I about to
+   run out", the main-column cards answer "of what, exactly". Neither renders
+   what the other does. */
+
+.icon-sprite {
+    position: absolute;
+    width: 0;
+    height: 0;
+    overflow: hidden;
+}
+
+/* ---- sidebar summary rows ---- */
+
+.ai-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.ai-row {
+    display: grid;
+    grid-template-columns: 18px 1fr auto;
+    align-items: center;
+    gap: 9px;
+    width: 100%;
+    padding: 7px 9px;
+    border-radius: 12px;
+    border: 1px solid transparent;
+    background: rgb(255, 255, 255, 0.04);
+    color: var(--text);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition:
+        background var(--t-fast) ease,
+        border-color var(--t-fast) ease;
+}
+
+.ai-row:hover,
+.ai-row:focus-visible {
+    background: rgb(255, 255, 255, 0.08);
+    border-color: var(--stroke);
+}
+
+/* Provider marks used to be hardcoded to Claude's terracotta, which is why the
+   OpenAI mark on the Codex row rendered orange -- it was inheriting another
+   vendor's brand colour. The default is now the surrounding text colour, and
+   only a provider with a known solid brand colour overrides it. Marks that
+   ship their own gradient (Gemini) set no colour at all and paint themselves. */
+.ai-row-icon {
+    display: inline-flex;
+    width: 18px;
+    height: 18px;
+    color: currentColor;
+}
+
+.ai-row[data-provider="claude"] .ai-row-icon,
+.ai-card[data-provider="claude"] .ai-row-icon {
+    color: #d97757;
+}
+
+/* Only providers whose mark is a monochrome path take a tint. Codex and
+   Gemini both ship their own colours, so they are left alone -- tinting them
+   would flatten a multi-colour mark to a silhouette. */
+.ai-row[data-provider="openai"] .ai-row-icon,
+.ai-card[data-provider="openai"] .ai-row-icon {
+    color: #10a37f;
+}
+
+.ai-row-icon svg {
+    width: 100%;
+    height: 100%;
+}
+
+/* A provider with no mark of its own still gets an identity rather than a
+   blank square, the same way a service card falls back to a monogram. */
+.ai-monogram {
+    display: grid;
+    place-items: center;
+    width: 18px;
+    height: 18px;
+    border-radius: 6px;
+    background: rgb(var(--purple) / 0.25);
+    color: rgb(var(--purple));
+    font-size: 10px;
+    font-weight: 800;
+}
+
+.ai-row-name {
+    font-size: 13px;
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ai-row-figure {
+    font-size: 11.5px;
+    font-variant-numeric: tabular-nums;
+    color: var(--muted);
+    white-space: nowrap;
+}
+
+/* Severity reaches the row, so a provider near its limit reads without the
+   detail being open. */
+.ai-row[data-level="warn"] .ai-row-figure {
+    color: var(--sev-warn-text);
+}
+
+.ai-row[data-level="critical"] .ai-row-figure {
+    color: var(--sev-crit-text);
+}
+
+.ai-row[data-level="critical"] {
+    border-color: rgb(var(--red) / 0.35);
+}
+
+/* ---- main-column detail ---- */
+
+.ai-detail {
+    margin-bottom: 14px;
+}
+
+/* The reason this view exists: three providers side by side, which the narrow
+   sidebar cannot do. Wraps to one column on a phone. */
+.ai-detail-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 14px;
+}
+
+.ai-card {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 14px 16px 16px;
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--stroke);
+    background: rgb(255, 255, 255, 0.05);
+}
+
+.ai-card-head {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+}
+
+.ai-card-head h4 {
+    margin: 0;
+    font-family: var(--font-head);
+    font-size: 14.5px;
+    font-weight: 650;
+}
+
+/* Purple text on a purple wash measured 2.42:1 -- below WCAG AA for large text,
+   let alone at 10.5px. The chip keeps its identity from the background and
+   takes its legibility from the text colour, which is the pairing that works
+   in both themes: near-white on dark, near-black on light. */
+.ai-plan {
+    margin-left: auto;
+    padding: 3px 10px;
+    border-radius: 999px;
+    background: rgb(var(--purple) / 0.32);
+    color: var(--text);
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+/* ---- the dials ---- */
+
+/* Every measure gets the same dial. Nothing is promoted, so nothing can be
+   misread as subordinate -- the problem the earlier hero layout had. Severity
+   colour does the urgency on its own. */
+.ai-dials-label {
+    display: block;
+    font-size: 9.5px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted-2);
+    margin-bottom: -4px;
+}
+
+.ai-dials {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(72px, 1fr));
+    gap: 12px 8px;
+}
+
+.ai-dial {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
+    text-align: center;
+    min-width: 0;
+}
+
+.ai-dial-ring {
+    position: relative;
+    width: 54px;
+    height: 54px;
+    flex: none;
+}
+
+.ai-dial-ring svg {
+    width: 100%;
+    height: 100%;
+    /* Start at twelve o'clock and run clockwise, so it reads as a dial. */
+    transform: rotate(-90deg);
+}
+
+.ai-dial-ring circle {
+    fill: none;
+    stroke-width: 5;
+    stroke-linecap: round;
+}
+
+.ai-dial-track {
+    stroke: rgb(255, 255, 255, 0.1);
+}
+
+.ai-dial-arc {
+    stroke: rgb(var(--teal));
+    transition: stroke-dashoffset var(--t-med) ease;
+}
+
+/* Same cool-to-hot ramp as everywhere else, so red means one thing across the
+   whole panel. Deliberately not the theme accent: these show a budget being
+   spent, where colour has to carry meaning. */
+.ai-dial[data-level="warn"] .ai-dial-arc {
+    stroke: rgb(var(--amber));
+}
+
+.ai-dial[data-level="critical"] .ai-dial-arc {
+    stroke: rgb(var(--red));
+}
+
+.ai-dial-ring b {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    font-family: var(--font-head);
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    font-variant-numeric: tabular-nums;
+}
+
+.ai-dial[data-level="warn"] .ai-dial-ring b {
+    color: var(--sev-warn-text);
+}
+
+.ai-dial[data-level="critical"] .ai-dial-ring b {
+    color: var(--sev-crit-text);
+}
+
+.ai-dial-name {
+    font-size: 9.5px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted-2);
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ai-dial-reset {
+    font-size: 10px;
+    color: var(--muted-2);
+    font-variant-numeric: tabular-nums;
+}
+
+/* The age line is the panel's honesty: it fades as figures get older and
+   changes wording once they cannot be presented as current. */
+.claude-age {
+    margin: auto 0 0;
+    font-size: 11.5px;
+}
+
+.claude-age[data-state="stale"] {
+    opacity: 0.7;
+}
+
+.claude-age[data-state="dead"] {
+    color: rgb(var(--amber) / 0.9);
+    opacity: 1;
+}
+
+/* Toast *//* Toast */
 .toast {
     position: fixed;
     bottom: 18px;
@@ -2745,7 +3063,16 @@ html {
     overflow-y: auto;
     /* Scrolling the panel must not scroll the dashboard behind it. */
     overscroll-behavior: contain;
-    padding: 18px;
+    /* The safe area belongs here even though `.app` already carries it, and
+       this is the exception the inset rule names: `.overlay` is position:fixed,
+       so its box is measured from the VIEWPORT, not from `.app`, and inherits
+       none of that margin. With a flat 18px the settings heading sat under the
+       iPhone clock and notch -- the same bug as the main screen, in the one
+       place the main screen's fix cannot reach.
+       max(), not addition: with no notch every inset is zero, the 18px stands,
+       and nothing about the desktop layout moves. */
+    padding: max(18px, env(safe-area-inset-top)) max(18px, env(safe-area-inset-right))
+        max(18px, env(safe-area-inset-bottom)) max(18px, env(safe-area-inset-left));
     background: rgb(0, 0, 0, 0.3);
     backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(10px);
@@ -4019,4 +4346,180 @@ body.mobile-topbar-open .mobile-menu-icon span:nth-child(3) {
 .settingsAbout a:focus-visible {
     outline: 2px solid rgb(var(--accent-2) / 0.85);
     outline-offset: 2px;
+}
+
+/* ---------- settings: connecting an AI provider ---------- */
+
+/* A .setRow is two columns; this one needs a third row spanning both for the
+   command, so it takes the grid rather than nesting another flex box. */
+.aiSetup {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+    gap: 10px 16px;
+}
+.aiSetupPlan {
+    margin-left: 6px;
+    font-weight: 500;
+    color: var(--muted);
+}
+.aiSetupPlan::before {
+    /* A literal space here collapses; the separator needs a hard one. */
+    content: "·\00a0";
+}
+.aiSetupState {
+    justify-self: end;
+    padding: 3px 9px;
+    border: 1px solid var(--stroke);
+    border-radius: 999px;
+    font-family: var(--font-head);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+    color: var(--muted);
+}
+/* No background fill. In light mode the dialog sits on a 30% black scrim, so
+   the ground under this pill composites to rgb(185,185,190) -- the darkest
+   surface in the app, and far darker than the card ground the --sev-* tokens
+   were measured against. A tinted fill darkened it further and pushed both
+   states under AA; the ring carries the colour instead. Measured on that real
+   composite: ok 11.11:1 dark / 4.80:1 light, wait 9.31:1 / 5.07:1. */
+.aiSetupState[data-state="on"] {
+    color: rgb(var(--green));
+    border-color: rgb(var(--green) / 0.5);
+}
+.aiSetupState[data-state="wait"] {
+    color: var(--sev-warn-text);
+    border-color: color-mix(in srgb, var(--sev-warn-text) 50%, transparent);
+}
+/* Coming soon: deliberately the quietest state on the panel. It is a note about
+   the roadmap, not a thing to act on, so it reads as dimmer than a connected
+   provider rather than competing with one. */
+.aiSetupState[data-state="soon"] {
+    color: var(--muted-2);
+    border-style: dashed;
+}
+.aiSetup:has(.aiSetupState[data-state="soon"]) .setRowText b {
+    color: var(--muted);
+}
+
+/* --sev-warn-text is tuned for the card ground and only reaches 3.55:1 here. */
+[data-theme="light"] .aiSetupState[data-state="on"] {
+    color: #0f5132;
+    border-color: rgb(15, 81, 50, 0.45);
+}
+[data-theme="light"] .aiSetupState[data-state="wait"] {
+    color: #5c3d00;
+    border-color: rgb(92, 61, 0, 0.45);
+}
+.aiSetupAction[hidden] {
+    display: none;
+}
+.aiSetupAction {
+    grid-column: 1 / -1;
+    display: grid;
+    gap: 8px;
+    /* Without this the nowrap command below sets this item's min-content width,
+       which widens the parent grid's track and pushes the whole block out past
+       the dialog -- taking the Copy button off screen with it. */
+    min-width: 0;
+}
+.aiSetupAction .subtle {
+    white-space: normal;
+    line-height: 1.45;
+}
+/* `display: flex` outranks the UA rule behind the hidden attribute, so a
+   hidden command block would otherwise render as an empty bar. */
+.aiSetupCmd[hidden] {
+    display: none;
+}
+.aiSetupCmd {
+    display: grid;
+    gap: 6px 8px;
+    justify-items: end;
+    min-width: 0;
+    padding: 10px 12px;
+    border: 1px solid var(--stroke);
+    border-radius: 12px;
+    background: rgb(0, 0, 0, 0.22);
+}
+.aiSetupCmdHint {
+    justify-self: stretch;
+    font-family: var(--font-head);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    /* --muted-2 measures 4.36:1 here and fails AA. This block is the darkest
+       surface in the app -- a translucent dialog over a 30% black scrim -- and
+       this is its smallest type, so it takes the token that clears AA rather
+       than the one that merely looks quiet. */
+    color: var(--muted);
+}
+/* --muted is only 3.77:1 on the same block in light mode; 0.72 alpha reaches
+   4.81:1. */
+[data-theme="light"] .aiSetupCmdHint {
+    color: rgb(18, 18, 30, 0.72);
+}
+.aiSetupCmd code {
+    justify-self: stretch;
+    min-width: 0;
+    /* Wraps rather than scrolls. These commands locate your Compose file and
+       container for you, which makes them long, and a sideways-scrolling bar
+       hides both the end of the command and the Copy button. Wrapping is only
+       visual -- the copied text is one line either way -- and nobody has to
+       retype it, which is what the no-wrap rule here used to protect. */
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    line-height: 1.55;
+    font-size: 12px;
+    color: var(--text);
+}
+/* The dark fill is right on a dark ground and merely legible on a light one
+   (5.33:1). A lighter one reads at 7.43:1 and matches the dialog's other light
+   surfaces instead of punching a hole in them. */
+[data-theme="light"] .aiSetupCmd {
+    background: rgb(0, 0, 0, 0.06);
+}
+.aiSetupCopy {
+    flex: 0 0 auto;
+    padding: 4px 12px;
+    font-size: 12px;
+}
+/* A link, not a submit: it opens GitHub's prefilled issue form and the reader
+   files it (or does not). Sized to sit alone on its row rather than stretch. */
+.aiSetupReport {
+    justify-self: start;
+    padding: 5px 13px;
+    font-size: 12px;
+    text-decoration: none;
+}
+.aiSetupReport[hidden] {
+    display: none;
+}
+/* A real button. This started as an underlined text link on the reasoning that
+   disconnecting is rare -- but "quiet" and "hard to find" are not the same
+   thing, and the only exit from a connected account should not be the faintest
+   control on the panel. It takes the same pill as Copy and Report, with a
+   warm-tinted edge so it reads as the one control here that changes state
+   rather than copies something. */
+.aiSetupSignOut {
+    justify-self: start;
+    padding: 6px 14px;
+    font-family: var(--font-head);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--sev-warn-text);
+    border-color: color-mix(in srgb, var(--sev-warn-text) 45%, var(--stroke));
+    touch-action: manipulation;
+}
+/* --sev-warn-text is measured for the card ground, not for this one: inside the
+   dialog it sits over a 30% black scrim and drops to 3.55:1. */
+[data-theme="light"] .aiSetupSignOut {
+    color: #5c3d00;
+    border-color: rgb(92, 61, 0, 0.45);
+}
+.aiSetupSignOut[hidden] {
+    display: none;
 }

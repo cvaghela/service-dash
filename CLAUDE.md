@@ -1,7 +1,7 @@
 # Service Dash — working notes
 
 A framework-free Uptime Kuma dashboard: static HTML, CSS and one JavaScript
-file, served by nginx in Docker, with two small sidecars. There is no build
+file, served by nginx in Docker, with a handful of small sidecars. There is no build
 step — `assets/js/app.js` is the file the browser runs.
 
 ## Releasing
@@ -109,6 +109,122 @@ Nothing enforces these, so they are easy to half-do:
 3. `README.md` — the Requirements bullet naming the published images
 4. `README.md` — the "Linux ARM64" row in the Platform support table
 
+## The AI usage reporter
+
+`claude-usage` is optional and profile-gated (`--profile ai-usage`). It is the
+only service that holds a credential, and the only one whose image carries
+Claude Code — which is why it starts for nobody by default. Adding it to the
+three Compose files means three different shapes: named volumes at the root,
+`type: bind` under `/DATA/AppData/service-dash/...` in both CasaOS copies.
+
+Two things it must keep doing:
+
+- **Refresh through `claude auth status --json`, not by posting to the token
+  endpoint.** Claude Code owns the credential format, the rotation and the lock
+  file that stops two writers clobbering each other. Reimplementing that here
+  would mean owning all three.
+- **Classify failures by HTTP status, and never blank a good reading over a
+  transient one.** Only 401/403 means the login is the problem. Everything else
+  leaves the previous document untouched so the dashboard's own age thresholds
+  (`AI_STALE_MS` 15 min, `AI_DEAD_MS` 60 min) can do their job — those two
+  constants only ever fire because of that branch. An earlier version used
+  `curl -fsS` and treated an empty result as an expired login, which at a
+  five-minute poll would have printed "sign in again" for a dropped packet.
+- **Judge the built document by what survived, not by whether the string is
+  empty.** jq will happily build a well-formed document with zero providers out
+  of a response it recognised nothing in. Testing `[ -z "$document" ]` therefore
+  published that silence: the panel vanished and nothing anywhere said why.
+  `poll_once` counts providers that are connected and kept at least one window,
+  mirroring the dashboard's own `connectedProviders()` filter.
+- **Treat `windows_spec` as labels, not as an allowlist.** Any window the
+  endpoint offers that carries both a percentage and a reset is passed through
+  with a label derived from its id; the spec only supplies nicer names and the
+  window/model split. It was a strict allowlist once, which meant the day a new
+  model got its own window the dashboard would show nothing, report nothing,
+  and leave no way to tell "the API does not send it" from "we threw it away".
+  The both-fields requirement is what keeps this safe: the live response is full
+  of internal fields carrying one or the other (`nimbus_quill`, `extra_usage`)
+  and none of them get in.
+- **Drop a window it cannot fully parse rather than zeroing it.** A dial reading
+  0% is a claim; a missing dial is an absence. The jq transform accepts both
+  response shapes (`used_percentage`/`resets_at` and `utilization`/`reset`) and
+  emits nothing for a window missing either.
+
+The status document's `note` says only *why* it is disconnected, and `action`
+says what the reader can do: `"sign-in"` (the command fixes it), `"report"`
+(nothing they can run does — file the issue) or `"none"` (transient; wait). The sign-in
+command belongs to the dashboard: putting it in the note printed it twice, and a
+sign-in button under "Claude changed its response shape" sends people to run
+something that cannot help. A document with no `action` predates the field and
+means `"sign-in"`.
+
+What the live endpoint actually returns (verified 2026-08-28 against a Max
+account): `five_hour` and `seven_day` as objects with `utilization` and an
+**ISO 8601 `resets_at`** — fractional seconds and a `+00:00` offset, which jq's
+`fromdateiso8601` rejects and `tonumber` throws on. `seven_day_opus`,
+`seven_day_sonnet` and `seven_day_oauth_apps` were all `null`. There is **no
+Fable window**; Fable usage is not reported separately. Several internal
+codenames appear as top-level keys and are either null or missing a reset.
+
+The endpoint is undocumented and gated on the `user:profile` scope. Tokens from
+`claude setup-token` are inference-only and will not work — it needs a full
+`claude auth login`.
+
+**Every command the settings page shows must run from any folder, with nothing
+installed on the host but Docker.** A bare `docker compose ...` only works from
+the directory holding the Compose file, and on ZimaOS that is somewhere under
+`/var/lib/casaos` the user has never opened. The enable command therefore reads
+the path back out of the `com.docker.compose.project.config_files` label Compose
+stamps on the dashboard container; the sign-in uses `docker exec` against
+`service-dash-claude-usage` (a fixed `container_name` in all three Compose
+files) so it needs no Compose file and runs the container's own Claude Code.
+Substituting into `-f "$(...)"` rather than `cd "$(...)"` matters: when the
+inspect fails, `-f ""` errors out, while `cd ""` succeeds in bash and would run
+Compose against whatever happened to be in the current directory.
+
+**Both commands carry `sudo`, and it is not decoration.** Smoke-tested on a real
+ZimaOS host: the label resolves to
+`/var/lib/casaos/apps/service-dash/docker-compose.yml`, which CasaOS writes
+`0600 root:root`, and a ZimaOS user is not in the `docker` group by default, so
+the inner `docker inspect` is denied too. Unprivileged, the command dies with a
+bare "permission denied" naming a file the reader has never seen. Do not
+"clean up" the sudo.
+
+The `diagnostic` field carries **field names and window ids only** — the
+"Report this on GitHub" button quotes it verbatim into a public issue, so a
+value leaking in there is a value published. `describe_shape` builds it with
+`keys` and `.id`, never a `values` walk, and that is the whole reason.
+
+## The Codex usage reporter
+
+`codex-usage` is the second provider, on the same `ai-usage` profile. Three
+things about it are load-bearing and were each found the hard way on a real
+host:
+
+- **`codex login --device-auth`, never a bare `codex login`.** The default flow
+  starts a callback server on the container's own localhost and opens a browser
+  at it. Nothing outside the container can reach that, and it fails by *hanging*
+  rather than by erroring.
+- **The `User-Agent` header is required.** With curl's default the endpoint
+  answers 403 holding a perfectly good credential, which reads exactly like an
+  expired login. It filters browsers and anonymous tools rather than checking
+  for Codex (`Mozilla/5.0` also 403s), so the reporter names itself honestly.
+  403 is kept separate from 401 for this reason: it genuinely means "expired
+  login *or* rejected client".
+- **The response contains `email`, `user_id` and `account_id`.** The served
+  document has no auth in front of it. Only `plan_type` and the window figures
+  are copied across, and `describe_shape` emits names only. Adding a field
+  there is publishing it.
+
+Read usage with the passive GET only. Codex also attaches rate limits to a
+completed turn, but polling that would spend quota to measure quota.
+
+**Each reporter owns its own file** (`/status/<provider>.json`), served by one
+nginx regex location. That regex is **quoted**, and must stay quoted: nginx
+reads an unquoted `{` or `}` in a location regex as a block delimiter, so the
+`{0,30}` ends the directive mid-pattern and nginx dies at boot with "missing
+closing parenthesis" naming a regex nobody wrote.
+
 ## Conventions
 
 - Match the surrounding code: no framework, no build step, plain DOM APIs.
@@ -165,6 +281,52 @@ The corollary catches people out: anything *inside* `.app` must not add the
 inset again. `.topbar` did, and its header content sat two notches down. A
 sticky or fixed `top` is the exception — that is measured from the viewport, not
 from `.app`, so it still needs `env()`.
+
+`.overlay` is that exception, and it was missed the first time: it is
+`position: fixed; inset: 0`, so `.app`'s margin does nothing for it and its flat
+`18px` padding put the settings heading under the iPhone clock — the same bug as
+the main screen, in the one place the main screen's fix could not reach. Its
+padding is now `max(18px, env(safe-area-inset-*))` per side. `max()` rather than
+addition, so a device with no notch keeps exactly the 18px it had. All three
+dialogs share `.overlay`, so they are fixed together.
+
+**`backdrop-filter` belongs on small surfaces only, and the cost is AREA, not
+count.** iOS Safari was killing the tab — "A problem repeatedly occurred" —
+after a few minutes of scrolling. Every `backdrop-filter` forces its own GPU
+compositing layer, and scrolling makes the compositor re-rasterise them.
+
+Two wrong turns are worth recording, because both are the intuitive answer.
+First: it is not the *number* of blurred elements. Measured at 3x DPR on a
+phone —
+
+    .main            1 element    84.6MB   <- the whole scroll container
+    .card           23 elements   66.4MB
+    sidebar panels   2 elements   24.4MB
+    .section         6 elements   19.8MB
+    .topbar          1 element     4.2MB
+    .linkMeta       36 elements    1.3MB
+    .pill           19 elements    1.2MB
+    .svcIconEdit    23 elements    0.3MB
+
+The 78 small elements come to 3MB between them; one `.main` is 84.6MB. Second:
+it is not a mobile problem. Desktop measured 85.2MB and scrolled at ~23fps —
+removing it took that to 6.9MB and ~42fps, average frame 39.3ms → 23.0ms,
+confirmed by benchmarking in both orders.
+
+So `.glass`, `.card` and `.section` carry no filter at all now, at any width —
+and they lose nothing, because blurring a large flat surface that sits on a
+smooth gradient returns the same smooth gradient. Screenshots before and after
+are indistinguishable. Everything small keeps it and still reads as glass: the
+pills, link rows, icon buttons and dialogs.
+
+`.topbar` is the exception and declares its own filter. It is `position:
+sticky`, so cards scroll *under* it; without the filter it becomes a window onto
+whatever is passing behind, and a near-opaque substitute reads as a flat slab
+that no longer matches the sign-in and settings panels. At ~2MB desktop / ~4MB
+phone it was never what needed cutting.
+
+The rule for anything new: a large container gets no `backdrop-filter`; a small
+one costs almost nothing.
 
 **Haptics are Android-only, and that is not a bug to fix.** iOS Safari has never
 implemented the Vibration API. `haptic()` is also gated on a coarse pointer,
