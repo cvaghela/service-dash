@@ -89,6 +89,23 @@ def main() -> int:
         if tag != version:
             problems.append(f"{STORE_COMPOSE}: x-casaos.version is {tag}, expected {version}")
 
+    # x-casaos.release_notes is the "What's New" panel a ZimaOS user reads on
+    # the update prompt. Nothing referenced it, so it sat at 1.3.2 through
+    # three releases while every other field moved -- the store cheerfully
+    # offered 1.5.1 and described what 1.3.2 had fixed. Requiring the current
+    # version to appear in it is crude, but it is enough to make the staleness
+    # impossible to miss.
+    notes = re.search(r"^  release_notes:\n(?:.*\n)*?^\S", store + "\nX", re.M)
+    notes_text = notes.group(0) if notes else ""
+    if not notes_text:
+        problems.append(f"{STORE_COMPOSE}: no x-casaos.release_notes found")
+    elif version not in notes_text:
+        problems.append(
+            f"{STORE_COMPOSE}: x-casaos.release_notes does not mention {version} -- "
+            "it is what ZimaOS shows as What's New, so a stale one describes the "
+            "wrong release to everyone upgrading"
+        )
+
     # The README tells people which images to pull.
     readme = (REPO / "README.md").read_text()
     if f"The current release is **{version}**" not in readme:
