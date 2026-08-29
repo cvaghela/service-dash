@@ -57,6 +57,9 @@ jobs:
           python3 -m pip install --quiet pyyaml
           python3 scripts/check-compose-networks.py
 
+      - name: Reporter regression tests
+        run: sh scripts/test-reporters.sh
+
       - name: Check a new service is not shipped without an upgrade path
         run: python3 scripts/check-service-additions.py
 
