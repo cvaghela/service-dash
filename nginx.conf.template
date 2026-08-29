@@ -103,6 +103,28 @@ server {
         proxy_read_timeout 6s;
     }
 
+    # The AI usage reporter is optional. When it is not running the volume is
+    # empty and this 404s, which is exactly what the panel expects -- it hides
+    # itself rather than showing an error. Nothing here proxies anywhere, so
+    # there is no upstream to reach and no network dependency to satisfy.
+    # One file per reporter -- claude.json, codex.json -- rather than one shared
+    # document. Two sidecars writing the same path would clobber each other, and
+    # a lock between containers is a lot of machinery to avoid a rename. The
+    # provider name is bounded by the regex, so nothing here can walk the
+    # filesystem; a missing file 404s, which the dashboard already reads as
+    # "this provider is not enabled".
+    # Quoted, and it has to be: nginx reads an unquoted { or } in a location
+    # regex as a block delimiter, so the {0,30} below ends the directive
+    # mid-pattern and nginx dies with "missing closing parenthesis" naming a
+    # regex you did not write.
+    location ~ "^/ai-usage/(?<ai_provider>[a-z0-9][a-z0-9-]{0,30})\.json$" {
+        alias /var/run/ai-usage/$ai_provider.json;
+        default_type application/json;
+        add_header Cache-Control "no-store";
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header Referrer-Policy "no-referrer" always;
+    }
+
     location = /network-info/status {
         alias /var/run/network-info/status.json;
         default_type application/json;

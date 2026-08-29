@@ -6,6 +6,8 @@
 
 **One dashboard for everything you host — each service's local *and* public URL on a single card, next to the live health of the machine running them.**
 
+Open it at home and cards go to your LAN. Open it from a hotel and the same cards go over the internet. Nothing is duplicated, nothing is configured twice.
+
 [![Validate](https://github.com/cvaghela/service-dash/actions/workflows/validate.yml/badge.svg)](https://github.com/cvaghela/service-dash/actions/workflows/validate.yml)
 [![Release](https://img.shields.io/github/v/release/cvaghela/service-dash?color=6c5cff)](https://github.com/cvaghela/service-dash/releases/latest)
 [![License](https://img.shields.io/github/license/cvaghela/service-dash?color=2ea043)](LICENSE)
@@ -17,7 +19,7 @@
 
 [Quick start](#quick-start) · [Configuration](#configuration) · [How it works](#how-it-works) · [Troubleshooting](#troubleshooting)
 
-<img src="assets/img/screenshot-dashboard.jpg" alt="The Service Dash dashboard: service cards with live status and uptime, host CPU, RAM, storage and network panels" width="100%">
+<img src="assets/img/screenshot-dashboard.jpg" alt="The Service Dash dashboard: service cards with live status, uptime and both addresses; AI plan usage dials for Claude and Codex; host CPU, RAM, storage and network panels" width="100%">
 
 </div>
 
@@ -25,40 +27,81 @@
 
 ## Why
 
-Uptime Kuma tells you whether a service is up. It does not tell you what the box is doing, or how much of your RAM that
-one container is eating. Service Dash puts all of that on one page.
+Self-hosting accumulates two problems that no single tool solves.
 
-It also solves the two-bookmarks problem. Most self-hosted services end up with two addresses — a LAN one that is fast
-and never leaves the house, and a public one for when you are out — and most dashboards make you pick a side, or keep
-two dashboards. Here both live on the same card, and the dashboard works out which one to open by itself.
+The first is that monitoring and metrics live apart. Uptime Kuma tells you a service is up; it cannot tell you the box
+is at 90% RAM, or which container took it. So you keep two tabs open and correlate by hand.
 
-The trick is that it does not have to guess. Load the dashboard from `192.168.1.50` and your browser has already proved
-it can reach that network; load it from `dash.example.com` and it plainly has not. So there is nothing to probe and
-nothing to wait for — the answer is sitting in the address bar before the first card renders. At home, cards open over
-the LAN. On mobile data, the same cards open over the internet. Nothing is duplicated, nothing is hidden, and the manual
-switch is still there for the days you would rather decide yourself.
+The second is addresses. Every service ends up with a LAN address and a public one, and every dashboard makes you pick a
+side — or you keep one dashboard for home and another for away.
 
-It is one Compose stack — the dashboard, a bundled Netdata Agent, and three small sidecars. No build step, no Node.js
-runtime, no separate Netdata install. nginx serves the page and proxies everything else, so the browser only ever talks
-to one origin.
+Service Dash puts both on one page and resolves the address problem without asking. It is a single Compose stack: the
+dashboard, a bundled Netdata Agent, and a few small sidecars. No build step, no Node.js runtime, no separate Netdata
+install. nginx serves the page and proxies everything else, so the browser only ever talks to one origin.
 
-## Features
+## What it does differently
+
+Most self-hosted dashboards are a grid of links. These four are the reasons this one exists.
+
+### One card, both addresses — and it picks the right one
+
+Both addresses live on the same card, and **✨ Auto** opens whichever one this browser can actually reach — decided per card,
+not per dashboard. The active endpoint is tinted, hovering says *why* it chose, and pinning to Local or External is one
+click.
+
+It never probes, and it never guesses. Reaching the dashboard at `192.168.1.50` already proves your browser routes to
+that network; reaching it at `dash.example.com` proves it does not. The answer is in the address bar before the first
+card renders — no timeouts, no failed requests, no waiting. The rule is deliberately one-sided: anything unproven
+resolves to External, because opening a public URL from the LAN merely hairpins, while opening a LAN URL from outside is
+a dead link.
+
+### The machine, not just the services
+
+Uptime Kuma tells you whether a service is up. It says nothing about what the box is doing, or which container is eating
+your RAM.
+
+A Netdata Agent ships **inside the stack** — no separate install, no second port to publish, no third dashboard. You get
+CPU with normalised load, RAM, storage and network throughput, plus package power and temperature where the hardware
+exposes them. Map a card to one container or several, and an app plus its database, cache and worker are added together
+into a single figure on the card.
+
+### What is left of your AI plan
+
+Opt-in, and off until you ask for it. A sidecar signs in to your **Claude** or **ChatGPT** account and reports how much
+of each plan you have spent — session, weekly and per-model windows — as dials above the grid and a summary in the
+sidebar.
+
+It runs on the host that is always on, which is the whole point: plan usage is account-wide, so a figure measured on
+your laptop is wrong the moment you work from your phone. Reading it costs nothing — both providers expose a passive
+endpoint, and neither reporter ever spends quota to measure quota.
+
+Each provider is independent. Connect one, both, or neither; a provider you never sign in to simply does not appear.
+**Gemini is listed as coming soon** — its usage endpoint is reachable, but signing in to it from a headless container is
+not solved yet, so there is nothing to enable rather than a button that goes nowhere.
+
+### Settings that follow you, with no second account
+
+Card icons, container mappings, filters, storage selection and notes are shared by every browser and device — kept on
+the server, not in one browser's local storage.
+
+There is no account to create. Reading settings is open; changing anything asks **Uptime Kuma itself** whether your
+session is real. You already have that login, so the dashboard does not invent another one.
+
+## Everything else
 
 |  | |
 | --- | --- |
-| **Local and public links, one card** | Each service shows both its LAN address and its public URL, and ✨ **Auto** opens whichever one this browser can actually reach — decided per card, not per dashboard. The active endpoint is tinted, hovering a card says *why* it chose, and pinning it to Local or External is one click away. |
-| **Live service cards** | Status and uptime for every monitor on your Kuma status page. Search, filter by status or category, and click a card to open it. |
-| **Real host metrics** | CPU with normalised load, RAM, storage, and network throughput from a bundled Netdata Agent — plus package power and temperature where the hardware exposes them. |
-| **Per-container CPU and RAM** | Map a card to one container or several; an app plus its database, cache and worker are added together into one figure. |
+| **Live service cards** | Status and uptime for every monitor on your Kuma status page. Search, filter by status or category, click to open. |
 | **Real service icons** | Automatic matching against the full [selfh.st](https://github.com/selfhst/icons) catalogue — 2,880 icons and growing — with a live picker per card. No internet? Every card falls back to a monogram drawn in the browser. |
-| **Settings that follow you, with no second account** | Card icons, container mappings, filters, storage selection and notes are shared by every browser and device — kept on the server, not in one browser's storage. Reading them is open; changing anything asks Uptime Kuma whether your session is real, so there is no separate login to create. |
-| **Private by default** | Service URLs and the host's own LAN and WAN addresses are withheld until you sign in, so the dashboard can sit on a screen other people can see. |
-| **Behaves like an app on a phone** | No stray pinch-zoom, no double-tap zoom, and no lurch when a field takes focus — the three separate causes are each dealt with. Taps, switches and saves carry haptic feedback where the browser supports it (Android and Chrome; iOS Safari has no Vibration API). |
+| **Private by default** | Service URLs, the host's own LAN and WAN addresses, and the AI usage panel are all withheld until you sign in, so the dashboard can sit on a screen other people can see. |
+| **Behaves like an app on a phone** | No stray pinch-zoom, no double-tap zoom, no lurch when a field takes focus, and content clear of the notch. Taps and saves carry haptic feedback where the browser supports it (Android and Chrome; iOS Safari has no Vibration API). |
+| **Built to stay smooth** | Compositing is budgeted deliberately: large surfaces carry no `backdrop-filter`, small ones keep the glass. Worth about 190MB of GPU layer memory on a phone and roughly double the scroll frame rate on desktop. |
 | **Offline-tolerant** | Fonts, icons and the icon catalogue all degrade to local fallbacks. Nothing on the page depends on reaching the internet. |
+| **No build step** | `index.html`, one stylesheet, one JavaScript file. What ships is what runs; what you read is what executes. |
 
 <div align="center">
 <img src="assets/img/screenshot-card-settings.jpg" alt="Card settings, searching the icon catalogue for Plex" width="49%">
-<img src="assets/img/screenshot-settings.jpg" alt="The settings dialog: refresh interval, privacy toggles and deployment values" width="49%">
+<img src="assets/img/screenshot-settings.jpg" alt="The settings dialog: refresh interval, privacy toggles, and AI usage showing Claude and Codex connected with Gemini coming soon" width="49%">
 </div>
 
 ---
@@ -239,11 +282,78 @@ The gear in the top bar — visible once you are signed in — holds what does *
 - **Refresh interval** — how often the LAN route and public IP are re-read, from 30 seconds to 24 hours.
 - **Reveal service links on hover** — whether card links stay unreadable until pointed at.
 - **Reveal LAN and WAN addresses on hover** — the same, for the host's own addresses.
+- **AI usage** — whether the optional Claude reporter is running, connected, or waiting on a sign-in, with the exact
+  command for whichever step is next, and a one-click bug report for the one state no command can fix.
 
 These apply to every browser and device. `network-info` reads the interval straight from the shared document and picks
 it up on its next pass; if it is missing or out of range it falls back to `NETWORK_INFO_REFRESH_SECONDS`, then 600.
 
 `KUMA_PORT`, `STATUS_SLUG` and `STORAGE_MOUNT` stay in Compose, because the dashboard needs them before it can start.
+
+### AI usage (optional)
+
+Off unless you ask for it, and it stays off if you never do. Nothing about the rest of the dashboard changes.
+
+Two sidecars share one Compose profile: `claude-usage` reads your Claude plan, `codex-usage` reads your ChatGPT plan.
+Each writes its own document, and the dashboard merges whatever it finds — so you can connect one, both, or neither, and
+a provider you never sign in to simply does not appear.
+
+**What they read, and what they do not.** Each calls one endpoint that returns usage percentages and reset times. No
+prompt, conversation, project or file is visible to either. The Codex endpoint also returns your email, user id and
+account id; **those are never copied into the document the dashboard serves**, and there is a test asserting it. That
+document has no authentication in front of it, so anything written there is readable by anyone who can reach your
+dashboard — only the plan name and the window figures cross over.
+
+**Turning it on.**
+
+```bash
+# 1. Add the reporters. Finds your Compose file wherever it lives.
+sudo docker compose -f "$(sudo docker inspect service-dash --format '{{index .Config.Labels "com.docker.compose.project.config_files"}}')" --profile ai-usage up -d
+
+# 2. Sign in once, to whichever you use. Both CLIs are inside their containers.
+sudo docker exec -it service-dash-claude-usage claude auth login
+sudo docker exec -it service-dash-codex-usage codex login --device-auth
+```
+
+Run these from any folder. Neither asks you to remember where your Compose file lives — the first asks Docker, which
+stamped that path onto the dashboard's own container when it created it — and neither needs anything installed on the
+host beyond Docker.
+
+Two details that are not decoration. `sudo`, because CasaOS writes its Compose file `0600 root:root` and its users are
+not in the `docker` group by default; drop it if your host does not need it. And `--device-auth` for Codex, because its
+normal login opens a browser at the container's own localhost, which nothing outside can reach — and it fails by
+*hanging* rather than by saying so.
+
+You should not need this page again: **Settings → AI usage** shows each provider's state and hands you whichever command
+comes next, including a **Sign out** control once connected. Each login lives in its own volume, so `docker compose
+pull` does not sign you out.
+
+**Why a sidecar and not the browser.** Plan usage is account-wide. A figure measured in a browser tab only reflects
+what *that* machine did — work from your phone for an afternoon and it is quietly wrong. A reporter on the host that is
+always on sees the real total regardless of what you were typing on.
+
+**How it behaves.** Both poll every five minutes (`CLAUDE_USAGE_REFRESH_SECONDS`, `CODEX_USAGE_REFRESH_SECONDS`); plan
+windows move slowly and polling harder buys nothing. Reading costs no quota — both endpoints are passive.
+
+A failed poll never throws away a good reading. Only a 401 or 403 counts as a login problem; a timeout, a 5xx or a
+moment without internet leaves the last figures in place and lets the timestamp age — dimming at fifteen minutes, giving
+up at an hour. In practice *Sign-in needed* should not reappear after the first time: the token is refreshed on every
+poll, so the login stays warm until you sign out, revoke the session, change your password, or leave the container off
+long enough for the refresh token itself to lapse.
+
+The panel is hidden until you sign in to Uptime Kuma, alongside the service URLs and the LAN and WAN addresses — how
+much of your plan you have spent is nobody else's business when this is on a wall. Like those, it is a screen-level
+control: the underlying documents stay readable by anyone who can reach the dashboard, the same as
+`/network-info/status`.
+
+**Two honest caveats.** Neither endpoint is part of a documented public API, so either provider can change one without
+notice. When that happens the panel disappears rather than showing a stale number, Settings explains why, and offers a
+**Report this on GitHub** button that opens a prefilled issue listing the field names the reporter did not recognise —
+no usage figures, no account details, no part of your login. It opens GitHub's issue *form*; you read it and decide
+whether to file it.
+
+And both images carry a vendor CLI, which makes them substantially larger than the other sidecars. That, and the fact
+that they hold a real login, is exactly why they sit behind a profile instead of starting for everyone.
 
 ### Shared settings and sign-in
 
@@ -369,7 +479,7 @@ localStorage.removeItem("storageMounts"); location.reload();
 
 ## How it works
 
-Five services on one private network. Only the dashboard publishes a port.
+Five services on one private network, plus two optional reporters. Only the dashboard publishes a port.
 
 ```mermaid
 flowchart LR
@@ -381,6 +491,8 @@ flowchart LR
     N -->|"reads"| I[("network-info<br/><i>LAN route + WAN</i>")]
     N -->|"veth names"| D["docker-metadata<br/><i>CetusGuard, read-only</i>"]
     D --> S[("Docker socket")]
+    N -.->|"reads, if enabled"| AI[("ai-usage<br/><i>claude-usage · codex-usage</i>")]
+    AI -.-> AP(["Claude / ChatGPT<br/><i>plan usage endpoints</i>"])
 ```
 
 | Service | Role |
@@ -390,6 +502,8 @@ flowchart LR
 | `kuma-auth` | Asks Kuma whether a browser's token is real, so nginx can allow a settings write |
 | `network-info` | Reads the host's default route and looks up the WAN address |
 | `docker-metadata` | CetusGuard, allowing only read-only Docker **network** queries |
+| `claude-usage` | **Optional**, behind the `ai-usage` profile. Reads your Claude plan's usage limits and nothing else |
+| `codex-usage` | **Optional**, same profile. Reads your ChatGPT plan's Codex usage limits and nothing else |
 
 **LAN** comes from the host's actual default route, not the browser's address. `network-info` runs with host networking,
 reads the route directly, and writes the address, prefix, interface and gateway to a private volume the dashboard mounts
@@ -401,6 +515,17 @@ host's public IP and nothing else — no browser identifiers, no dashboard or Ku
 **Docker names.** CetusGuard is the only service with the Docker socket, and its allowlist permits read-only network
 listing and inspection alone. Container creation, exec, logs and secrets stay blocked. It exists so `veth` interface
 names can be shown as container names.
+
+**AI usage.** The two reporters exist only if you started the `ai-usage` profile. They hold real logins, so it is worth
+being precise about what that buys. Each calls one endpoint returning usage percentages and reset times; neither reads
+conversations, projects or files. Neither publishes a port, and each writes only to its own status document — the login
+itself never appears there, and nothing leaves the host except the request to the provider.
+
+They run as root with `no-new-privileges`, like the other sidecars, and for the same reason: on ZimaOS/CasaOS their
+volumes are host bind mounts, which do not inherit ownership from the image the way named volumes do, so an
+unprivileged user cannot write its own status file or its own login.
+
+Do not start this profile if you would rather no container on the box could speak for your Claude or ChatGPT account.
 
 ---
 
@@ -530,7 +655,7 @@ Then hard-refresh the browser.
 
 ## Updating
 
-The current release is **1.4.2**; the Compose files in this repository reference the matching `1.4.2` images.
+The current release is **1.5.0**; the Compose files in this repository reference the matching `1.5.0` images.
 
 Most releases are drop-in:
 
@@ -545,6 +670,25 @@ Compose files ship as release assets so you can take the correct one.
 release, and ZimaOS compares its version against what you have. A release that changes the Compose file changes it
 there too, so there is nothing to hand-edit; check the release notes for anything that needs a setting changed at
 install time.
+
+### Upgrading from 1.4.2
+
+**The Compose file changed, so an image pull alone will not carry it.** Take the new file from the release page —
+`docker-compose.yml` for a standard host, `docker-compose.casaos.yml` for CasaOS/ZimaOS — or let the ZimaOS app store
+update the tile, which replaces it for you.
+
+Nothing breaks if you do not. The new services are optional and sit behind a Compose profile, so an existing deployment
+that only pulls images keeps working exactly as before; it simply will not offer the AI usage panel. The dashboard
+serves the panel's route as a 404 when the reporters are absent, which it reads as "not enabled".
+
+What the new file adds:
+
+- Two optional services, `claude-usage` and `codex-usage`, both behind `profiles: ["ai-usage"]` — they start for nobody
+  by default
+- The volumes they need: a shared status volume, plus one per provider for its login
+- A read-only mount of that status volume on the dashboard, so it can serve what they write
+
+If you never enable the profile, none of this runs and nothing about your deployment changes.
 
 ### Upgrading from 1.3.1
 
@@ -597,8 +741,11 @@ Issues and pull requests are welcome. There is no build step for the frontend �
 and `assets/js/app.js` are what the browser runs, so a change is a file edit and a container recreate.
 
 ```sh
-# Build both Service Dash images from source
+# Build the Service Dash images from source
 docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
+
+# Include the optional AI reporters (they are far larger; skipped otherwise)
+docker compose -f docker-compose.yml -f docker-compose.build.yml --profile ai-usage build
 
 # The checks CI runs
 docker compose -f docker-compose.yml config --quiet
@@ -606,6 +753,8 @@ docker compose -f docker-compose.casaos.yml config --quiet
 docker compose -f appstore/Apps/ServiceDash/docker-compose.yml config --quiet
 python3 scripts/check-compose-networks.py   # every nginx upstream is reachable
 python3 scripts/check-release.py            # one version, stated the same everywhere
+sh -n entrypoint.sh network-info.sh claude-usage.sh codex-usage.sh
+node --check assets/js/app.js
 ```
 
 ```sh

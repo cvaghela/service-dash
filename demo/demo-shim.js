@@ -263,6 +263,55 @@
             return json(ndData(m ? decodeURIComponent(m[1]) : ""));
         }
 
+        // One route per reporter, matching the real deployment: each sidecar
+        // writes its own file and an absent one 404s. Split here too, so the
+        // demo exercises the same fetch path the dashboard actually uses.
+        var aiMatch = /^\/ai-usage\/([a-z0-9-]+)\.json$/.exec(path.split("?")[0]);
+        if (aiMatch) {
+            // Two providers, because two is what ships. The panel has to stay
+            // readable with more than one, and each reports its own window
+            // vocabulary. Anchored to "now" so the countdowns really tick.
+            // A third is an entry here plus one in AI_SETUP_PROVIDERS -- the
+            // dashboard only fetches providers that list names, so an entry
+            // here alone is unreachable.
+            var now = Math.floor(Date.now() / 1000);
+            var all = {
+                claude: {
+                    id: "claude",
+                    label: "Claude",
+                    plan: "Max",
+                    connected: true,
+                    generatedAt: now - 240,
+                    windows: [
+                        { id: "five_hour", label: "Session", used_percentage: 62, resets_at: now + 6420 },
+                        { id: "seven_day", label: "Weekly", used_percentage: 38, resets_at: now + 367200 },
+                    ],
+                    models: [
+                        { id: "seven_day_opus", label: "Opus", used_percentage: 81, resets_at: now + 213000 },
+                        { id: "seven_day_sonnet", label: "Sonnet", used_percentage: 24, resets_at: now + 443000 },
+                        // No reset: a window nobody has used yet. Real -- this
+                        // is how an untouched model window arrives.
+                        { id: "seven_day_fable", label: "Fable", used_percentage: 0 },
+                    ],
+                },
+                codex: {
+                    id: "codex",
+                    label: "Codex",
+                    plan: "Plus",
+                    connected: true,
+                    generatedAt: now - 90,
+                    windows: [
+                        { id: "codex_18000", label: "Session", used_percentage: 71, resets_at: now + 9300 },
+                        { id: "codex_604800", label: "Weekly", used_percentage: 93, resets_at: now + 158000 },
+                    ],
+                    models: [],
+                },
+            };
+            var one = all[aiMatch[1]];
+            if (!one) return { status: 404, body: '{"detail":"not enabled"}' };
+            return json({ generatedAt: now, providers: [one] });
+        }
+
         if (path.indexOf("/network-info/status") === 0) {
             return json({
                 lan: { address: "192.168.1.42", prefix: 24, interface: "eth0", gateway: "192.168.1.1" },

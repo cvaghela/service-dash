@@ -15,3 +15,17 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.kuma-auth
+
+  # Only built when the ai-usage profile is up; `docker compose build` skips it
+  # otherwise, which is the point -- it is by far the largest image here.
+  claude-usage:
+    image: service-dash-claude-usage:local
+    build:
+      context: .
+      dockerfile: Dockerfile.claude-usage
+
+  codex-usage:
+    image: service-dash-codex-usage:local
+    build:
+      context: .
+      dockerfile: Dockerfile.codex-usage

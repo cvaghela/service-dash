@@ -1,0 +1,31 @@
+# The Claude usage reporter.
+#
+# This image carries Claude Code because nothing else can hold the credential
+# the usage endpoint needs. A `claude setup-token` token is inference-only by
+# design and is refused there, so the only workable credential is a full
+# `claude auth login` session -- which means the official client, and a volume
+# to keep the login across restarts.
+#
+# It is bigger than the other sidecars for that reason, which is why the
+# service is optional and off unless you enable it.
+FROM node:22-alpine
+
+RUN apk add --no-cache curl jq \
+    && npm install -g @anthropic-ai/claude-code \
+    && npm cache clean --force
+
+# Runs as root, like the other sidecars, and for the same reason: both of its
+# mounts are bind mounts on ZimaOS/CasaOS (/DATA/AppData/service-dash/...).
+# A bind mount does not inherit ownership from the image the way a named volume
+# does, so an unprivileged user cannot write either of them -- the reporter
+# would come up unable to save its own status file or its login. Dropping
+# privileges properly would mean starting as root, chowning both mounts and
+# su-exec'ing down, which then makes `docker compose exec ... claude auth login`
+# write root-owned credentials the reporter cannot read unless every user
+# remembers `-u`. `no-new-privileges` is set on the service instead.
+#
+# The login lives under $HOME and is mounted, so a rebuild does not sign you out.
+COPY claude-usage.sh /usr/local/bin/claude-usage
+RUN chmod 0555 /usr/local/bin/claude-usage
+
+CMD ["/usr/local/bin/claude-usage"]

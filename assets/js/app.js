@@ -296,6 +296,10 @@ const els = {
     btnTheme: document.getElementById("btnTheme"),
     btnLinkMode: document.getElementById("btnLinkMode"),
     linkModeToggle: document.getElementById("linkModeToggle"),
+    secAiUsage: document.getElementById("secAiUsage"),
+    secAiDetail: document.getElementById("secAiDetail"),
+    aiRows: document.getElementById("aiRows"),
+    aiDetailGrid: document.getElementById("aiDetailGrid"),
     btnAuth: document.getElementById("btnAuth"),
     btnLogout: document.getElementById("btnLogout"),
 
@@ -310,6 +314,7 @@ const els = {
     iconStatus: document.getElementById("iconStatus"),
     iconSuggest: document.getElementById("iconSuggest"),
     settingsOverlay: document.getElementById("settingsOverlay"),
+    aiSetupList: document.getElementById("aiSetupList"),
     setNetworkRefresh: document.getElementById("setNetworkRefresh"),
     setNetworkRefreshValue: document.getElementById("setNetworkRefreshValue"),
     setFixedSlug: document.getElementById("setFixedSlug"),
@@ -430,6 +435,15 @@ const HAPTICS = {
     tapMs: 10,
     // Only trigger on coarse pointers (phones/tablets)
     coarseOnly: true,
+    // A few interactions a plain tap under-serves. Anything button-like is
+    // already covered by initGlobalHaptics() below, which delegates on
+    // pointerdown -- so only call hapticPattern() from somewhere that
+    // delegation does not reach, or the element buzzes twice.
+    patterns: {
+        press: 18, // the long-press peek, which should feel heavier than a tap
+        success: [10, 40, 10],
+        warn: [20, 50, 20],
+    },
 };
 
 function isCoarsePointer() {
@@ -441,13 +455,29 @@ function isIOS() {
 }
 
 function hapticTap(ms = HAPTICS.tapMs) {
+    hapticFire(ms);
+}
+
+// Same gates as hapticTap, for the named patterns above.
+function hapticPattern(name) {
+    const pattern = HAPTICS.patterns[name];
+    if (pattern !== undefined) hapticFire(pattern);
+}
+
+function hapticFire(pattern) {
     if (!HAPTICS.enabled) return;
     if (HAPTICS.coarseOnly && !isCoarsePointer()) return;
 
     // iOS: no vibration support on the web
     if (isIOS()) return;
 
-    if (navigator.vibrate) navigator.vibrate(ms);
+    try {
+        if (navigator.vibrate) navigator.vibrate(pattern);
+    } catch {
+        // A browser can expose vibrate() and still refuse the call -- a
+        // backgrounded tab, a permissions policy. Feedback is a nicety and must
+        // never be the thing that throws.
+    }
 }
 
 /**
@@ -703,6 +733,30 @@ function isIpAddress(value) {
     return /^[0-9a-f:]+$/i.test(text) && text.includes(":");
 }
 
+// The async Clipboard API needs a secure context, and most people reach this
+// dashboard over plain HTTP on their LAN. The execCommand path is not legacy
+// politeness -- it is the one that actually runs for them.
+async function writeClipboard(text) {
+    try {
+        if (navigator.clipboard?.writeText) {
+            await navigator.clipboard.writeText(text);
+            return true;
+        }
+    } catch {
+        // Denied or unavailable; fall through rather than give up.
+    }
+    const input = document.createElement("textarea");
+    input.value = text;
+    input.setAttribute("readonly", "");
+    input.style.position = "fixed";
+    input.style.opacity = "0";
+    document.body.appendChild(input);
+    input.select();
+    const copied = document.execCommand("copy");
+    input.remove();
+    return copied;
+}
+
 async function copyNetworkAddress(element, label) {
     const address = String(element?.dataset.copyIp || "").trim();
     if (!isIpAddress(address)) {
@@ -716,26 +770,9 @@ async function copyNetworkAddress(element, label) {
         return;
     }
 
-    try {
-        if (navigator.clipboard?.writeText) {
-            await navigator.clipboard.writeText(address);
-        } else {
-            throw new Error("Clipboard API unavailable");
-        }
-    } catch {
-        const input = document.createElement("textarea");
-        input.value = address;
-        input.setAttribute("readonly", "");
-        input.style.position = "fixed";
-        input.style.opacity = "0";
-        document.body.appendChild(input);
-        input.select();
-        const copied = document.execCommand("copy");
-        input.remove();
-        if (!copied) {
-            toast(`⚠️ <b>Could not copy ${label} IP.</b>`, 2200);
-            return;
-        }
+    if (!(await writeClipboard(address))) {
+        toast(`⚠️ <b>Could not copy ${label} IP.</b>`, 2200);
+        return;
     }
 
     toast(`📋 <b>${label} IP copied:</b> ${escapeHtml(address)}`, 1800);
@@ -1966,40 +2003,6 @@ const fmtTime = (d) =>
 
 const isTouch = window.matchMedia("(pointer: coarse)").matches;
 
-/* =========================
-   HAPTICS
-   ========================= */
-
-// A small fixed vocabulary, so the whole app buzzes in the same language and
-// there is exactly one place to change or silence it.
-//
-// Android and Chrome only. iOS Safari has never shipped the Vibration API and
-// no shim changes that -- an iPhone stays silent here, by Apple's choice, not
-// by omission. Gated on a coarse pointer as well: a desktop paired with a
-// gamepad can expose navigator.vibrate(), and buzzing somebody's laptop is not
-// feedback, it is a fault report.
-const HAPTIC_PATTERNS = {
-    tap: 8, // opening a card, flipping a switch
-    press: 18, // the long-press peek, which should feel heavier than a tap
-    success: [10, 40, 10],
-    warn: [20, 50, 20],
-};
-
-const canVibrate = isTouch && typeof navigator.vibrate === "function";
-
-function haptic(kind) {
-    if (!canVibrate) return;
-    const pattern = HAPTIC_PATTERNS[kind];
-    if (!pattern) return;
-    try {
-        navigator.vibrate(pattern);
-    } catch {
-        // A browser can expose vibrate() and still refuse the call -- a
-        // backgrounded tab, a permissions policy. Feedback is a nicety and must
-        // never be the thing that throws.
-    }
-}
-
 function toast(html, ms = 2600) {
     els.toastMsg.innerHTML = html;
     els.toast.classList.add("show");
@@ -2372,6 +2375,600 @@ function updateLinkModeUI() {
     if (icon) setTextIfChanged(icon, labels.icon);
 
     updateCardHintsInPlace();
+}
+
+/* =========================
+   AI USAGE
+   ========================= */
+
+// Provider-agnostic on purpose. `windows` arrives as a labelled array rather
+// than an object keyed by Claude's own window names, because those names are
+// Claude's vocabulary -- Gemini reports daily quotas, Codex reports its own.
+// Keyed to Claude, every new provider would need a UI change; as a labelled
+// array the panel renders whatever a provider sends and a new one is backend
+// work only.
+//
+// Reporters send absolute `resets_at` epochs, never countdowns, so every
+// device renders its own clock and a figure pushed an hour ago still shows the
+// right time remaining.
+
+// One document per reporter. Two sidecars cannot share a file without a lock
+// between containers, and a fetch that 404s already means exactly what an
+// absent provider means, so the split costs nothing and removes the shared
+// writer entirely.
+const aiStatusUrl = (id) => `/ai-usage/${id}.json`;
+const AI_POLL_MS = 60000;
+const AI_STALE_MS = 15 * 60 * 1000;
+const AI_DEAD_MS = 60 * 60 * 1000;
+
+// Marks we ship. Anything else falls back to a monogram, so adding a provider
+// never requires shipping an asset first.
+const AI_PROVIDER_ICONS = {
+    claude: "#ico-claude",
+    codex: "#ico-codex",
+    openai: "#ico-openai",
+    gemini: "#ico-gemini",
+};
+
+let aiProviders = [];
+// The panel only ever cares about connected providers, so it can treat "no
+// reporter" and "reporter with nobody signed in" the same way. Settings cannot:
+// those two need different instructions, and only the endpoint answering at
+// all tells them apart.
+// Keyed by provider id: with several reporters, "reachable" and "why not" are
+// per-provider facts. One shared object would have let Codex being down
+// describe Claude.
+const AI_STATUS_UNKNOWN = { reachable: false, note: "", diagnostic: "", action: "sign-in" };
+const aiStatusById = new Map();
+const aiStatusFor = (id) => aiStatusById.get(id) || AI_STATUS_UNKNOWN;
+// Providers whose sign-out command is currently revealed. Kept out of the
+// status object because it is a UI state, not something the reporter knows --
+// and it has to survive the poll, which re-renders this section every minute.
+const aiSetupRevealed = new Set();
+
+// One entry per provider the reporter can actually speak to. Codex and Gemini
+// get a row here the day their sidecar lands, not before -- a row promising a
+// sign-in that goes nowhere is worse than no row.
+const AI_SETUP_PROVIDERS = [
+    {
+        id: "claude",
+        label: "Claude",
+        blurb: "Session and weekly plan limits, read from your Claude account.",
+        // Both commands run from ANY directory, and neither needs anything
+        // installed on the host beyond Docker itself.
+        //
+        // A bare `docker compose` only works from the folder holding the
+        // Compose file, and nobody remembers where that is six months later.
+        // Compose stamps the file's path onto every container it creates, so
+        // the dashboard's own container knows the answer and can be asked. If
+        // it is not running the substitution is empty, `-f ""` fails cleanly,
+        // and nothing is started in the wrong directory -- which a `cd` into an
+        // empty string would happily do.
+        //
+        // `sudo` on both, verified against a real ZimaOS host rather than
+        // assumed. Two separate things need it there and both are invisible
+        // until you hit them: CasaOS writes that Compose file 0600 root:root
+        // (it lives at /var/lib/casaos/apps/service-dash/docker-compose.yml,
+        // which is also exactly the path nobody would have guessed), and a
+        // ZimaOS user is not in the `docker` group by default, so even the
+        // inner `docker inspect` is denied. Unprivileged, this fails with a
+        // bare "permission denied" naming a file the reader has never heard
+        // of. Harmless where it is not needed; the alternative is a dead end.
+        enable:
+            'sudo docker compose -f "$(sudo docker inspect service-dash --format ' +
+            "'{{index .Config.Labels \"com.docker.compose.project.config_files\"}}')\" --profile ai-usage up -d",
+        // Claude Code lives INSIDE the reporter image. This runs the container's
+        // copy, so nothing has to be installed on the host, and addressing the
+        // container by name means no Compose file is needed either.
+        signIn: "sudo docker exec -it service-dash-claude-usage claude auth login",
+        signOut: "sudo docker exec -it service-dash-claude-usage claude auth logout",
+    },
+    {
+        id: "codex",
+        label: "Codex",
+        blurb: "Session and weekly plan limits, read from your ChatGPT account.",
+        enable:
+            'sudo docker compose -f "$(sudo docker inspect service-dash --format ' +
+            "'{{index .Config.Labels \"com.docker.compose.project.config_files\"}}')\" --profile ai-usage up -d",
+        // --device-auth, not a bare `codex login`. The default flow starts a
+        // callback server on the container's own localhost and opens a browser
+        // at it, which nothing outside the container can reach -- and it fails
+        // by hanging rather than by saying so. Verified the hard way.
+        signIn: "sudo docker exec -it service-dash-codex-usage codex login --device-auth",
+        signOut: "sudo docker exec -it service-dash-codex-usage codex logout",
+    },
+    {
+        // Listed, but with nothing to run. Gemini's usage endpoint exists and
+        // is reachable; what is not solved is signing in to it from a headless
+        // container, so there is no reporter to enable yet. Saying "coming
+        // soon" is honest; offering a sign-in command that goes nowhere is not.
+        id: "gemini",
+        label: "Gemini",
+        blurb: "Plan limits from your Google account.",
+        comingSoon: true,
+    },
+];
+
+function formatCountdown(epochSeconds) {
+    // A window nobody has used yet has no reset time at all. Guard null
+    // explicitly: Number(null) is 0, which is finite, so it survived the check
+    // below and rendered as "now" -- a window that has never started claiming
+    // it resets this second.
+    if (epochSeconds === null || epochSeconds === undefined || epochSeconds === "") return "—";
+    const ms = Number(epochSeconds) * 1000 - Date.now();
+    if (!Number.isFinite(ms)) return "—";
+    if (ms <= 0) return "now";
+
+    const minutes = Math.floor(ms / 60000);
+    const hours = Math.floor(minutes / 60);
+    const days = Math.floor(hours / 24);
+
+    // One unit below the leading one: "4d 6h" is useful, "4d 6h 12m" is noise
+    // on a panel you glance at.
+    if (days > 0) return `${days}d ${hours % 24}h`;
+    if (hours > 0) return `${hours}h ${minutes % 60}m`;
+    return `${minutes}m`;
+}
+
+function formatAgo(ms) {
+    const minutes = Math.round(ms / 60000);
+    if (minutes < 1) return "just now";
+    if (minutes < 60) return `${minutes}m ago`;
+    const hours = Math.round(minutes / 60);
+    if (hours < 24) return `${hours}h ago`;
+    return `${Math.round(hours / 24)}d ago`;
+}
+
+function aiAgeLabel(generatedAt) {
+    const age = Date.now() - Number(generatedAt) * 1000;
+    if (!Number.isFinite(age) || age < 0) return { text: "Updated just now", state: "fresh" };
+    if (age > AI_DEAD_MS) return { text: `No report since ${formatAgo(age)} — figures may be behind`, state: "dead" };
+    if (age > AI_STALE_MS) return { text: `Updated ${formatAgo(age)}`, state: "stale" };
+    return { text: `Updated ${formatAgo(age)}`, state: "fresh" };
+}
+
+function usageLevel(percent) {
+    return percent >= 90 ? "critical" : percent >= 75 ? "warn" : "ok";
+}
+
+function setBarWidth(el, percent) {
+    if (!el) return;
+    const width = `${clamp(Number(percent) || 0, 0, 100)}%`;
+    if (el.style.width !== width) el.style.width = width;
+    setDataIfChanged(el, "level", usageLevel(percent));
+}
+
+function usableWindows(provider) {
+    const windows = Array.isArray(provider?.windows) ? provider.windows : [];
+    return windows.filter((w) => Number.isFinite(Number(w?.used_percentage)));
+}
+
+function connectedProviders() {
+    return aiProviders.filter((p) => p?.connected && usableWindows(p).length > 0);
+}
+
+function providerIconMarkup(provider) {
+    const href = AI_PROVIDER_ICONS[String(provider.id || "").toLowerCase()];
+    if (href) return `<svg viewBox="0 0 512 512" aria-hidden="true"><use href="${href}" /></svg>`;
+    const initial = escapeHtml(String(provider.label || provider.id || "?").trim().charAt(0).toUpperCase());
+    return `<b class="ai-monogram" aria-hidden="true">${initial}</b>`;
+}
+
+/* ---------- sidebar: one summary row per provider ---------- */
+
+function renderAiRows(providers) {
+    const host = els.aiRows;
+    if (!host) return;
+
+    const key = providers.map((p) => p.id).join("|");
+    if (host.dataset.key !== key) {
+        host.dataset.key = key;
+        host.innerHTML = providers
+            .map(
+                (p) => `
+            <button type="button" class="ai-row" data-provider="${escapeHtml(p.id)}">
+                <span class="ai-row-icon">${providerIconMarkup(p)}</span>
+                <span class="ai-row-name">${escapeHtml(p.label || p.id)}</span>
+                <span class="ai-row-figure" data-role="figure">—</span>
+            </button>`
+            )
+            .join("");
+    }
+
+    for (const provider of providers) {
+        const row = host.querySelector(`[data-provider="${CSS.escape(provider.id)}"]`);
+        if (!row) continue;
+        const worst = tightestMeasure(provider);
+        const pct = Math.round(Number(worst.used_percentage));
+        setTextIfChanged(
+            row.querySelector('[data-role="figure"]'),
+            `${pct}% ${String(worst.label || "").toLowerCase()} · ${formatCountdown(worst.resets_at)}`
+        );
+        // Severity on the row itself, so a provider near its limit reads
+        // without opening anything.
+        setDataIfChanged(row, "level", usageLevel(pct));
+    }
+}
+
+/* ---------- main column: the full picture, side by side ---------- */
+
+function allMeasures(provider) {
+    const models = Array.isArray(provider?.models) ? provider.models : [];
+    return [...usableWindows(provider), ...models.filter((m) => Number.isFinite(Number(m?.used_percentage)))];
+}
+
+// The sidebar row is one line, so it has to choose: it reports whichever measure
+// is closest to its limit, across windows and per-model limits alike. A 20%
+// session is not the story when Opus sits at 81%. The detail card shows all of
+// them and therefore chooses nothing.
+function tightestMeasure(provider) {
+    return allMeasures(provider).reduce(
+        (worst, m) => (!worst || Number(m.used_percentage) > Number(worst.used_percentage) ? m : worst),
+        null
+    );
+}
+
+// Circumference of a dial arc: r=20 -> 2*pi*20.
+const AI_DIAL_CIRCUMFERENCE = 125.66;
+
+function renderAiDetail(providers) {
+    const host = els.aiDetailGrid;
+    if (!host) return;
+
+    // Measures are drawn in the order the reporter sends them -- windows, then
+    // per-model -- and never re-sorted. A fixed order means a row keeps its
+    // position as the numbers move, so where a measure sits is something you
+    // learn once. It also keeps ordering out of the urgency business: sorting
+    // by depletion and sorting by time to reset genuinely disagree (a window
+    // can have more left and still reset sooner), and neither can be computed
+    // honestly from a snapshot. Severity colour carries urgency on its own.
+    const key = providers.map((p) => `${p.id}:${allMeasures(p).map((m) => m.id).join(",")}`).join("|");
+
+    if (host.dataset.key !== key) {
+        host.dataset.key = key;
+        host.innerHTML = providers
+            .map(
+                (p) => `
+            <article class="ai-card" data-provider="${escapeHtml(p.id)}">
+                <header class="ai-card-head">
+                    <span class="ai-row-icon">${providerIconMarkup(p)}</span>
+                    <h4>${escapeHtml(p.label || p.id)}</h4>
+                    <span class="ai-plan" data-role="plan"></span>
+                </header>
+
+                <span class="ai-dials-label">Used</span>
+                <div class="ai-dials">
+                    ${allMeasures(p)
+                        .map(
+                            (m) => `
+                    <div class="ai-dial" data-measure="${escapeHtml(String(m.id))}">
+                        <div class="ai-dial-ring">
+                            <svg viewBox="0 0 48 48" aria-hidden="true">
+                                <circle class="ai-dial-track" cx="24" cy="24" r="20" />
+                                <circle class="ai-dial-arc" cx="24" cy="24" r="20"
+                                    stroke-dasharray="${AI_DIAL_CIRCUMFERENCE}" data-role="arc" />
+                            </svg>
+                            <b data-role="pct">—</b>
+                        </div>
+                        <span class="ai-dial-name">${escapeHtml(m.label || m.id)}</span>
+                        <span class="ai-dial-reset" data-role="reset">—</span>
+                    </div>`
+                        )
+                        .join("")}
+                </div>
+
+                <p class="subtle claude-age" data-role="age">—</p>
+            </article>`
+            )
+            .join("");
+    }
+
+    for (const provider of providers) {
+        const card = host.querySelector(`.ai-card[data-provider="${CSS.escape(provider.id)}"]`);
+        if (!card) continue;
+
+        const plan = card.querySelector('[data-role="plan"]');
+        if (plan) {
+            const hasPlan = Boolean(provider.plan);
+            if (hasPlan) setTextIfChanged(plan, provider.plan);
+            if (plan.hidden === hasPlan) plan.hidden = !hasPlan;
+        }
+
+        for (const measure of allMeasures(provider)) {
+            const node = card.querySelector(`[data-measure="${CSS.escape(String(measure.id))}"]`);
+            if (!node) continue;
+
+            // The figure the provider itself reports: used, not remaining. A
+            // dashboard that inverts it would leave you translating between two
+            // numbers for the same fact.
+            const pct = Math.round(Number(measure.used_percentage));
+            setTextIfChanged(node.querySelector('[data-role="pct"]'), `${pct}%`);
+            setTextIfChanged(node.querySelector('[data-role="reset"]'), formatCountdown(measure.resets_at));
+            setDataIfChanged(node, "level", usageLevel(pct));
+
+            const arc = node.querySelector('[data-role="arc"]');
+            if (arc) {
+                const offset = (AI_DIAL_CIRCUMFERENCE * (100 - clamp(pct, 0, 100))) / 100;
+                const next = String(Math.round(offset * 100) / 100);
+                if (arc.getAttribute("stroke-dashoffset") !== next) arc.setAttribute("stroke-dashoffset", next);
+            }
+        }
+
+        const age = aiAgeLabel(provider.generatedAt);
+        const ageEl = card.querySelector('[data-role="age"]');
+        setTextIfChanged(ageEl, age.text);
+        setDataIfChanged(ageEl, "state", age.state);
+    }
+}
+
+function renderAiUsage() {
+    const providers = connectedProviders();
+    // Hidden while signed out, for the same reason the LAN and WAN addresses
+    // and the card URLs are: how much of your plan you have spent, and which
+    // plan you are on, is nobody else's business when this is on a wall.
+    //
+    // This is a screen-level control, not an access control -- the documents
+    // stay fetchable by anyone who can reach the dashboard, exactly as
+    // /network-info/status does. nginx cannot verify a Kuma session by itself,
+    // and the one validator it does consult passes every read by design.
+    const show = providers.length > 0 && !!state.socketAuthed;
+
+    for (const section of [els.secAiUsage, els.secAiDetail]) {
+        if (section && section.hidden === show) section.hidden = !show;
+    }
+    if (!show) return;
+
+    renderAiRows(providers);
+    renderAiDetail(providers);
+}
+
+/* ---------- settings: connecting a provider ---------- */
+
+// Three states, and the difference between the first two is the whole point of
+// this section: "not running" is a Compose change, "sign-in needed" is a one-off
+// command in a container that is already up. Telling someone to run the second
+// when they needed the first is how a five-minute setup becomes an evening.
+// Opens GitHub's new-issue FORM, prefilled -- it does not file anything. The
+// reader sees exactly what is being sent and presses the button themselves,
+// which is the only sensible place to put that decision.
+function aiIssueUrl(entry) {
+    const aiStatus = aiStatusFor(entry.id);
+    const body = [
+        `The ${entry.label} usage reporter reached the API but could not read the response.`,
+        "",
+        `- Service Dash: ${APP_VERSION || "unknown"}`,
+        `- Provider: ${entry.label} (\`${entry.id}\`)`,
+        `- Reporter said: ${aiStatus.note || "(nothing)"}`,
+        "",
+        "Field names and window ids the reporter saw. No usage figures, no",
+        "account details and no part of the login are included:",
+        "",
+        "```json",
+        aiStatus.diagnostic || "(none — this reporter predates the diagnostic field)",
+        "```",
+    ].join("\n");
+
+    const query = new URLSearchParams({
+        title: `${entry.label} usage: unrecognised response shape`,
+        labels: "ai-usage",
+        body,
+    });
+    return `https://github.com/cvaghela/service-dash/issues/new?${query}`;
+}
+
+function aiSetupStateFor(entry) {
+    if (entry.comingSoon) {
+        return {
+            state: "soon",
+            label: "Coming soon",
+            note: "",
+            command: "",
+            report: "",
+        };
+    }
+
+    const aiStatus = aiStatusFor(entry.id);
+    if (!aiStatus.reachable) {
+        return {
+            state: "off",
+            label: "Not running",
+            note: "The reporter is not part of your stack yet. Start it, then come back here to sign in.",
+            command: entry.enable,
+        };
+    }
+
+    const provider = aiProviders.find((p) => p?.id === entry.id);
+    if (provider?.connected) {
+        const revealed = aiSetupRevealed.has(entry.id);
+        return {
+            state: "on",
+            label: "Connected",
+            plan: provider.plan || "",
+            // Deliberately silent. The pill has said it, the panel is on the
+            // dashboard behind this dialog, and a reassuring sentence under a
+            // green badge is just something else to read. The way out is one
+            // quiet button rather than a command sitting there permanently --
+            // signing out is rare, and a connected account should not look
+            // like it is asking to be disconnected.
+            note: revealed
+                ? "Signs out inside the container, and the panel disappears. The reporter keeps running, so signing back in is one command away. Swapping \u201cup -d\u201d for \u201cdown\u201d on the enable command removes it entirely."
+                : "",
+            command: revealed ? entry.signOut : "",
+            signOut: revealed ? "Cancel" : "Sign out",
+        };
+    }
+
+    // The reporter knows why better than we do -- an expired login and a login
+    // that never happened read the same from here -- and it also says what,
+    // if anything, the reader can do about it.
+    const LABELS = { "sign-in": "Sign-in needed", report: "Needs attention", none: "Unavailable" };
+    return {
+        state: "wait",
+        label: LABELS[aiStatus.action] || LABELS["sign-in"],
+        note: aiStatus.note || "Sign in once, in the container. The login is kept in a volume, so it survives restarts.",
+        command: aiStatus.action === "sign-in" ? entry.signIn : "",
+        // Only for a response we could not read. A network blip is nobody's
+        // bug, and an issue filed for one wastes the reporter's time and ours.
+        report: aiStatus.action === "report" ? aiIssueUrl(entry) : "",
+    };
+}
+
+function ensureAiSetupRows() {
+    const host = els.aiSetupList;
+    if (!host || host.childElementCount) return;
+
+    host.innerHTML = AI_SETUP_PROVIDERS.map(
+        (entry) => `
+        <div class="setRow aiSetup" data-provider="${escapeHtml(entry.id)}">
+            <div class="setRowText">
+                <b>${escapeHtml(entry.label)}<span class="aiSetupPlan" hidden></span></b>
+                <div class="subtle">${escapeHtml(entry.blurb)}</div>
+            </div>
+            <span class="aiSetupState" data-state="off">Not running</span>
+            <div class="aiSetupAction" hidden>
+                <div class="subtle aiSetupNote"></div>
+                <div class="aiSetupCmd">
+                    <!-- Sits ON the command rather than in the section footnote: it is only
+                         true when there is a command, and it answers the two questions people
+                         actually stall on -- where do I run this, and do I need to install
+                         anything. -->
+                    <span class="aiSetupCmdHint">Run on the host &middot; any folder &middot; nothing to install</span>
+                    <code></code>
+                    <button class="pill aiSetupCopy" type="button">Copy</button>
+                </div>
+                <a class="pill aiSetupReport" href="#" target="_blank" rel="noopener noreferrer" hidden>
+                    Report this on GitHub
+                </a>
+                <button class="pill aiSetupSignOut" type="button" hidden></button>
+            </div>
+        </div>`,
+    ).join("");
+
+    host.addEventListener("click", (event) => {
+        const toggle = event.target.closest(".aiSetupSignOut");
+        if (!toggle) return;
+        const id = toggle.closest(".aiSetup")?.dataset.provider;
+        if (!id) return;
+        if (aiSetupRevealed.has(id)) aiSetupRevealed.delete(id);
+        else aiSetupRevealed.add(id);
+        renderAiSettings();
+    });
+
+    host.addEventListener("click", async (event) => {
+        const button = event.target.closest(".aiSetupCopy");
+        if (!button) return;
+        const command = button.closest(".aiSetupCmd")?.querySelector("code")?.textContent || "";
+        if (!command) return;
+        if (await writeClipboard(command)) toast("📋 <b>Command copied.</b> Run it on the host.", 2000);
+        else toast("⚠️ <b>Could not copy the command.</b>", 2200);
+    });
+}
+
+// Runs on every poll while settings is open, so nothing here may write
+// unconditionally -- see the note on idempotence in the panel renderer.
+function renderAiSettings() {
+    if (!els.aiSetupList) return;
+    ensureAiSetupRows();
+
+    for (const entry of AI_SETUP_PROVIDERS) {
+        const row = els.aiSetupList.querySelector(`.aiSetup[data-provider="${CSS.escape(entry.id)}"]`);
+        if (!row) continue;
+
+        const status = aiSetupStateFor(entry);
+        const pill = row.querySelector(".aiSetupState");
+        setTextIfChanged(pill, status.label);
+        setDataIfChanged(pill, "state", status.state);
+
+        const plan = row.querySelector(".aiSetupPlan");
+        if (plan) {
+            const hidePlan = !status.plan;
+            if (plan.hidden !== hidePlan) plan.hidden = hidePlan;
+            if (status.plan) setTextIfChanged(plan, status.plan);
+        }
+
+        const note = row.querySelector(".aiSetupNote");
+        setTextIfChanged(note, status.note);
+
+        // Connected has nothing to run, so the command block goes away rather
+        // than sitting there inviting a pointless second sign-in.
+        const cmd = row.querySelector(".aiSetupCmd");
+        const hideCmd = !status.command;
+        if (cmd && cmd.hidden !== hideCmd) cmd.hidden = hideCmd;
+        if (status.command) setTextIfChanged(cmd?.querySelector("code"), status.command);
+
+        // Nothing to say and nothing to run collapses the whole block.
+        const report = row.querySelector(".aiSetupReport");
+        if (report) {
+            const hideReport = !status.report;
+            if (report.hidden !== hideReport) report.hidden = hideReport;
+            if (status.report && report.getAttribute("href") !== status.report) {
+                report.setAttribute("href", status.report);
+            }
+        }
+
+        const signOut = row.querySelector(".aiSetupSignOut");
+        if (signOut) {
+            const hideSignOut = !status.signOut;
+            if (signOut.hidden !== hideSignOut) signOut.hidden = hideSignOut;
+            if (status.signOut) setTextIfChanged(signOut, status.signOut);
+        }
+
+        const action = row.querySelector(".aiSetupAction");
+        const hideAction = !status.note && !status.command && !status.report && !status.signOut;
+        if (action && action.hidden !== hideAction) action.hidden = hideAction;
+    }
+}
+
+async function refreshOneProvider(entry) {
+    if (entry.comingSoon) return [];
+    try {
+        const response = await fetch(aiStatusUrl(entry.id), { cache: "no-store" });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+        aiStatusById.set(entry.id, {
+            reachable: true,
+            note: typeof data?.note === "string" ? data.note : "",
+            diagnostic: typeof data?.diagnostic === "string" ? data.diagnostic : "",
+            // "sign-in" the login command fixes it; "report" nothing you can
+            // run fixes it; "none" wait, it is transient. A reporter too old to
+            // send the field only ever meant sign-in.
+            action: ["none", "report"].includes(data?.action) ? data.action : "sign-in",
+        });
+        return Array.isArray(data?.providers) ? data.providers : [];
+    } catch {
+        // Every reporter is optional, and its absence is the normal case for
+        // anyone who has not enabled it. It must never surface as an error.
+        aiStatusById.set(entry.id, { ...AI_STATUS_UNKNOWN });
+        return [];
+    }
+}
+
+async function refreshAiUsage() {
+    // In parallel: one slow or absent reporter must not hold up the others.
+    const results = await Promise.all(AI_SETUP_PROVIDERS.map(refreshOneProvider));
+    aiProviders = results.flat();
+    renderAiUsage();
+    renderAiSettings();
+}
+
+function startAiUsage() {
+    if (!els.secAiUsage && !els.secAiDetail) return;
+
+    // A summary row opens the detail for that provider and takes you to it --
+    // which is why the sidebar does not expand in place.
+    els.aiRows?.addEventListener("click", (event) => {
+        const row = event.target.closest(".ai-row");
+        if (!row || !els.secAiDetail) return;
+        // Re-opens it if it was collapsed by hand; a no-op otherwise.
+        els.secAiDetail.setAttribute("data-open", "true");
+        const card = els.aiDetailGrid?.querySelector(`.ai-card[data-provider="${CSS.escape(row.dataset.provider)}"]`);
+        (card || els.secAiDetail).scrollIntoView({ behavior: "smooth", block: "center" });
+    });
+
+    refreshAiUsage();
+    setInterval(refreshAiUsage, AI_POLL_MS);
+    // The countdowns have to move without a new document.
+    setInterval(renderAiUsage, 1000);
 }
 
 function ensureNetSparkBars() {
@@ -3108,6 +3705,11 @@ function openSettings() {
     // actually matters.
     setSettingsStatus("idle", "");
 
+    // The reporter poll is a minute wide, and someone opening settings has
+    // usually just run the sign-in command. Re-read rather than repaint state
+    // that could be a minute old.
+    refreshAiUsage();
+
     els.settingsOverlay.classList.add("show");
     els.settingsOverlay.setAttribute("aria-hidden", "false");
     setTimeout(() => els.setNetworkRefresh?.focus(), 60);
@@ -3209,11 +3811,11 @@ function saveSettings() {
     // dropping the signed-out caveat entirely would be the one message worth
     // keeping, since that save only reached this browser.
     if (notes.length) {
-        haptic("warn");
+        hapticPattern("warn");
         setSettingsStatus("error", notes.join(" "));
         toast(`⚠️ ${notes.join(" ")}`, 5200);
     } else {
-        haptic("success");
+        hapticPattern("success");
         setSettingsStatus("ok", "Saved.");
         toast("✅ <b>Settings saved.</b>", 2400);
     }
@@ -3432,6 +4034,7 @@ function updateAuthButtons() {
     // waiting for the next poll.
     updateNetworkAddresses();
     updateNotesLock();
+    renderAiUsage();
     if (state.domBuilt) updateCardUrlsInPlace();
 
     // Show Logout only when authenticated
@@ -4013,7 +4616,7 @@ function buildDomOnceIfNeeded() {
 
             // If URLs aren't unlocked/available
             if (!usableLocal && !usableExt) {
-                haptic("warn");
+                hapticPattern("warn");
                 toast(
                     `🔒 <b>${escapeHtml(name)}</b> • URLs are hidden. Sign in to Uptime Kuma to reveal them.`,
                     2600
@@ -4029,11 +4632,11 @@ function buildDomOnceIfNeeded() {
 
             const ok = openUrlNow(chosenUrl);
             if (!ok) {
-                haptic("warn");
+                hapticPattern("warn");
                 toast(`⚠️ <b>${escapeHtml(name)}</b> • No URL to open`, 2200);
                 return;
             }
-            haptic("tap");
+            hapticTap();
 
             toast(
                 chosenLabel === "Local"
@@ -4058,12 +4661,12 @@ function buildDomOnceIfNeeded() {
                     const usableLocal = !localHidden && !!localUrl;
 
                     if (!usableLocal) {
-                        haptic("warn");
+                        hapticPattern("warn");
                         toast(`🔒 <b>${escapeHtml(name)}</b> • Local URL unavailable`, 2200);
                         return;
                     }
 
-                    haptic("press");
+                    hapticPattern("press");
                     openUrlNow(localUrl);
                     toast(`🏠 <b>${escapeHtml(name)}</b> • Opening <b>Local</b> (long-press)`, 1800);
                 }, 520);
@@ -4994,7 +5597,6 @@ async function initialLoad() {
         // Driven off the mode rather than off checked, because a checkbox has
         // two states and this has three. updateLinkModeUI() puts the control
         // back in step immediately afterwards.
-        haptic("tap");
         setLinkMode(nextLinkMode());
         toastLinkMode();
     });
@@ -5006,12 +5608,12 @@ async function initialLoad() {
     updateLinkModeUI();
 
     els.btnLinkMode?.addEventListener("click", () => {
-        haptic("tap");
         setLinkMode(nextLinkMode());
         toastLinkMode();
     });
 
     wireSections();
+    startAiUsage();
     els.notesLocked?.addEventListener("click", () => {
         toast("🔒 <b>Notes are locked.</b> Sign in to Uptime Kuma to read and edit them.", 2600);
     });
@@ -5109,10 +5711,7 @@ async function initialLoad() {
     });
 
     // buttons
-    els.btnTheme.addEventListener("click", () => {
-        haptic("tap");
-        setTheme(state.theme === "dark" ? "light" : "dark");
-    });
+    els.btnTheme.addEventListener("click", () => setTheme(state.theme === "dark" ? "light" : "dark"));
     els.btnAuth.addEventListener("click", openAuth);
     els.btnLogout.addEventListener("click", doLogout);
     els.toastClose.addEventListener("click", () => els.toast.classList.remove("show"));
