@@ -2437,6 +2437,13 @@ const AI_SETUP_PROVIDERS = [
         // Both commands run from ANY directory, and neither needs anything
         // installed on the host beyond Docker itself.
         //
+        // No --profile any more. The reporters ship as ordinary services that
+        // idle until signed in, because profile gating never reached anyone
+        // upgrading: a CasaOS app update rewrites image tags and does not add
+        // services a release introduced. So "Not running" now means the
+        // Compose file predates them, and a plain `up -d` is the fix once it
+        // does not.
+        //
         // A bare `docker compose` only works from the folder holding the
         // Compose file, and nobody remembers where that is six months later.
         // Compose stamps the file's path onto every container it creates, so
@@ -2456,7 +2463,7 @@ const AI_SETUP_PROVIDERS = [
         // of. Harmless where it is not needed; the alternative is a dead end.
         enable:
             'sudo docker compose -f "$(sudo docker inspect service-dash --format ' +
-            "'{{index .Config.Labels \"com.docker.compose.project.config_files\"}}')\" --profile ai-usage up -d",
+            "'{{index .Config.Labels \"com.docker.compose.project.config_files\"}}')\" up -d",
         // Claude Code lives INSIDE the reporter image. This runs the container's
         // copy, so nothing has to be installed on the host, and addressing the
         // container by name means no Compose file is needed either.
@@ -2469,7 +2476,7 @@ const AI_SETUP_PROVIDERS = [
         blurb: "Session and weekly plan limits, read from your ChatGPT account.",
         enable:
             'sudo docker compose -f "$(sudo docker inspect service-dash --format ' +
-            "'{{index .Config.Labels \"com.docker.compose.project.config_files\"}}')\" --profile ai-usage up -d",
+            "'{{index .Config.Labels \"com.docker.compose.project.config_files\"}}')\" up -d",
         // --device-auth, not a bare `codex login`. The default flow starts a
         // callback server on the container's own localhost and opens a browser
         // at it, which nothing outside the container can reach -- and it fails
@@ -2772,7 +2779,7 @@ function aiSetupStateFor(entry) {
         return {
             state: "off",
             label: "Not running",
-            note: "The reporter is not part of your stack yet. Start it, then come back here to sign in.",
+            note: "This reporter is not in your stack. On a current install it should already be running, so your Compose file most likely predates it — take the latest one, then run this.",
             command: entry.enable,
         };
     }

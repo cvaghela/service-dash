@@ -1,0 +1,60 @@
+# Service Dash — AI usage add-on for a CasaOS/ZimaOS install.
+#
+# Why this file exists: a CasaOS app update rewrites the image tags in its
+# managed Compose file but does not add services that a new release
+# introduced. So an install updated to 1.5.0 runs the new images without ever
+# gaining `claude-usage` or `codex-usage`, and `up -d` finds nothing to add.
+#
+# This overlay adds them without touching the CasaOS-managed file. Use it as a
+# second -f, after the managed one:
+#
+#   sudo docker compose \
+#     -f "$(sudo docker inspect service-dash --format '{{index .Config.Labels "com.docker.compose.project.config_files"}}')" \
+#     -f /DATA/AppData/service-dash/ai-usage.override.yml \
+#     up -d
+#
+services:
+  # The dashboard has to be able to read what the reporters write. Compose
+  # appends to the existing volumes rather than replacing them.
+  service-dash:
+    volumes:
+      - type: bind
+        source: /DATA/AppData/service-dash/ai-usage
+        target: /var/run/ai-usage
+        read_only: true
+
+  claude-usage:
+    image: ghcr.io/cvaghela/service-dash-claude-usage:1.5.0
+    container_name: service-dash-claude-usage
+    environment:
+      CLAUDE_USAGE_REFRESH_SECONDS: "300"
+    volumes:
+      - type: bind
+        source: /DATA/AppData/service-dash/ai-usage
+        target: /status
+      - type: bind
+        source: /DATA/AppData/service-dash/claude-auth
+        target: /root/.claude
+    networks:
+      service-dash-network:
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
+
+  codex-usage:
+    image: ghcr.io/cvaghela/service-dash-codex-usage:1.5.0
+    container_name: service-dash-codex-usage
+    environment:
+      CODEX_USAGE_REFRESH_SECONDS: "300"
+    volumes:
+      - type: bind
+        source: /DATA/AppData/service-dash/ai-usage
+        target: /status
+      - type: bind
+        source: /DATA/AppData/service-dash/codex-auth
+        target: /root/.codex
+    networks:
+      service-dash-network:
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped

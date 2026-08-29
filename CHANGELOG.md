@@ -3,6 +3,47 @@
 All notable changes to Service Dash are recorded here. This project follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.1] — 2026-08-29
+
+**Fixes how the AI reporters are deployed, and corrects the 1.5.0 upgrade instructions.** The reporters themselves are unchanged; what changed is that they are no longer hidden behind a Compose profile.
+
+### Changed
+
+- **The AI reporters are no longer profile-gated. They ship as ordinary services that idle until you sign in.**
+
+  Profile gating was the wrong mechanism, and 1.5.0 proved it twice over. **CasaOS silently drops services that declare
+  `profiles:`** — confirmed by installing 1.5.0 fresh from the store and finding a Compose file with correct 1.5.0
+  image tags and no reporters at all, which rules out a stale CDN entry. And a CasaOS *update* rewrites image tags
+  without adding services a release introduced. So the reporters reached ZimaOS store users by neither route, and the
+  enable command the settings page printed found nothing to start.
+
+  Even where profiles do work, they made enabling a two-step affair for no benefit.
+
+  Now they are simply present. With no credential each writes an honest "nobody has signed in yet" document, the panel
+  stays hidden, and the pair costs about **12MB of RAM and no measurable CPU** — measured, idle and signed out.
+  **Enabling the feature is now just signing in.**
+
+  The trade is disk: both images carry a vendor CLI and are pulled whether or not you use them. `docker compose stop
+  claude-usage` if you never want it.
+
+### Fixed
+
+- **The CasaOS/ZimaOS upgrade path in 1.5.0 was wrong.** The release said updating the app in the store would replace
+  the Compose file and bring the new `claude-usage` and `codex-usage` services with it. It does not: a CasaOS app update
+  rewrites the **image tags** in its managed Compose file and leaves the service list alone. An install updated to 1.5.0
+  therefore ran the new images without ever gaining the services, and the enable command the settings page prints found
+  nothing to start.
+
+  The README now says what actually happens, and the repository ships
+  [`docs/ai-usage.override.yml`](docs/ai-usage.override.yml) — an overlay that adds the two services and the dashboard
+  mount they need, without touching the CasaOS-managed file. Fresh installs from the store are unaffected; only existing
+  installs need it.
+
+  This was an assumption published as fact, on a claim that a ZimaOS host sitting right there could have tested.
+  `scripts/check-service-additions.py` now fails any release that adds a service whose name the README's upgrade section
+  does not mention, and it is wired into CI. Verified against history: run it with `v1.4.2` and a stripped upgrade
+  section and it reproduces exactly this failure.
+
 ## [1.5.0] — 2026-08-29
 
 **Compose file changed.** A new optional service and, on ZimaOS/CasaOS, two new bind mounts. `docker compose pull` alone
@@ -644,6 +685,7 @@ Housekeeping for the first public release. No functional changes to the dashboar
 
 See the [release history](https://github.com/cvaghela/service-dash/releases).
 
+[1.5.1]: https://github.com/cvaghela/service-dash/releases/tag/v1.5.1
 [1.5.0]: https://github.com/cvaghela/service-dash/releases/tag/v1.5.0
 [1.4.2]: https://github.com/cvaghela/service-dash/releases/tag/v1.4.2
 [1.4.1]: https://github.com/cvaghela/service-dash/releases/tag/v1.4.1
