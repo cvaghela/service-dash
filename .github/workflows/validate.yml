@@ -10,24 +10,11 @@ permissions:
   contents: read
 
 jobs:
-  validate:
-    name: Validate ${{ matrix.image }}
+  # The static checks do not depend on any image, so they run once rather than
+  # once per image per architecture.
+  checks:
+    name: Checks
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - image: service-dash
-            dockerfile: Dockerfile
-          - image: service-dash-network-info
-            dockerfile: Dockerfile.network-info
-          - image: service-dash-kuma-auth
-            dockerfile: Dockerfile.kuma-auth
-          - image: service-dash-claude-usage
-            dockerfile: Dockerfile.claude-usage
-          - image: service-dash-codex-usage
-            dockerfile: Dockerfile.codex-usage
-
     steps:
       - name: Check out source
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
@@ -57,16 +44,45 @@ jobs:
           python3 -m pip install --quiet pyyaml
           python3 scripts/check-compose-networks.py
 
+      - name: Reporter regression tests
+        run: sh scripts/test-reporters.sh
+
       - name: Check a new service is not shipped without an upgrade path
         run: python3 scripts/check-service-additions.py
 
       - name: Check the release version is stated consistently
         run: python3 scripts/check-release.py
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4
-        with:
-          platforms: arm64
+  build:
+    name: Build ${{ matrix.image.name }} (${{ matrix.arch }})
+    # Each architecture builds on a runner of that architecture, and there is
+    # no QEMU here at all. Emulating arm64 on an amd64 runner produced
+    # intermittent `exit code: 132` -- SIGILL, logged as "qemu: uncaught target
+    # signal 4 (Illegal instruction) - core dumped" -- part way through
+    # `npm install` in the two reporter images. It reads like a dependency
+    # failure and is nothing of the kind; it is the emulator, it struck roughly
+    # one build in three, and re-running was the only remedy. Native runners
+    # remove the cause and are faster besides.
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [amd64, arm64]
+        image:
+          - { name: service-dash, dockerfile: Dockerfile }
+          - { name: service-dash-network-info, dockerfile: Dockerfile.network-info }
+          - { name: service-dash-kuma-auth, dockerfile: Dockerfile.kuma-auth }
+          - { name: service-dash-claude-usage, dockerfile: Dockerfile.claude-usage }
+          - { name: service-dash-codex-usage, dockerfile: Dockerfile.codex-usage }
+        include:
+          - arch: amd64
+            runner: ubuntu-latest
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4
@@ -75,6 +91,6 @@ jobs:
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
         with:
           context: .
-          file: ${{ matrix.dockerfile }}
-          platforms: linux/amd64,linux/arm64
+          file: ${{ matrix.image.dockerfile }}
+          platforms: linux/${{ matrix.arch }}
           push: false

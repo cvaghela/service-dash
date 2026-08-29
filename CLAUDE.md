@@ -35,6 +35,7 @@ docker compose -f appstore/Apps/ServiceDash/docker-compose.yml config --quiet
 python3 scripts/check-compose-networks.py   # every nginx upstream is reachable
 python3 scripts/check-release.py            # one version, stated the same everywhere
 python3 scripts/check-service-additions.py  # a new service must come with an upgrade path
+sh scripts/test-reporters.sh                # regression tests for the AI reporters
 ```
 
 `check-compose-networks.py` exists because of that outage: it cross-references
@@ -247,6 +248,18 @@ nginx regex location. That regex is **quoted**, and must stay quoted: nginx
 reads an unquoted `{` or `}` in a location regex as a block delimiter, so the
 `{0,30}` ends the directive mid-pattern and nginx dies at boot with "missing
 closing parenthesis" naming a regex nobody wrote.
+
+**Every fix ships with something that fails if it comes back.** `scripts/`
+holds a guard per outage — network reachability (1.2.1), version drift and a
+store "What's New" frozen three releases back, services silently dropped by
+CasaOS — and `scripts/test-reporters.sh` covers the reporter bugs: the ISO 8601
+reset times that read as an unrecognised response, a window dropped rather than
+zeroed, and the PII that must never reach the served document.
+
+A guard that has never failed is a guard nobody has tested. Reintroduce the
+original fault, watch the guard fail *by name*, then restore. Two of these
+passed vacuously on first writing — the nginx one only inspected quoted regexes,
+so removing the quotes made it find nothing and succeed.
 
 ## Conventions
 

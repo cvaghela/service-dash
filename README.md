@@ -300,7 +300,8 @@ a provider you never sign in to simply does not appear.
 
 **What they read, and what they do not.** Each calls one endpoint that returns usage percentages and reset times. No
 prompt, conversation, project or file is visible to either. The Codex endpoint also returns your email, user id and
-account id; **those are never copied into the document the dashboard serves**, and there is a test asserting it. That
+account id; **those are never copied into the document the dashboard serves**, asserted by
+[`scripts/test-reporters.sh`](scripts/test-reporters.sh). That
 document has no authentication in front of it, so anything written there is readable by anyone who can reach your
 dashboard — only the plan name and the window figures cross over.
 
@@ -782,6 +783,7 @@ docker compose -f appstore/Apps/ServiceDash/docker-compose.yml config --quiet
 python3 scripts/check-compose-networks.py   # every nginx upstream is reachable
 python3 scripts/check-release.py            # one version, stated the same everywhere
 python3 scripts/check-service-additions.py  # a new service must come with an upgrade path
+sh scripts/test-reporters.sh                # regression tests for the AI reporters
 sh -n entrypoint.sh network-info.sh claude-usage.sh codex-usage.sh
 node --check assets/js/app.js
 ```
