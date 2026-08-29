@@ -103,6 +103,14 @@ uses. `title` deliberately stays `en_US`: it is a product name.
 The set was added because IceWhale's maintainer asked for it on the upstream
 PR, and it is now load-bearing in two ways that fail quietly if forgotten:
 
+- **`appstore/supported-languages.json` is what the v2 store build reads to
+  decide which languages to emit, and it is the easiest half of this to
+  forget.** It listed only `en_US` while the app entry carried fifteen, so the
+  build flattened every translated field back to English: the published
+  `meta.json` shipped one language and the other fourteen translations reached
+  nobody, while sitting correctly in the repository the whole time. Every
+  locale in the app entry must appear there, and `store-config.json` needs a
+  `name` and `description` for each. `check-release.py` enforces both.
 - **`check-release.py` requires the current version in every locale's release
   notes, and requires all four fields to carry an identical locale set.** A
   language added to the description but not to the release notes is a

@@ -9,6 +9,7 @@ file points at the previous images -- which looks fine until someone deploys it.
 The expected version is taken from the newest CHANGELOG heading, so the
 changelog is the single source of truth and nothing has to be passed in.
 """
+import json
 import re
 import sys
 import pathlib
@@ -152,6 +153,50 @@ def main() -> int:
             problems.append(
                 f"{STORE_COMPOSE}: x-casaos.{field} locales do not match description "
                 f"(missing: {missing}; unexpected: {extra})"
+            )
+
+    # supported-languages.json is what the v2 store build reads to decide which
+    # languages to EMIT. It listed only en_US while the app entry carried
+    # fifteen, so the build flattened every translated field back to English and
+    # the published meta.json shipped one language -- the translations were in
+    # the repository and reached nobody. Nothing said so, because every other
+    # check only ever looked at the app entry.
+    langs_path = REPO / "appstore" / "supported-languages.json"
+    try:
+        declared = set(json.loads(langs_path.read_text()))
+    except (OSError, ValueError) as exc:
+        problems.append(f"appstore/supported-languages.json: unreadable ({exc})")
+        declared = set()
+    if declared and declared != reference:
+        missing = ", ".join(sorted(reference - declared)) or "none"
+        extra = ", ".join(sorted(declared - reference)) or "none"
+        problems.append(
+            f"appstore/supported-languages.json does not match the app entry's locales "
+            f"(missing: {missing}; unexpected: {extra}) -- the store build emits only "
+            "the languages listed here, so a locale absent from this file is a "
+            "translation that reaches nobody"
+        )
+
+    # The store's own listing needs a value for every language it declares.
+    cfg_path = REPO / "appstore" / "store-config.json"
+    try:
+        cfg = json.loads(cfg_path.read_text())
+    except (OSError, ValueError) as exc:
+        problems.append(f"appstore/store-config.json: unreadable ({exc})")
+        cfg = {}
+    for field in ("name", "description"):
+        value = cfg.get(field)
+        if not isinstance(value, dict):
+            problems.append(f"appstore/store-config.json: {field} is not a locale map")
+            continue
+        if declared and set(value) != declared:
+            missing = ", ".join(sorted(declared - set(value))) or "none"
+            extra = ", ".join(sorted(set(value) - declared)) or "none"
+            problems.append(
+                f"appstore/store-config.json: {field} does not match "
+                f"supported-languages.json (missing: {missing}; unexpected: {extra}) "
+                "-- every declared language needs a value, and a value for an "
+                "undeclared one never reaches anybody"
             )
 
     # The README tells people which images to pull.
