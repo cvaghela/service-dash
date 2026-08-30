@@ -83,10 +83,15 @@ jobs:
           mkdir -p /tmp/digests
           echo "${{ steps.build.outputs.digest }}" > "/tmp/digests/${{ matrix.image.name }}.${{ matrix.arch }}"
 
+      # The separator is `__`, not `-`, and that is the whole point. Image names
+      # contain hyphens and `service-dash` is a PREFIX of every other one, so a
+      # `digest-service-dash-*` pattern matched all ten artifacts instead of its
+      # own two and the merge refused to run. `__` appears in no image name, so
+      # the prefix is unambiguous.
       - name: Upload the digest
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: digest-${{ matrix.image.name }}-${{ matrix.arch }}
+          name: digest__${{ matrix.image.name }}__${{ matrix.arch }}
           path: /tmp/digests/${{ matrix.image.name }}.${{ matrix.arch }}
           if-no-files-found: error
           retention-days: 1
@@ -110,7 +115,7 @@ jobs:
       - name: Download the digests
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
-          pattern: digest-${{ matrix.image }}-*
+          pattern: digest__${{ matrix.image }}__*
           path: /tmp/digests
           merge-multiple: true
 

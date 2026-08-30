@@ -62,6 +62,9 @@ jobs:
       - name: Check the empty state can still explain itself
         run: python3 scripts/check-empty-state.py
 
+      - name: Check each image claims only its own digests
+        run: python3 scripts/check-publish-matrix.py
+
       - name: Check the release version is stated consistently
         run: python3 scripts/check-release.py
 
