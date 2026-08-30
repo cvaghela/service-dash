@@ -2,7 +2,7 @@ name: service-dash
 
 services:
   service-dash:
-    image: ghcr.io/cvaghela/service-dash:1.5.1@sha256:49bceae034e14873daf411619f7c2ea6ccd8f75470ff2d3d70ee2710a371b470
+    image: ghcr.io/cvaghela/service-dash:1.5.2
     container_name: service-dash
     ports:
       - target: 80
@@ -45,7 +45,7 @@ services:
     # the official store, which still packages a v1 main.zip for older clients,
     # and it documents the three settings worth changing at install time.
   kuma-auth:
-    image: ghcr.io/cvaghela/service-dash-kuma-auth:1.5.1@sha256:6b99807c79a600ec9371bdc4ea657d31ecd0bbe4d70ecce9b25eb67fa291c64f
+    image: ghcr.io/cvaghela/service-dash-kuma-auth:1.5.2
     container_name: service-dash-kuma-auth
     environment:
       # Must point at the same Uptime Kuma as KUMA_PORT above.
@@ -69,7 +69,7 @@ services:
     restart: unless-stopped
 
   network-info:
-    image: ghcr.io/cvaghela/service-dash-network-info:1.5.1@sha256:c8ca5559d37afb864be68b4e48969bc506a11aa83d3be77b3d9a36c852b9bb49
+    image: ghcr.io/cvaghela/service-dash-network-info:1.5.2
     container_name: service-dash-network-info
     network_mode: host
     read_only: true
@@ -170,7 +170,7 @@ services:
   #
   #   docker exec -it service-dash-claude-usage claude auth login
   claude-usage:
-    image: ghcr.io/cvaghela/service-dash-claude-usage:1.5.1@sha256:6e7198f741d6890b01a6c6acba80208c98151c4e511feb234ba45a36fbb48ecf
+    image: ghcr.io/cvaghela/service-dash-claude-usage:1.5.2
     container_name: service-dash-claude-usage
     environment:
       # Plan windows move slowly; polling harder gains nothing.
@@ -197,7 +197,7 @@ services:
   # localhost and hangs.
   #   docker exec -it service-dash-codex-usage codex login --device-auth
   codex-usage:
-    image: ghcr.io/cvaghela/service-dash-codex-usage:1.5.1@sha256:a87062cfe45acbeade89e5bd67a46ce8e03075060f8044c011d8d1a54accfb32
+    image: ghcr.io/cvaghela/service-dash-codex-usage:1.5.2
     container_name: service-dash-codex-usage
     environment:
       CODEX_USAGE_REFRESH_SECONDS: "300"
@@ -225,7 +225,7 @@ x-casaos:
   index: /
   port_map: "8888"
   scheme: http
-  version: "1.5.1"
+  version: "1.5.2"
   icon: https://cvaghela.github.io/service-dash/pages/apps/io.github.cvaghela.servicedash/assets/icon.png
   title:
     en_US: Service Dash

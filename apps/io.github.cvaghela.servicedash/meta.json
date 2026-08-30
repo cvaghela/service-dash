@@ -4,7 +4,7 @@
     "amd64",
     "arm64"
   ],
-  "update_at": "2026-08-29",
+  "update_at": "2026-08-30",
   "author": "Chintan Vaghela",
   "developer": "Chintan Vaghela",
   "thumbnail": "/apps/io.github.cvaghela.servicedash/assets/thumbnail.webp",
@@ -23,16 +23,16 @@
     "before_install": "### Before you install\n\nService Dash reads your monitors from **Uptime Kuma**. It does not\ninstall Kuma for you, so set that up first:\n\n1. Install **Uptime Kuma** -- it is in the official ZimaOS app store --\n   and leave it on its default port `3001`. If you run it on another\n   port, change `KUMA_PORT` below and `KUMA_URL` on the `kuma-auth`\n   service to match. Kuma must be on this same host.\n2. In Uptime Kuma, create a **status page** and add the monitors you\n   want on the dashboard.\n3. Note the status page's **slug** -- the last part of its URL. If it is\n   not `homelab`, change `STATUS_SLUG` below to match.\n\n### Getting local and public URLs on one card\n\nBoth addresses come from Uptime Kuma, from **how you name the\nmonitors**. Give a service two monitors:\n\n| Monitor name | Points at | Shows on the card as |\n| --- | --- | --- |\n| `Plex` | your public URL | **External** |\n| `Plex local` | your LAN URL | **Local** |\n\nService Dash pairs them by name into a single card carrying both.\n`Plex (local)`, `Plex - local` and `Plex.local` are recognised the same\nway. A service with only one monitor simply shows one address.\n\nEach address is the monitor's own URL in Kuma, so it is set in Kuma, not\nhere. The dashboard opens whichever address your browser can actually\nreach -- the local one when you are on the LAN, the public one when you\nare not -- deciding per card and without testing anything. The switch in\nthe top bar pins it to **Local** or **External** if you would rather\nchoose yourself.\n\nBoth addresses read **URL Locked** until you sign in to Uptime Kuma from\nthe dashboard -- signed out, they are never sent to the browser at all.\n\nThen open Service Dash on port **8888**.\n"
   },
   "title": "Service Dash",
-  "release_note": "1.5.1 makes the AI usage panel actually reachable on ZimaOS. 1.5.0\nshipped its two reporters behind a Compose profile, and CasaOS silently\ndrops any service that declares one -- so the panel could not be turned\non at all, by update or by fresh install. They are now ordinary services\nthat sit idle until you sign in, so enabling the feature is just:\n\n  sudo docker exec -it service-dash-claude-usage claude auth login\n\nIdle they cost about 12MB of RAM and no measurable CPU. The trade is\ndisk: both images carry a vendor CLI and are pulled whether or not you\nuse them.\n\nAlso in this cycle, from 1.5.0: the AI usage panel itself -- how much of\nyour Claude and ChatGPT plan is left, as dials above the grid -- plus a\nfix for iPhone Safari killing the tab after a few minutes of scrolling,\nand dialogs no longer running under the notch.\n",
+  "release_note": "1.5.2 makes an empty dashboard explain itself. A blank grid used to say\nalmost nothing: a small OFFLINE in the top bar, and a toast that cleared\nitself after five seconds. Installing for the first time, you could not\ntell \"Uptime Kuma is not set up yet\" from \"this app is broken\".\n\nA blank grid now names which of three things happened, and what to do\nabout it:\n\n  * Uptime Kuma is not answering. It is a separate application, and\n    Service Dash does not bundle or install it -- so the panel says that\n    plainly, then walks through installing it, publishing a status page,\n    and matching KUMA_PORT and STATUS_SLUG.\n  * It answered, but that status page has no monitors on it. Steps for\n    the Uptime Kuma editor, including adding a group first, which is\n    where most empty pages get stuck.\n  * Your cards are loaded, and the search and filters are hiding them.\n\nNothing else changed. If your dashboard already shows cards, this release\nis invisible to you.\n",
   "base_url": "https://cdn.jsdelivr.net/gh/cvaghela/service-dash@gh-pages",
   "id": "io.github.cvaghela.servicedash",
-  "version": "1.5.1",
+  "version": "1.5.2",
   "categories": [
     "networking"
   ],
   "min_memory": 0,
   "min_image_size": {
-    "amd64": 638384429,
-    "arm64": 625624773
+    "amd64": 317941186,
+    "arm64": 310513182
   }
 }
