@@ -50,8 +50,12 @@ mkdir -p "$SHARED_SETTINGS_ROOT/settings" "$SHARED_SETTINGS_ROOT/tmp"
 # nginx workers drop to this user, so the volume has to belong to it.
 chown -R nginx:nginx "$SHARED_SETTINGS_ROOT"
 
-printf 'window.__DASHBOARD_CONFIG__ = { statusSlug: "%s", storageMount: "%s" };\n' \
-    "$STATUS_SLUG" "$STORAGE_MOUNT" \
+# kumaPort is here for the empty state alone: when no status page can be
+# reached, the panel prints a diagnostic command the reader can paste, and a
+# command naming the wrong port is worse than no command. Both values are
+# already validated above, so neither can inject into the JS literal.
+printf 'window.__DASHBOARD_CONFIG__ = { statusSlug: "%s", storageMount: "%s", kumaPort: "%s" };\n' \
+    "$STATUS_SLUG" "$STORAGE_MOUNT" "$KUMA_PORT" \
     > /usr/share/nginx/html/config.js
 
 export KUMA_UPSTREAM

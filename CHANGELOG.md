@@ -3,6 +3,44 @@
 All notable changes to Service Dash are recorded here. This project follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.2] — 2026-08-30
+
+**An empty dashboard now explains itself.** A blank grid used to say almost nothing: a small `OFFLINE` in the top bar, and a toast that cleared itself after 5.2 seconds. Installing for the first time, you could not tell "Uptime Kuma is not set up yet" from "this app is broken" — which is exactly what happened when IceWhale's maintainer reviewed the app for their store, checked that every container was healthy, and reasonably concluded it was broken.
+
+### Added
+
+- **An empty state that names which of three things happened, and what to do about it.**
+
+  A blank grid has three quite different causes, and until now the reader could not tell them apart:
+
+  | Cause | Top bar | The panel says |
+  | --- | --- | --- |
+  | Uptime Kuma is unreachable | `OFFLINE` | Waiting for Uptime Kuma |
+  | The status page has no monitors | `CONNECTED` | Connected, but that status page is empty |
+  | Search and filters hide every card | `CONNECTED` | Nothing matches |
+
+  **The middle one is easy to miss.** `publicGroupList: []` is a *valid* empty array, so a status page with nothing on it is a successful fetch: the top bar reports `CONNECTED` and the grid is still blank. Treating that as the same failure as an unreachable Kuma sends people to check a port that was never the problem.
+
+- **Setup steps in both empty states, not just a diagnosis.**
+
+  The offline state leads with the thing that misleads people: **Uptime Kuma is a separate application, and Service Dash does not bundle, install or start it.** It then walks through installing it on the host, creating the admin account, publishing a status page, and matching `KUMA_PORT` and `STATUS_SLUG`. The install command is copyable and pins `louislam/uptime-kuma:2`.
+
+  The empty-status-page state walks through Uptime Kuma's editor. Its second step is the real gotcha: **add a group first.** Monitors are nested inside groups in Kuma's API, so a page with no group has nowhere to put them and stays blank.
+
+- **A diagnostic command, behind a fold**, whose three possible outputs pin the cause exactly: `HTTP/1.1 200 OK` (both fine), `HTTP/1.1 404 Not Found` (Kuma is up, wrong slug), or `can't connect to remote host` (nothing on that port). It runs from any folder with nothing installed but Docker, and names *this* install's port and slug rather than the defaults — which is why `entrypoint.sh` now writes `kumaPort` into `config.js`.
+
+### Fixed
+
+- **The panel no longer explains an emptiness that is not there.** With cards on screen, losing Uptime Kuma put "Waiting for Uptime Kuma" underneath a full grid, which reads as though the app had lost them. A dashboard that has been up for a week and briefly loses Kuma keeps its cards and lets the top bar's `OFFLINE` say why they stopped moving. Every branch is now guarded on the grid actually being empty.
+
+- **Contrast on the light theme.** The offline title takes `--pending`, a dark-ground token that measures **1.36:1** on the light panel — it looked perfectly fine in a screenshot. The light-mode override reaches **9.34:1**.
+
+### Notes
+
+Nothing else changed. If your dashboard already shows cards, this release is invisible to you.
+
+`scripts/check-empty-state.py` guards all of the above and runs in CI. It was mutation-tested seven ways, and its `entrypoint.sh` check passed vacuously on first writing — it looked for the string `kumaPort` anywhere in the file, and the *comment* explaining the emission satisfied it while the emission itself was deleted.
+
 ## [1.5.1] — 2026-08-29
 
 **Fixes how the AI reporters are deployed, and corrects the 1.5.0 upgrade instructions.** The reporters themselves are unchanged; what changed is that they are no longer hidden behind a Compose profile.
@@ -685,6 +723,7 @@ Housekeeping for the first public release. No functional changes to the dashboar
 
 See the [release history](https://github.com/cvaghela/service-dash/releases).
 
+[1.5.2]: https://github.com/cvaghela/service-dash/releases/tag/v1.5.2
 [1.5.1]: https://github.com/cvaghela/service-dash/releases/tag/v1.5.1
 [1.5.0]: https://github.com/cvaghela/service-dash/releases/tag/v1.5.0
 [1.4.2]: https://github.com/cvaghela/service-dash/releases/tag/v1.4.2

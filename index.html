@@ -38,7 +38,7 @@
             rel="stylesheet"
             href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,500,0,0"
         />
-        <link rel="stylesheet" href="assets/css/styles.css?v=1.5.1" />
+        <link rel="stylesheet" href="assets/css/styles.css?v=1.5.2" />
     </head>
     <body>
         <svg class="icon-sprite" aria-hidden="true" focusable="false">
@@ -341,6 +341,10 @@
                 <div class="groups" id="groups">
                     <!-- groups render here -->
                 </div>
+                <!-- Sibling of #groups, not a child: buildDomOnceIfNeeded() clears
+                     #groups wholesale, which would take this with it. Contents are
+                     rendered by renderEmptyState(). -->
+                <div class="emptyState" id="emptyState" hidden></div>
             </main>
         </div>
         <!-- Toast -->
@@ -580,7 +584,7 @@
                 <path d="M12 5l-7 7h4v7h6v-7h4z"></path>
             </svg>
         </button>
-        <script src="/config.js?v=1.5.1"></script>
-        <script src="./assets/js/app.js?v=1.5.1" defer></script>
+        <script src="/config.js?v=1.5.2"></script>
+        <script src="./assets/js/app.js?v=1.5.2" defer></script>
     </body>
 </html>

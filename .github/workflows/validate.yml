@@ -59,6 +59,9 @@ jobs:
       - name: Check a new service is not shipped without an upgrade path
         run: python3 scripts/check-service-additions.py
 
+      - name: Check the empty state can still explain itself
+        run: python3 scripts/check-empty-state.py
+
       - name: Check the release version is stated consistently
         run: python3 scripts/check-release.py
 
