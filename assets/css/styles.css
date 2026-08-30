@@ -4568,10 +4568,49 @@ body.mobile-topbar-open .mobile-menu-icon span:nth-child(3) {
     color: var(--muted);
     line-height: 1.6;
 }
-.emptyChecks {
+.emptyChecks,
+.emptySteps,
+.emptyOutcomes {
     display: grid;
     gap: 6px;
     padding-left: 20px;
+}
+/* The steps carry a command block inside step 1, so they need room to breathe
+   in a way a plain list does not. */
+.emptySteps {
+    gap: 10px;
+    color: var(--muted);
+    line-height: 1.6;
+    margin: 0;
+}
+.emptySteps b {
+    color: var(--text);
+}
+.emptySteps .emptyCmd {
+    margin-top: 8px;
+}
+/* States the thing the reader has got wrong before the instructions that
+   depend on it, so it is not read as another step. */
+.emptyNote {
+    margin: 0;
+    justify-self: stretch;
+    padding: 10px 12px;
+    border-radius: 12px;
+    border: 1px solid var(--stroke);
+    background: rgb(255, 255, 255, 0.05);
+    color: var(--muted);
+    line-height: 1.55;
+}
+.emptyNote b {
+    color: var(--text);
+}
+.emptyOutcomes {
+    margin: 10px 0 0;
+    list-style: none;
+    padding-left: 0;
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.5;
 }
 .emptyState code {
     font-size: 12px;
@@ -4637,6 +4676,12 @@ body.mobile-topbar-open .mobile-menu-icon span:nth-child(3) {
    of punching a hole in it. */
 [data-theme="light"] .emptyCmd {
     background: rgb(0, 0, 0, 0.06);
+}
+/* A 5% white fill is invisible on the light panel, which is itself 50% white.
+   The callout has to read as a distinct surface or it is just an indented
+   paragraph. */
+[data-theme="light"] .emptyNote {
+    background: rgb(0, 0, 0, 0.04);
 }
 [data-theme="light"] .emptyCmdHint {
     color: rgb(18, 18, 30, 0.72);

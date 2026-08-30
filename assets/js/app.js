@@ -4934,6 +4934,14 @@ function kumaDiagnosticCommand() {
     return `sudo docker exec service-dash sh -c 'wget -S -O/dev/null --timeout=5 "http://host.docker.internal:${KUMA_PORT}/api/status-page/${STATUS_SLUG}" 2>&1 | head -3'`;
 }
 
+// The floating major tag, so an install started from here does not pin itself
+// to whatever was current the day this shipped. Verified to exist rather than
+// assumed -- `louislam/uptime-kuma:1` is the tag most guides still quote, and
+// following it would put a new install two majors behind.
+function kumaInstallCommand() {
+    return `docker run -d --restart=always --name uptime-kuma -p ${KUMA_PORT}:3001 -v uptime-kuma:/app/data louislam/uptime-kuma:2`;
+}
+
 // The stored error can be nginx's own 502 page: five hundred characters of
 // markup wrapped around four useful words. Strip the tags, collapse the
 // whitespace and cap it -- the panel summarises, it is not a log viewer.
@@ -4942,54 +4950,84 @@ function tidyKumaError(raw) {
         .replace(/<[^>]*>/g, " ")
         .replace(/\s+/g, " ")
         .trim();
-    return text.length > 180 ? `${text.slice(0, 180)}\u2026` : text;
+    return text.length > 180 ? `${text.slice(0, 180)}…` : text;
 }
 
 function emptyStateModel() {
-    // Order matters: an unreachable Kuma also has zero services and zero
-    // visible cards, so the most specific cause has to be tested first.
-    if (!state.kumaConnected) {
+    // Every branch below is guarded on there being nothing on screen, because
+    // this panel explains an EMPTY grid and nothing else. A dashboard that has
+    // been up for a week and briefly loses Kuma still has its cards: leave them
+    // alone and let the topbar's OFFLINE say why they have stopped moving.
+    // Putting "Waiting for Uptime Kuma" under a screen full of services reads
+    // as though the app has lost them.
+    if (!state.kumaConnected && !state.services.length) {
         return {
             kind: "offline",
             title: "Waiting for Uptime Kuma",
             lead: `Service Dash builds its cards from an Uptime Kuma status page on this host. Nothing usable answered at <code>${escapeHtml(EP_STATUS)}</code>.`,
-            checks: [
-                `<b>Uptime Kuma is running on this host</b> and reachable on port <b>${escapeHtml(KUMA_PORT)}</b>.`,
-                `<b>A status page exists</b> with the slug <b>${escapeHtml(STATUS_SLUG)}</b>, and it is published.`,
-                `If Kuma uses a different port or slug, change <code>KUMA_PORT</code> or <code>STATUS_SLUG</code> in the Compose file to match.`,
+            // The misconception that cost IceWhale's maintainer an afternoon:
+            // every container was healthy, so the app looked broken. It is
+            // stated before the steps because it is the thing that reframes
+            // everything after it.
+            note: "<b>Uptime Kuma is a separate application.</b> Service Dash reads from it, but does not bundle, install or start it for you.",
+            steps: [
+                `<b>Install Uptime Kuma on this host.</b> On ZimaOS or CasaOS it is in the app store. Anywhere else:${commandBlock(kumaInstallCommand(), "Run on the host &middot; any folder")}`,
+                `<b>Open it on port ${escapeHtml(KUMA_PORT)}</b> and create the admin account.`,
+                `<b>Add your services as monitors</b>, then create a <b>status page</b>, put the monitors in a group on it, and publish it.`,
+                `If Kuma ended up on another port, or the page's slug is not <b>${escapeHtml(STATUS_SLUG)}</b>, change <code>KUMA_PORT</code> or <code>STATUS_SLUG</code> in the Compose file to match.`,
             ],
-            command: kumaDiagnosticCommand(),
+            diagnostic: kumaDiagnosticCommand(),
             detail: tidyKumaError(window.__kuma?.error || ""),
         };
     }
 
-    if (!state.services.length) {
+    if (state.kumaConnected && !state.services.length) {
         return {
             kind: "no-monitors",
             title: "Connected, but that status page is empty",
-            lead: `Uptime Kuma answered at <code>${escapeHtml(EP_STATUS)}</code>. The status page has no monitors on it yet.`,
-            checks: [
-                `Add the monitors you want here to the <b>${escapeHtml(STATUS_SLUG)}</b> status page in Uptime Kuma.`,
-                `Name two of them <code>Plex</code> and <code>Plex local</code> to get a single card carrying both a public and a LAN address.`,
+            lead: `Uptime Kuma answered at <code>${escapeHtml(EP_STATUS)}</code>, so the connection is fine. The <b>${escapeHtml(STATUS_SLUG)}</b> status page just has no monitors on it.`,
+            note: "",
+            steps: [
+                `In Uptime Kuma, open the <b>${escapeHtml(STATUS_SLUG)}</b> status page and click <b>Edit</b>.`,
+                // The actual reason most empty status pages are empty: monitors
+                // are nested inside groups in the API response, and the editor
+                // will not accept one until a group exists to hold it.
+                `<b>Add a group first.</b> Monitors live inside groups — a page with no group has nowhere to put them and stays blank.`,
+                `Drag the monitors you want into that group, then <b>Save</b>.`,
+                `Check the page is <b>published</b>. An unpublished page answers, but with nothing in it.`,
+                `For one card carrying both a public and a LAN address, name two monitors <code>Plex</code> and <code>Plex local</code>.`,
             ],
-            command: "",
+            diagnostic: "",
             detail: "",
         };
     }
 
-    if (state.visibleCount === 0) {
+    if (state.services.length && state.visibleCount === 0) {
         return {
             kind: "no-matches",
             title: "Nothing matches",
             lead: `${state.services.length} service${state.services.length === 1 ? "" : "s"} loaded, but none match the current search and filters.`,
-            checks: [],
-            command: "",
+            note: "",
+            steps: [],
+            diagnostic: "",
             detail: "",
             clear: true,
         };
     }
 
     return null;
+}
+
+// One command block, used for the install command inside a step and for the
+// diagnostic behind its fold. The hint sits ON the command because "where do I
+// run this" and "do I need to install anything" are the two questions people
+// stall on, and a footnote elsewhere does not reach them.
+function commandBlock(command, hint) {
+    return `<div class="emptyCmd">
+               <span class="emptyCmdHint">${hint}</span>
+               <code>${escapeHtml(command)}</code>
+               <button class="pill emptyCopy" type="button">Copy</button>
+           </div>`;
 }
 
 function renderEmptyState() {
@@ -5011,26 +5049,31 @@ function renderEmptyState() {
 
     // The signature is what makes this idempotent. Without it the panel would
     // be torn down and rebuilt under the reader every fifteen seconds, which
-    // loses text selection and restarts the entrance transition.
+    // loses text selection, closes any open fold and restarts the transition.
     const signature = [model.kind, model.detail, model.lead].join("|");
     if (host.dataset.signature === signature) {
         host.hidden = false;
         return;
     }
 
-    const checks = model.checks.length
-        ? `<ul class="emptyChecks">${model.checks.map((c) => `<li>${c}</li>`).join("")}</ul>`
+    const note = model.note ? `<p class="emptyNote">${model.note}</p>` : "";
+
+    const steps = model.steps.length
+        ? `<ol class="emptySteps">${model.steps.map((s) => `<li>${s}</li>`).join("")}</ol>`
         : "";
 
-    // The command is offered the same way the AI panel offers its sign-in: with
-    // the two things people stall on answered on the command itself, rather
-    // than in a footnote they have to go and find.
-    const command = model.command
-        ? `<div class="emptyCmd">
-               <span class="emptyCmdHint">Run on the host &middot; any folder &middot; nothing to install</span>
-               <code>${escapeHtml(model.command)}</code>
-               <button class="pill emptyCopy" type="button">Copy</button>
-           </div>`
+    // Folded, because it is the second question. Somebody who has not installed
+    // Uptime Kuma at all does not need to prove that nothing is answering.
+    const diagnostic = model.diagnostic
+        ? `<details class="emptyDetail">
+               <summary>Already installed it? Check what is answering</summary>
+               ${commandBlock(model.diagnostic, "Run on the host &middot; any folder &middot; nothing to install")}
+               <ul class="emptyOutcomes">
+                   <li><code>HTTP/1.1 200 OK</code> — Kuma and the slug are both fine.</li>
+                   <li><code>HTTP/1.1 404 Not Found</code> — Kuma is up, but no status page has that slug.</li>
+                   <li><code>can't connect to remote host</code> — nothing is listening on that port.</li>
+               </ul>
+           </details>`
         : "";
 
     // The raw fetch error, folded away. It is the fastest route to an answer
@@ -5049,9 +5092,10 @@ function renderEmptyState() {
         <div class="emptyInner">
             <h2 class="emptyTitle">${escapeHtml(model.title)}</h2>
             <p class="emptyLead">${model.lead}</p>
-            ${checks}
-            ${command}
+            ${note}
+            ${steps}
             ${clear}
+            ${diagnostic}
             ${detail}
         </div>`;
     host.hidden = false;

@@ -60,6 +60,28 @@ def main() -> int:
             "a missing call is a blank grid with no explanation on exactly the path that needs one"
         )
 
+    # Every branch of emptyStateModel() must be guarded on there being nothing
+    # on screen. Without it, a dashboard that has been up for a week and briefly
+    # loses Kuma puts "Waiting for Uptime Kuma" under a screen full of its own
+    # cards, which reads as though the app has lost them. Caught in the sandbox,
+    # not in review.
+    model = re.search(r"function emptyStateModel\(\) \{(.*?)\n\}", app, re.S)
+    if not model:
+        problems.append("app.js: emptyStateModel() is gone")
+    else:
+        body = model.group(1)
+        for label, needle in (
+            ("the offline branch", "!state.kumaConnected && !state.services.length"),
+            ("the empty-page branch", "state.kumaConnected && !state.services.length"),
+            ("the no-matches branch", "state.services.length && state.visibleCount === 0"),
+        ):
+            if needle not in body:
+                problems.append(
+                    f"app.js: {label} of emptyStateModel() is no longer guarded on an empty "
+                    f"grid (expected `{needle}`) -- the panel would explain an emptiness that "
+                    "is not there, under cards the reader can see"
+                )
+
     # The command the panel offers must describe THIS install. It was hardcoded
     # to 3001/homelab once by accident; a command naming the wrong port sends
     # the reader to prove something irrelevant.
