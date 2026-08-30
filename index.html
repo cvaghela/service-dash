@@ -341,6 +341,10 @@
                 <div class="groups" id="groups">
                     <!-- groups render here -->
                 </div>
+                <!-- Sibling of #groups, not a child: buildDomOnceIfNeeded() clears
+                     #groups wholesale, which would take this with it. Contents are
+                     rendered by renderEmptyState(). -->
+                <div class="emptyState" id="emptyState" hidden></div>
             </main>
         </div>
         <!-- Toast -->

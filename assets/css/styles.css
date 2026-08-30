@@ -4523,3 +4523,133 @@ body.mobile-topbar-open .mobile-menu-icon span:nth-child(3) {
 .aiSetupSignOut[hidden] {
     display: none;
 }
+
+/* =========================
+   EMPTY STATE
+   =========================
+   A blank grid is the first screen of every new install, and it used to explain
+   nothing: the only signals were the word OFFLINE in small type in the topbar
+   and a toast that cleared itself after 5.2 seconds. Three quite different
+   causes produce the same blank grid, so this panel names which one it is. */
+.emptyState {
+    margin-top: 14px;
+    padding: 20px;
+    border: 1px solid var(--stroke);
+    border-radius: var(--radius-lg);
+    background: var(--panel-2);
+    /* No backdrop-filter, deliberately -- see the note by .topbar. This is a
+       large surface, and blurring one that sits on a smooth gradient returns
+       the same smooth gradient for the cost of a full-size GPU layer. */
+}
+/* The panel is only ever shown by clearing `hidden`, and .emptyInner supplies
+   the layout, so the attribute is enough on its own. Stated anyway: a display
+   value on .emptyState would silently beat it, which is a bug this codebase has
+   already shipped once. */
+.emptyState[hidden] {
+    display: none;
+}
+.emptyInner {
+    display: grid;
+    gap: 12px;
+    justify-items: start;
+    /* Running text stays near 65 characters however wide the grid gets. */
+    max-width: 64ch;
+}
+.emptyTitle {
+    margin: 0;
+    font-family: var(--font-head);
+    font-size: 17px;
+    font-weight: 700;
+    color: var(--text);
+}
+.emptyLead,
+.emptyChecks {
+    margin: 0;
+    color: var(--muted);
+    line-height: 1.6;
+}
+.emptyChecks {
+    display: grid;
+    gap: 6px;
+    padding-left: 20px;
+}
+.emptyState code {
+    font-size: 12px;
+    color: var(--text);
+    overflow-wrap: anywhere;
+}
+/* Mirrors .aiSetupCmd: the hint sits ON the command, because "where do I run
+   this" and "do I need to install anything" are the two questions people stall
+   on, and a footnote elsewhere does not reach them. */
+.emptyCmd {
+    display: grid;
+    gap: 6px 8px;
+    justify-items: end;
+    justify-self: stretch;
+    min-width: 0;
+    padding: 10px 12px;
+    border: 1px solid var(--stroke);
+    border-radius: 12px;
+    background: rgb(0, 0, 0, 0.22);
+}
+.emptyCmdHint {
+    justify-self: stretch;
+    font-family: var(--font-head);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+}
+.emptyCmd code {
+    justify-self: stretch;
+    min-width: 0;
+    /* Wraps rather than scrolls, for the same reason as the AI setup commands:
+       a sideways-scrolling bar hides both the end of the command and the Copy
+       button, and the copied text is one line either way. */
+    white-space: pre-wrap;
+    line-height: 1.55;
+}
+.emptyCopy,
+.emptyClear {
+    flex: 0 0 auto;
+    padding: 5px 13px;
+    font-size: 12px;
+}
+.emptyDetail {
+    justify-self: stretch;
+    color: var(--muted);
+    font-size: 12px;
+}
+.emptyDetail summary {
+    cursor: pointer;
+    font-family: var(--font-head);
+    font-weight: 600;
+}
+.emptyDetail code {
+    display: block;
+    margin-top: 8px;
+    white-space: pre-wrap;
+    line-height: 1.5;
+}
+/* Same measurement as .aiSetupCmd: the dark fill is right on a dark ground and
+   merely legible on a light one, where a lighter fill matches the panel instead
+   of punching a hole in it. */
+[data-theme="light"] .emptyCmd {
+    background: rgb(0, 0, 0, 0.06);
+}
+[data-theme="light"] .emptyCmdHint {
+    color: rgb(18, 18, 30, 0.72);
+}
+/* Ties the panel to the word it is explaining: the topbar says OFFLINE in
+   --pending, and this is the panel that says why. The other two causes are not
+   faults and stay in body colour. */
+.emptyState[data-kind="offline"] .emptyTitle {
+    color: var(--pending);
+}
+/* --pending is a dark-ground token: measured on this panel in light mode it is
+   1.36:1, which is not a heading so much as a rumour of one. The same dark
+   amber the sign-out control uses reaches 8.9:1 here. */
+[data-theme="light"] .emptyState[data-kind="offline"] .emptyTitle {
+    color: #5c3d00;
+}

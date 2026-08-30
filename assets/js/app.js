@@ -41,6 +41,9 @@ const APP_VERSION = (() => {
 const RUNTIME_CONFIG = window.__DASHBOARD_CONFIG__ || {};
 const KUMA_BASE = "/kuma";
 const STATUS_SLUG = String(RUNTIME_CONFIG.statusSlug || "homelab");
+// Only ever used to build the empty state's diagnostic command. A command
+// naming the wrong port is worse than offering no command at all.
+const KUMA_PORT = String(RUNTIME_CONFIG.kumaPort || "3001");
 const STORAGE_MOUNT = String(RUNTIME_CONFIG.storageMount || "auto").trim();
 const ICON_STORAGE_KEY = "serviceIcons";
 let BROWSER_ICON_OVERRIDES = loadBrowserIconOverrides();
@@ -253,6 +256,8 @@ const state = {
 
     pageData: null,
     heartbeat: null,
+    // How many cards survive the current filters. Drives the empty state.
+    visibleCount: 0,
     kumaConnected: false,
     lastSync: null,
 
@@ -296,6 +301,7 @@ const els = {
     btnTheme: document.getElementById("btnTheme"),
     btnLinkMode: document.getElementById("btnLinkMode"),
     linkModeToggle: document.getElementById("linkModeToggle"),
+    emptyState: document.getElementById("emptyState"),
     secAiUsage: document.getElementById("secAiUsage"),
     secAiDetail: document.getElementById("secAiDetail"),
     aiRows: document.getElementById("aiRows"),
@@ -4901,21 +4907,204 @@ function updateStatusesInPlace() {
     }
 }
 
+/* =========================
+               EMPTY STATE
+               ========================= */
+// A blank grid is the screen every new install starts on, and until this existed
+// it explained nothing. The only signals were the word OFFLINE in small type in
+// the topbar and a toast that cleared itself after 5.2 seconds. IceWhale's
+// maintainer hit exactly that while reviewing the app for their store, checked
+// that every container was healthy, and reasonably concluded Service Dash was
+// broken. It was not: Uptime Kuma simply was not there to read. An empty grid
+// has three quite different causes and the reader cannot tell them apart, so
+// the panel names which one it is and what to do about it.
+
+// Runs from any folder with nothing installed on the host but Docker, and
+// prints a different, unmistakable first line for each cause: "HTTP/1.1 200 OK"
+// (both fine), "HTTP/1.1 404 Not Found" (Kuma up, wrong slug), or "can't connect
+// to remote host" (nothing on that port). `service-dash` is a fixed
+// container_name in all three Compose files, so this needs neither a Compose
+// file nor a particular working directory. The sudo is not decoration -- on
+// ZimaOS the user is not in the `docker` group by default.
+//
+// Both values are interpolated into a single-quoted shell string, and both are
+// validated by entrypoint.sh before they reach the browser (STATUS_SLUG is
+// [A-Za-z0-9_-] only, KUMA_PORT is 1-65535), so neither can close the quote.
+function kumaDiagnosticCommand() {
+    return `sudo docker exec service-dash sh -c 'wget -S -O/dev/null --timeout=5 "http://host.docker.internal:${KUMA_PORT}/api/status-page/${STATUS_SLUG}" 2>&1 | head -3'`;
+}
+
+// The stored error can be nginx's own 502 page: five hundred characters of
+// markup wrapped around four useful words. Strip the tags, collapse the
+// whitespace and cap it -- the panel summarises, it is not a log viewer.
+function tidyKumaError(raw) {
+    const text = safeStr(raw)
+        .replace(/<[^>]*>/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+    return text.length > 180 ? `${text.slice(0, 180)}\u2026` : text;
+}
+
+function emptyStateModel() {
+    // Order matters: an unreachable Kuma also has zero services and zero
+    // visible cards, so the most specific cause has to be tested first.
+    if (!state.kumaConnected) {
+        return {
+            kind: "offline",
+            title: "Waiting for Uptime Kuma",
+            lead: `Service Dash builds its cards from an Uptime Kuma status page on this host. Nothing usable answered at <code>${escapeHtml(EP_STATUS)}</code>.`,
+            checks: [
+                `<b>Uptime Kuma is running on this host</b> and reachable on port <b>${escapeHtml(KUMA_PORT)}</b>.`,
+                `<b>A status page exists</b> with the slug <b>${escapeHtml(STATUS_SLUG)}</b>, and it is published.`,
+                `If Kuma uses a different port or slug, change <code>KUMA_PORT</code> or <code>STATUS_SLUG</code> in the Compose file to match.`,
+            ],
+            command: kumaDiagnosticCommand(),
+            detail: tidyKumaError(window.__kuma?.error || ""),
+        };
+    }
+
+    if (!state.services.length) {
+        return {
+            kind: "no-monitors",
+            title: "Connected, but that status page is empty",
+            lead: `Uptime Kuma answered at <code>${escapeHtml(EP_STATUS)}</code>. The status page has no monitors on it yet.`,
+            checks: [
+                `Add the monitors you want here to the <b>${escapeHtml(STATUS_SLUG)}</b> status page in Uptime Kuma.`,
+                `Name two of them <code>Plex</code> and <code>Plex local</code> to get a single card carrying both a public and a LAN address.`,
+            ],
+            command: "",
+            detail: "",
+        };
+    }
+
+    if (state.visibleCount === 0) {
+        return {
+            kind: "no-matches",
+            title: "Nothing matches",
+            lead: `${state.services.length} service${state.services.length === 1 ? "" : "s"} loaded, but none match the current search and filters.`,
+            checks: [],
+            command: "",
+            detail: "",
+            clear: true,
+        };
+    }
+
+    return null;
+}
+
+function renderEmptyState() {
+    const host = els.emptyState;
+    if (!host) return;
+
+    const model = emptyStateModel();
+    if (!model) {
+        // Compare before writing: this runs on every poll, and clearing an
+        // already-empty node is a layout write for nothing.
+        if (!host.hidden) {
+            host.hidden = true;
+            host.removeAttribute("data-kind");
+            host.removeAttribute("data-signature");
+            host.innerHTML = "";
+        }
+        return;
+    }
+
+    // The signature is what makes this idempotent. Without it the panel would
+    // be torn down and rebuilt under the reader every fifteen seconds, which
+    // loses text selection and restarts the entrance transition.
+    const signature = [model.kind, model.detail, model.lead].join("|");
+    if (host.dataset.signature === signature) {
+        host.hidden = false;
+        return;
+    }
+
+    const checks = model.checks.length
+        ? `<ul class="emptyChecks">${model.checks.map((c) => `<li>${c}</li>`).join("")}</ul>`
+        : "";
+
+    // The command is offered the same way the AI panel offers its sign-in: with
+    // the two things people stall on answered on the command itself, rather
+    // than in a footnote they have to go and find.
+    const command = model.command
+        ? `<div class="emptyCmd">
+               <span class="emptyCmdHint">Run on the host &middot; any folder &middot; nothing to install</span>
+               <code>${escapeHtml(model.command)}</code>
+               <button class="pill emptyCopy" type="button">Copy</button>
+           </div>`
+        : "";
+
+    // The raw fetch error, folded away. It is the fastest route to an answer
+    // for anyone who reads it, and noise for everyone else.
+    const detail = model.detail
+        ? `<details class="emptyDetail"><summary>What the browser reported</summary><code>${escapeHtml(model.detail)}</code></details>`
+        : "";
+
+    const clear = model.clear
+        ? `<button class="pill emptyClear" type="button">Clear search and filters</button>`
+        : "";
+
+    host.dataset.signature = signature;
+    host.dataset.kind = model.kind;
+    host.innerHTML = `
+        <div class="emptyInner">
+            <h2 class="emptyTitle">${escapeHtml(model.title)}</h2>
+            <p class="emptyLead">${model.lead}</p>
+            ${checks}
+            ${command}
+            ${clear}
+            ${detail}
+        </div>`;
+    host.hidden = false;
+}
+
+// One delegated listener for the panel's whole life, attached once. The panel's
+// innerHTML is rewritten whenever its cause changes, so per-render listeners
+// would leak and per-button lookups would go stale.
+if (els.emptyState) {
+    els.emptyState.addEventListener("click", async (event) => {
+        const copy = event.target.closest(".emptyCopy");
+        if (copy) {
+            const command = copy.closest(".emptyCmd")?.querySelector("code")?.textContent || "";
+            if (!command) return;
+            if (await writeClipboard(command)) toast("📋 <b>Command copied.</b> Run it on the host.", 2000);
+            else toast("⚠️ <b>Could not copy the command.</b>", 2200);
+            return;
+        }
+
+        if (event.target.closest(".emptyClear")) {
+            // Reset through the same state the chips and the search box write,
+            // so the controls agree with the grid afterwards.
+            state.query = "";
+            state.statusFilter = "all";
+            state.categoryFilter = "all";
+            if (els.q) els.q.value = "";
+            savePrefs();
+            applyFiltersAndCounts();
+            updateChipActiveStates();
+        }
+    });
+}
+
+
 function applyFiltersAndCounts() {
     const qLower = safeStr(state.query).trim().toLowerCase();
     const statusFilter = state.statusFilter;
     const categoryFilter = state.categoryFilter;
 
+    let visible = 0;
     for (const s of state.services) {
         const card = state.cardElById.get(String(s.id));
         if (!card) continue;
 
         const matches = serviceMatchesFilters(s, qLower, statusFilter, categoryFilter);
+        if (matches) visible += 1;
 
         card.classList.toggle("is-filtered-out", !matches);
     }
+    state.visibleCount = visible;
 
     renderChipsWithCounts();
+    renderEmptyState();
 }
 
 /* =========================
@@ -5505,6 +5694,9 @@ async function loadKumaOrMock() {
             error: String(e?.message || e),
         };
         toast(`⚠️ <b>Uptime Kuma offline.</b> Could not reach <b>${escapeHtml(EP_STATUS)}</b>. Retrying automatically.`, 5200);
+        // The toast clears itself after five seconds; the panel is what is still
+        // on screen when somebody comes back to the tab and wonders what broke.
+        renderEmptyState();
     }
 
     await pollOnce(true);
@@ -5556,6 +5748,7 @@ async function pollOnce(showToast) {
         if (showToast) {
             toast(`⚠️ <b>Sync failed.</b> ${escapeHtml(String(e.message || e))}`, 5200);
         }
+        renderEmptyState();
     } finally {
         setTimeout(() => {
             els.pollDot.style.animationDuration = "1.6s";

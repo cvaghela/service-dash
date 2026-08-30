@@ -323,6 +323,45 @@ original fault, watch the guard fail *by name*, then restore. Two of these
 passed vacuously on first writing — the nginx one only inspected quoted regexes,
 so removing the quotes made it find nothing and succeed.
 
+## The empty state
+
+A blank grid has three quite different causes and, until this existed, said
+nothing about which: the only signals were the word **OFFLINE** in small type in
+the topbar and a toast that cleared itself after 5.2 seconds. IceWhale's
+maintainer hit exactly that while reviewing the app for their store, checked
+that every container was healthy, and reasonably concluded Service Dash was
+broken. It was not — Uptime Kuma was simply not there to read.
+
+`renderEmptyState()` names the cause instead:
+
+- **Kuma unreachable** — the fetch failed. Names the URL it tried, the port and
+  the slug, and offers a copyable command that prints a different, unmistakable
+  line for each cause.
+- **Connected, page empty** — `publicGroupList: []` is a *valid* array, so this
+  shows **CONNECTED** with no cards. It is not the same failure as the one
+  above, and conflating them sends people to check the wrong thing.
+- **Nothing matches** — cards exist but the filters hide them all.
+
+Three things about it are load-bearing:
+
+- **`#emptyState` is a sibling of `#groups`, not a child.**
+  `buildDomOnceIfNeeded()` clears `#groups` wholesale and would take the panel
+  with it, which reads as the empty state randomly not appearing.
+- **It is called from three places.** The filter pass covers the healthy paths;
+  the failure branches of `loadKumaOrMock()` and `pollOnce()` are the ones that
+  matter, and `applyFiltersAndCounts()` is never reached on those.
+- **The diagnostic command interpolates `KUMA_PORT` and `STATUS_SLUG`**, which
+  is the only reason `entrypoint.sh` puts `kumaPort` into `config.js` at all. A
+  command naming the wrong port sends the reader to prove something irrelevant.
+
+`--pending` is a dark-ground token: on the light panel it measures **1.36:1**
+and needs the `[data-theme="light"]` override, which reaches 9.34:1. It looked
+fine by eye — measure it.
+
+`scripts/check-empty-state.py` guards all of the above. Its entrypoint check
+passed vacuously when first written, because it looked for the string
+`kumaPort` anywhere in the file and the explanatory *comment* satisfied it.
+
 ## Conventions
 
 - Match the surrounding code: no framework, no build step, plain DOM APIs.
