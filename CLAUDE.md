@@ -311,6 +311,16 @@ per-architecture builds did exactly this. Update the ruleset in the same change
 (Settings -> Rules -> Protect main), listing `Checks` plus one
 `Build <image> (<arch>)` per combination.
 
+**The release publish names its digest artifacts with `__`, not `-`.** Each
+architecture is pushed by digest and the two are stitched into one tag, and the
+merge job collects them by glob. `service-dash` is a *prefix* of every other
+image name, so `digest-service-dash-*` matched all ten artifacts instead of its
+own two and 1.5.2 published four images out of five — the dashboard image, the
+one the Compose files name, was the one left behind. Its count check turned that
+into a loud failure rather than a single-architecture manifest under a release
+tag. `check-publish-matrix.py` simulates the glob against the real matrix, so a
+separator that any image name contains fails in CI instead of at tag time.
+
 **Every fix ships with something that fails if it comes back.** `scripts/`
 holds a guard per outage — network reachability (1.2.1), version drift and a
 store "What's New" frozen three releases back, services silently dropped by
