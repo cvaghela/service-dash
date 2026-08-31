@@ -2,7 +2,7 @@ name: service-dash
 
 services:
   service-dash:
-    image: ghcr.io/cvaghela/service-dash:1.5.2
+    image: ghcr.io/cvaghela/service-dash:1.5.3
     container_name: service-dash
     ports:
       - target: 80
@@ -59,7 +59,7 @@ services:
   # Answers one question for nginx: is this browser really signed in to Uptime
   # Kuma? Without it, saving settings would have to trust the browser's word.
   kuma-auth:
-    image: ghcr.io/cvaghela/service-dash-kuma-auth:1.5.2
+    image: ghcr.io/cvaghela/service-dash-kuma-auth:1.5.3
     container_name: service-dash-kuma-auth
     environment:
       # Must point at the same Uptime Kuma as KUMA_PORT above.
@@ -83,7 +83,7 @@ services:
     restart: unless-stopped
 
   network-info:
-    image: ghcr.io/cvaghela/service-dash-network-info:1.5.2
+    image: ghcr.io/cvaghela/service-dash-network-info:1.5.3
     container_name: service-dash-network-info
     network_mode: host
     read_only: true
@@ -184,7 +184,7 @@ services:
   #
   #   docker exec -it service-dash-claude-usage claude auth login
   claude-usage:
-    image: ghcr.io/cvaghela/service-dash-claude-usage:1.5.2
+    image: ghcr.io/cvaghela/service-dash-claude-usage:1.5.3
     container_name: service-dash-claude-usage
     environment:
       # Plan windows move slowly; polling harder gains nothing.
@@ -211,7 +211,7 @@ services:
   # localhost and hangs.
   #   docker exec -it service-dash-codex-usage codex login --device-auth
   codex-usage:
-    image: ghcr.io/cvaghela/service-dash-codex-usage:1.5.2
+    image: ghcr.io/cvaghela/service-dash-codex-usage:1.5.3
     container_name: service-dash-codex-usage
     environment:
       CODEX_USAGE_REFRESH_SECONDS: "300"
@@ -243,8 +243,8 @@ x-casaos:
   architectures:
     - amd64
     - arm64
-  version: "1.5.2"
-  update_at: "2026-08-30"
+  version: "1.5.3"
+  update_at: "2026-08-31"
   author: Chintan Vaghela
   developer: Chintan Vaghela
   icon: https://cdn.jsdelivr.net/gh/cvaghela/service-dash@main/appstore/Apps/ServiceDash/icon.png
@@ -1379,298 +1379,217 @@ x-casaos:
         然后在 **8888** 端口打开 Service Dash。
   release_notes:
     en_US: |
-      1.5.2 makes an empty dashboard explain itself. A blank grid used to say
-      almost nothing: a small OFFLINE in the top bar, and a toast that cleared
-      itself after five seconds. Installing for the first time, you could not
-      tell "Uptime Kuma is not set up yet" from "this app is broken".
+      1.5.3 stops the Claude usage panel logging itself out every eight hours.
 
-      A blank grid now names which of three things happened, and what to do
-      about it:
+      The reporter was supposed to renew its login before the token expired. The
+      command it used for that turned out never to renew anything -- it reported
+      success and changed nothing -- so the login quietly died twice a day and the
+      panel said Claude had refused it. That read as Claude's fault. It was ours.
 
-        * Uptime Kuma is not answering. It is a separate application, and
-          Service Dash does not bundle or install it -- so the panel says that
-          plainly, then walks through installing it, publishing a status page,
-          and matching KUMA_PORT and STATUS_SLUG.
-        * It answered, but that status page has no monitors on it. Steps for
-          the Uptime Kuma editor, including adding a group first, which is
-          where most empty pages get stuck.
-        * Your cards are loaded, and the search and filters are hiding them.
+      It now renews with a command that actually works, and checks more often as
+      the token gets close to expiry.
 
-      Nothing else changed. If your dashboard already shows cards, this release
-      is invisible to you.
+      Only the Claude reporter is affected. If you have not signed in to it, or
+      you do not use the AI usage panel at all, nothing here changes for you.
     en_GB: |
-      1.5.2 makes an empty dashboard explain itself. A blank grid used to say
-      almost nothing: a small OFFLINE in the top bar, and a toast that cleared
-      itself after five seconds. Installing for the first time, you could not
-      tell "Uptime Kuma is not set up yet" from "this app is broken".
+      1.5.3 stops the Claude usage panel logging itself out every eight hours.
 
-      A blank grid now names which of three things happened, and what to do
-      about it:
+      The reporter was supposed to renew its login before the token expired. The
+      command it used for that turned out never to renew anything -- it reported
+      success and changed nothing -- so the login quietly died twice a day and the
+      panel said Claude had refused it. That read as Claude's fault. It was ours.
 
-        * Uptime Kuma is not answering. It is a separate application, and
-          Service Dash does not bundle or install it -- so the panel says that
-          plainly, then walks through installing it, publishing a status page,
-          and matching KUMA_PORT and STATUS_SLUG.
-        * It answered, but that status page has no monitors on it. Steps for
-          the Uptime Kuma editor, including adding a group first, which is
-          where most empty pages get stuck.
-        * Your cards are loaded, and the search and filters are hiding them.
+      It now renews with a command that actually works, and checks more often as
+      the token gets close to expiry.
 
-      Nothing else changed. If your dashboard already shows cards, this release
-      is invisible to you.
+      Only the Claude reporter is affected. If you have not signed in to it, or
+      you do not use the AI usage panel at all, nothing here changes for you.
     de_DE: |
-      1.5.2 lässt ein leeres Dashboard sich selbst erklären. Bisher sagte ein
-      leeres Raster fast nichts: ein kleines OFFLINE in der oberen Leiste und
-      eine Meldung, die nach fünf Sekunden verschwand. Bei der ersten
-      Installation war "Uptime Kuma ist noch nicht eingerichtet" nicht von
-      "diese App ist kaputt" zu unterscheiden.
+      1.5.3 sorgt dafür, dass sich das Claude-Nutzungspanel nicht mehr alle acht
+      Stunden selbst abmeldet.
 
-      Ein leeres Raster nennt jetzt, welcher der drei Fälle vorliegt, und was
-      zu tun ist:
+      Der Reporter sollte seine Anmeldung erneuern, bevor das Token abläuft. Der
+      dafür verwendete Befehl hat jedoch nie etwas erneuert -- er meldete Erfolg
+      und änderte nichts. Also starb die Anmeldung zweimal täglich still, und das
+      Panel behauptete, Claude habe sie abgelehnt. Das sah nach Claudes Fehler
+      aus. Es war unserer.
 
-        * Uptime Kuma antwortet nicht. Es ist eine eigenständige Anwendung, die
-          Service Dash weder mitliefert noch installiert -- das sagt das Panel
-          jetzt deutlich und führt dann durch Installation, Statusseite und die
-          passenden Werte für KUMA_PORT und STATUS_SLUG.
-        * Es hat geantwortet, aber auf der Statusseite liegen keine Monitore.
-          Schritte für den Editor von Uptime Kuma, einschließlich: zuerst eine
-          Gruppe anlegen -- daran scheitern die meisten leeren Seiten.
-        * Ihre Karten sind geladen, und Suche und Filter blenden sie aus.
+      Jetzt wird mit einem Befehl erneuert, der tatsächlich funktioniert, und
+      gegen Ende der Laufzeit häufiger geprüft.
 
-      Sonst hat sich nichts geändert. Zeigt Ihr Dashboard bereits Karten, ist
-      dieses Update für Sie unsichtbar.
+      Betroffen ist nur der Claude-Reporter. Wenn Sie sich dort nie angemeldet
+      haben oder das KI-Nutzungspanel gar nicht verwenden, ändert sich für Sie
+      nichts.
     el_GR: |
-      Η έκδοση 1.5.2 κάνει έναν άδειο πίνακα να εξηγεί τον εαυτό του. Μέχρι
-      τώρα ένα άδειο πλέγμα δεν έλεγε σχεδόν τίποτα: ένα μικρό OFFLINE στην
-      επάνω μπάρα και ένα μήνυμα που έσβηνε μετά από πέντε δευτερόλεπτα. Στην
-      πρώτη εγκατάσταση, το "το Uptime Kuma δεν έχει ρυθμιστεί ακόμη" δεν
-      ξεχώριζε από το "η εφαρμογή χάλασε".
+      Η έκδοση 1.5.3 σταματά το πάνελ χρήσης Claude από το να αποσυνδέεται μόνο
+      του κάθε οκτώ ώρες.
 
-      Τώρα το άδειο πλέγμα ονομάζει ποιο από τα τρία συνέβη, και τι να κάνετε:
+      Ο reporter υποτίθεται ότι ανανέωνε τη σύνδεσή του πριν λήξει το token. Η
+      εντολή που χρησιμοποιούσε γι' αυτό τελικά δεν ανανέωνε τίποτα -- ανέφερε
+      επιτυχία και δεν άλλαζε τίποτα. Έτσι η σύνδεση πέθαινε σιωπηλά δύο φορές
+      την ημέρα και το πάνελ έλεγε ότι το Claude την απέρριψε. Έμοιαζε με φταίξιμο
+      του Claude. Ήταν δικό μας.
 
-        * Το Uptime Kuma δεν απαντά. Είναι ξεχωριστή εφαρμογή, την οποία το
-          Service Dash δεν περιλαμβάνει ούτε εγκαθιστά -- ο πίνακας το λέει
-          πλέον καθαρά και μετά σας οδηγεί στην εγκατάσταση, στη δημοσίευση
-          σελίδας κατάστασης και στην αντιστοίχιση KUMA_PORT και STATUS_SLUG.
-        * Απάντησε, αλλά η σελίδα κατάστασης δεν έχει monitors. Βήματα για τον
-          επεξεργαστή του Uptime Kuma, μαζί με το "πρώτα προσθέστε ομάδα", εκεί
-          όπου κολλάνε οι περισσότερες άδειες σελίδες.
-        * Οι κάρτες σας έχουν φορτώσει και τις κρύβουν η αναζήτηση και τα
-          φίλτρα.
+      Τώρα ανανεώνει με εντολή που πράγματι δουλεύει, και ελέγχει συχνότερα όσο
+      πλησιάζει η λήξη.
 
-      Τίποτε άλλο δεν άλλαξε. Αν ο πίνακάς σας δείχνει ήδη κάρτες, αυτή η
-      έκδοση είναι αόρατη για εσάς.
+      Επηρεάζεται μόνο ο reporter του Claude. Αν δεν έχετε συνδεθεί σε αυτόν, ή
+      δεν χρησιμοποιείτε καθόλου το πάνελ χρήσης AI, δεν αλλάζει τίποτα για εσάς.
     fr_FR: |
-      La version 1.5.2 fait en sorte qu'un tableau de bord vide s'explique
-      lui-même. Jusqu'ici une grille vide ne disait presque rien : un petit
-      OFFLINE dans la barre du haut et une notification qui disparaissait au
-      bout de cinq secondes. À la première installation, impossible de
-      distinguer « Uptime Kuma n'est pas encore configuré » de « cette
-      application est cassée ».
+      La version 1.5.3 empêche le panneau d'utilisation Claude de se déconnecter
+      tout seul toutes les huit heures.
 
-      Une grille vide indique désormais lequel des trois cas s'applique, et
-      quoi faire :
+      Le rapporteur était censé renouveler sa session avant l'expiration du jeton.
+      La commande utilisée pour cela ne renouvelait en réalité rien : elle
+      signalait un succès et ne changeait rien. La session mourait donc en silence
+      deux fois par jour, et le panneau affirmait que Claude l'avait refusée. Cela
+      ressemblait à une faute de Claude. C'était la nôtre.
 
-        * Uptime Kuma ne répond pas. C'est une application distincte, que
-          Service Dash n'embarque ni n'installe -- le panneau le dit clairement,
-          puis détaille l'installation, la publication d'une page de statut et
-          la correspondance de KUMA_PORT et STATUS_SLUG.
-        * Il a répondu, mais cette page de statut ne contient aucun moniteur.
-          Les étapes dans l'éditeur d'Uptime Kuma, dont « créer d'abord un
-          groupe », là où bloquent la plupart des pages vides.
-        * Vos cartes sont chargées, et la recherche et les filtres les masquent.
+      Le renouvellement passe désormais par une commande qui fonctionne vraiment,
+      avec des vérifications plus fréquentes à l'approche de l'expiration.
 
-      Rien d'autre n'a changé. Si votre tableau de bord affiche déjà des cartes,
-      cette version vous est invisible.
+      Seul le rapporteur Claude est concerné. Si vous ne vous y êtes jamais
+      connecté, ou si vous n'utilisez pas le panneau d'utilisation IA, rien ne
+      change pour vous.
     hr_HR: |
-      Verzija 1.5.2 čini da se prazna nadzorna ploča sama objasni. Dosad prazna
-      mreža nije govorila gotovo ništa: malen natpis OFFLINE u gornjoj traci i
-      poruka koja bi nestala nakon pet sekundi. Pri prvoj instalaciji niste
-      mogli razlikovati "Uptime Kuma još nije postavljen" od "aplikacija je
-      pokvarena".
+      Verzija 1.5.3 sprječava da se ploča s Claude potrošnjom sama odjavljuje
+      svakih osam sati.
 
-      Prazna mreža sada imenuje koje se od tri stvari dogodilo i što učiniti:
+      Reporter je trebao obnoviti prijavu prije isteka tokena. Naredba koju je za
+      to koristio zapravo nikad ništa nije obnavljala -- javljala je uspjeh i
+      ništa nije mijenjala. Prijava je tako tiho umirala dvaput dnevno, a ploča je
+      tvrdila da ju je Claude odbio. Djelovalo je kao Claudeova greška. Bila je
+      naša.
 
-        * Uptime Kuma ne odgovara. To je zasebna aplikacija koju Service Dash ne
-          isporučuje niti instalira -- ploča to sada jasno kaže, a zatim vodi
-          kroz instalaciju, objavu stranice stanja i usklađivanje KUMA_PORT i
-          STATUS_SLUG.
-        * Odgovorio je, ali na toj stranici stanja nema monitora. Koraci za
-          uređivač Uptime Kume, uključujući "prvo dodajte grupu", na čemu zapne
-          većina praznih stranica.
-        * Vaše su kartice učitane, a pretraga i filtri ih skrivaju.
+      Sada se obnavlja naredbom koja doista radi, uz češće provjere kako se bliži
+      istek.
 
-      Ništa se drugo nije promijenilo. Ako vaša ploča već prikazuje kartice, ovo
-      je izdanje za vas nevidljivo.
+      Zahvaćen je samo Claude reporter. Ako se niste prijavili u njega ili uopće
+      ne koristite ploču s AI potrošnjom, za vas se ništa ne mijenja.
     it_IT: |
-      La 1.5.2 fa in modo che una dashboard vuota si spieghi da sola. Finora una
-      griglia vuota non diceva quasi nulla: un piccolo OFFLINE nella barra in
-      alto e un avviso che spariva dopo cinque secondi. Alla prima
-      installazione, "Uptime Kuma non è ancora configurato" era
-      indistinguibile da "questa app è rotta".
+      La 1.5.3 impedisce al pannello di utilizzo Claude di disconnettersi da solo
+      ogni otto ore.
 
-      Ora una griglia vuota dice quale dei tre casi è il vostro, e cosa fare:
+      Il reporter avrebbe dovuto rinnovare l'accesso prima della scadenza del
+      token. Il comando che usava non rinnovava in realtà nulla: segnalava
+      successo e non cambiava niente. Così l'accesso moriva in silenzio due volte
+      al giorno e il pannello diceva che Claude lo aveva rifiutato. Sembrava colpa
+      di Claude. Era nostra.
 
-        * Uptime Kuma non risponde. È un'applicazione separata, che Service Dash
-          non include né installa -- il pannello lo dice chiaramente e poi guida
-          all'installazione, alla pubblicazione di una pagina di stato e
-          all'allineamento di KUMA_PORT e STATUS_SLUG.
-        * Ha risposto, ma quella pagina di stato non ha monitor. I passaggi
-          nell'editor di Uptime Kuma, incluso "prima aggiungete un gruppo", dove
-          si bloccano quasi tutte le pagine vuote.
-        * Le vostre schede sono caricate, e ricerca e filtri le stanno
-          nascondendo.
+      Ora rinnova con un comando che funziona davvero, e controlla più spesso man
+      mano che la scadenza si avvicina.
 
-      Nient'altro è cambiato. Se la vostra dashboard mostra già le schede,
-      questa versione è invisibile.
+      È interessato solo il reporter di Claude. Se non vi siete mai collegati, o
+      non usate affatto il pannello di utilizzo AI, per voi non cambia nulla.
     ja_JP: |
-      1.5.2 では、空のダッシュボードが自分で理由を説明するようになりました。これまで
-      空のグリッドが伝えていたのは、上部バーの小さな OFFLINE と、5 秒で消えてしまう
-      通知だけでした。初めて導入した人には、「Uptime Kuma をまだ設定していない」のか
-      「このアプリが壊れている」のか見分けがつきませんでした。
+      1.5.3 では、Claude 使用状況パネルが 8 時間ごとに勝手にサインアウトしてしまう
+      問題を修正しました。
 
-      空のグリッドは、次の 3 つのどれに当たるかと、その対処を示します。
+      レポーターはトークンの期限が切れる前にログインを更新するはずでした。ところが
+      そのために使っていたコマンドは、実際には何も更新していませんでした。成功を
+      報告しながら、何も変えていなかったのです。その結果、ログインは 1 日に 2 回
+      静かに切れ、パネルは「Claude が拒否した」と表示していました。Claude の問題の
+      ように見えますが、こちらの問題でした。
 
-        * Uptime Kuma が応答していない。これは別のアプリケーションで、Service Dash
-          は同梱もインストールもしません。パネルはそれをはっきり伝えたうえで、
-          インストール、ステータスページの公開、KUMA_PORT と STATUS_SLUG の
-          合わせ方まで案内します。
-        * 応答はあったが、そのステータスページに監視項目がない。Uptime Kuma の
-          エディターでの手順を示します。最初にグループを追加すること、が
-          空のページで最もつまずく点です。
-        * カードは読み込まれていて、検索とフィルターが隠している。
+      現在は実際に更新できるコマンドを使い、期限が近づくほど確認の間隔を短くします。
 
-      ほかに変更はありません。すでにカードが表示されているなら、この更新は
-      目に見えないはずです。
+      影響を受けるのは Claude のレポーターだけです。サインインしていない場合や、
+      AI 使用状況パネルを使っていない場合は、変わるところはありません。
     ko_KR: |
-      1.5.2는 비어 있는 대시보드가 스스로 이유를 설명하게 합니다. 지금까지 빈 그리드가
-      알려 주는 것은 상단 바의 작은 OFFLINE과 5초 만에 사라지는 알림뿐이었습니다. 처음
-      설치한 사람은 "Uptime Kuma를 아직 설정하지 않았다"와 "이 앱이 고장 났다"를 구분할
-      수 없었습니다.
+      1.5.3은 Claude 사용량 패널이 여덟 시간마다 스스로 로그아웃되던 문제를
+      고칩니다.
 
-      이제 빈 그리드는 셋 중 어떤 상황인지와 무엇을 해야 하는지 알려 줍니다.
+      리포터는 토큰이 만료되기 전에 로그인을 갱신해야 했습니다. 그런데 그 용도로
+      쓰던 명령은 실제로는 아무것도 갱신하지 않았습니다. 성공했다고 보고하면서
+      아무것도 바꾸지 않았습니다. 그래서 로그인은 하루에 두 번 조용히 끊겼고,
+      패널은 Claude가 거부했다고 표시했습니다. Claude 잘못처럼 보였지만 저희
+      잘못이었습니다.
 
-        * Uptime Kuma가 응답하지 않음. 이것은 별도의 애플리케이션이며 Service Dash가
-          함께 담거나 설치해 주지 않습니다. 패널이 그 점을 분명히 밝힌 뒤 설치, 상태
-          페이지 게시, KUMA_PORT와 STATUS_SLUG 맞추기까지 안내합니다.
-        * 응답은 왔지만 그 상태 페이지에 모니터가 없음. Uptime Kuma 편집기에서의
-          단계를 안내하며, 그중 "그룹을 먼저 추가"가 빈 페이지가 가장 많이 막히는
-          지점입니다.
-        * 카드는 불러왔고, 검색과 필터가 가리고 있음.
+      이제는 실제로 동작하는 명령으로 갱신하며, 만료가 가까워질수록 더 자주
+      확인합니다.
 
-      그 밖에 달라진 것은 없습니다. 이미 카드가 보이고 있다면 이번 업데이트는 눈에
-      띄지 않을 것입니다.
+      Claude 리포터만 해당됩니다. 로그인한 적이 없거나 AI 사용량 패널을 쓰지
+      않는다면 달라지는 것은 없습니다.
     nb_NO: |
-      1.5.2 får et tomt dashbord til å forklare seg selv. Til nå sa et tomt
-      rutenett nesten ingenting: et lite OFFLINE i topplinjen og en melding som
-      forsvant etter fem sekunder. Ved første installasjon kunne du ikke skille
-      "Uptime Kuma er ikke satt opp ennå" fra "denne appen er ødelagt".
+      1.5.3 hindrer at Claude-brukspanelet logger seg selv ut hver åttende time.
 
-      Et tomt rutenett sier nå hvilken av tre ting som skjedde, og hva du gjør:
+      Rapportøren skulle fornye innloggingen før tokenet utløp. Kommandoen den
+      brukte til det fornyet i praksis ingenting -- den meldte om suksess og endret
+      ingenting. Dermed døde innloggingen stille to ganger om dagen, og panelet sa
+      at Claude hadde avvist den. Det så ut som Claudes feil. Det var vår.
 
-        * Uptime Kuma svarer ikke. Det er en egen applikasjon, og Service Dash
-          hverken leverer eller installerer den -- panelet sier det rett ut, og
-          går deretter gjennom installasjon, publisering av en statusside og
-          hvordan KUMA_PORT og STATUS_SLUG skal stemme.
-        * Det svarte, men statussiden har ingen overvåkere. Stegene i Uptime
-          Kumas redigering, inkludert "legg til en gruppe først", der de fleste
-          tomme sider står fast.
-        * Kortene dine er lastet, og søket og filtrene skjuler dem.
+      Nå fornyes det med en kommando som faktisk virker, og det sjekkes oftere jo
+      nærmere utløpet man kommer.
 
-      Ingenting annet er endret. Viser dashbordet ditt allerede kort, er denne
-      utgivelsen usynlig for deg.
+      Bare Claude-rapportøren er berørt. Har du ikke logget inn der, eller bruker
+      du ikke KI-brukspanelet i det hele tatt, endrer dette ingenting for deg.
     pt_PT: |
-      A 1.5.2 faz com que um painel vazio se explique a si próprio. Até agora
-      uma grelha vazia não dizia quase nada: um pequeno OFFLINE na barra
-      superior e um aviso que desaparecia ao fim de cinco segundos. Numa
-      primeira instalação, não era possível distinguir "o Uptime Kuma ainda não
-      está configurado" de "esta aplicação está avariada".
+      A 1.5.3 impede que o painel de utilização do Claude termine a sessão
+      sozinho de oito em oito horas.
 
-      Uma grelha vazia indica agora qual dos três casos se aplica, e o que
-      fazer:
+      O repórter devia renovar a sessão antes de o token expirar. O comando que
+      usava para isso nunca renovava nada: comunicava sucesso e não alterava coisa
+      alguma. Assim, a sessão morria em silêncio duas vezes por dia e o painel
+      dizia que o Claude a tinha recusado. Parecia culpa do Claude. Era nossa.
 
-        * O Uptime Kuma não responde. É uma aplicação separada, que o Service
-          Dash não inclui nem instala -- o painel di-lo claramente e depois
-          orienta a instalação, a publicação de uma página de estado e a
-          correspondência de KUMA_PORT e STATUS_SLUG.
-        * Respondeu, mas essa página de estado não tem monitores. Os passos no
-          editor do Uptime Kuma, incluindo "adicione primeiro um grupo", onde
-          encalham quase todas as páginas vazias.
-        * Os seus cartões estão carregados e a pesquisa e os filtros escondem-nos.
+      Agora renova com um comando que funciona mesmo, e verifica com mais
+      frequência à medida que a expiração se aproxima.
 
-      Mais nada mudou. Se o seu painel já mostra cartões, esta versão é
-      invisível para si.
+      Só o repórter do Claude é afetado. Se nunca iniciou sessão nele, ou não usa
+      o painel de utilização de IA, nada muda para si.
     ru_RU: |
-      Версия 1.5.2 учит пустую панель объяснять саму себя. Раньше пустая сетка
-      сообщала почти ничего: маленькое OFFLINE в верхней строке и уведомление,
-      исчезавшее через пять секунд. При первой установке нельзя было отличить
-      «Uptime Kuma ещё не настроен» от «приложение сломано».
+      Версия 1.5.3 избавляет панель расхода Claude от самопроизвольного выхода из
+      аккаунта каждые восемь часов.
 
-      Теперь пустая сетка называет, что именно из трёх произошло, и что делать:
+      Репортёр должен был продлевать вход до истечения токена. Команда, которой он
+      для этого пользовался, на деле ничего не продлевала: сообщала об успехе и
+      ничего не меняла. Поэтому вход тихо умирал дважды в сутки, а панель писала,
+      что Claude его отклонил. Выглядело это как вина Claude. Вина была наша.
 
-        * Uptime Kuma не отвечает. Это отдельное приложение, которое Service
-          Dash не поставляет и не устанавливает, — панель прямо об этом
-          говорит, а затем проводит через установку, публикацию страницы
-          состояния и согласование KUMA_PORT и STATUS_SLUG.
-        * Ответ получен, но на этой странице состояния нет мониторов. Шаги в
-          редакторе Uptime Kuma, в том числе «сначала добавьте группу» — именно
-          здесь застревает большинство пустых страниц.
-        * Карточки загружены, а поиск и фильтры их скрывают.
+      Теперь продление выполняется командой, которая действительно работает, а
+      проверки учащаются по мере приближения срока.
 
-      Больше ничего не изменилось. Если ваша панель уже показывает карточки,
-      этот выпуск для вас незаметен.
+      Затронут только репортёр Claude. Если вы в него не входили или вовсе не
+      пользуетесь панелью расхода ИИ, для вас ничего не меняется.
     sv_SE: |
-      1.5.2 får en tom instrumentpanel att förklara sig själv. Hittills sa ett
-      tomt rutnät nästan ingenting: ett litet OFFLINE i topplisten och en
-      avisering som försvann efter fem sekunder. Vid en första installation gick
-      det inte att skilja "Uptime Kuma är inte uppsatt än" från "den här appen
-      är trasig".
+      1.5.3 gör att Claude-användningspanelen inte längre loggar ut sig själv var
+      åttonde timme.
 
-      Ett tomt rutnät säger nu vilket av tre fall det rör sig om, och vad du gör:
+      Rapportören skulle förnya inloggningen innan token gick ut. Kommandot den
+      använde för det förnyade i praktiken ingenting -- det rapporterade framgång
+      och ändrade inget. Inloggningen dog alltså tyst två gånger om dagen, och
+      panelen sa att Claude hade avvisat den. Det såg ut som Claudes fel. Det var
+      vårt.
 
-        * Uptime Kuma svarar inte. Det är en separat applikation som Service
-          Dash varken levererar eller installerar -- panelen säger det rakt ut
-          och går sedan igenom installation, publicering av en statussida och
-          hur KUMA_PORT och STATUS_SLUG ska stämma.
-        * Det svarade, men statussidan har inga övervakare. Stegen i Uptime
-          Kumas redigerare, inklusive "lägg till en grupp först", där de flesta
-          tomma sidor kör fast.
-        * Dina kort är laddade, och sökningen och filtren döljer dem.
+      Nu förnyas den med ett kommando som faktiskt fungerar, och kontrollen sker
+      oftare ju närmare utgången man kommer.
 
-      Inget annat har ändrats. Visar din panel redan kort är den här versionen
-      osynlig för dig.
+      Bara Claude-rapportören berörs. Har du inte loggat in där, eller använder du
+      inte AI-användningspanelen alls, ändras ingenting för dig.
     tr_TR: |
-      1.5.2, boş bir panonun kendini açıklamasını sağlıyor. Şimdiye kadar boş
-      bir ızgara neredeyse hiçbir şey söylemiyordu: üst çubukta küçük bir
-      OFFLINE ve beş saniyede kaybolan bir bildirim. İlk kurulumda "Uptime Kuma
-      henüz kurulmadı" ile "bu uygulama bozuk" birbirinden ayırt edilemiyordu.
+      1.5.3, Claude kullanım panosunun her sekiz saatte bir kendi kendine oturumu
+      kapatmasını engelliyor.
 
-      Boş ızgara artık üç durumdan hangisinin geçerli olduğunu ve ne yapılacağını
-      söylüyor:
+      Raporlayıcının, jetonun süresi dolmadan oturumu yenilemesi gerekiyordu. Bunun
+      için kullandığı komut aslında hiçbir şeyi yenilemiyordu: başarı bildiriyor,
+      hiçbir şeyi değiştirmiyordu. Böylece oturum günde iki kez sessizce ölüyor,
+      pano da Claude'un onu reddettiğini söylüyordu. Claude'un hatası gibi
+      görünüyordu. Bizimdi.
 
-        * Uptime Kuma yanıt vermiyor. Ayrı bir uygulamadır ve Service Dash onu ne
-          içerir ne de kurar -- pano bunu açıkça söylüyor, ardından kurulumu,
-          bir durum sayfası yayımlamayı ve KUMA_PORT ile STATUS_SLUG değerlerini
-          eşleştirmeyi anlatıyor.
-        * Yanıt verdi, ama o durum sayfasında hiç izleyici yok. Uptime Kuma
-          düzenleyicisindeki adımlar, "önce bir grup ekleyin" dahil; boş
-          sayfaların çoğu tam burada takılıyor.
-        * Kartlarınız yüklendi, arama ve filtreler onları gizliyor.
+      Artık gerçekten işe yarayan bir komutla yenileniyor ve süre dolmaya
+      yaklaştıkça daha sık kontrol ediliyor.
 
-      Başka bir şey değişmedi. Panonuz zaten kart gösteriyorsa bu sürüm sizin
-      için görünmezdir.
+      Yalnızca Claude raporlayıcısı etkileniyor. Ona hiç giriş yapmadıysanız ya da
+      yapay zekâ kullanım panosunu hiç kullanmıyorsanız sizin için değişen bir şey
+      yok.
     zh_CN: |
-      1.5.2 让空白的仪表盘自己说明原因。过去空白的网格几乎什么都不说：顶栏里一个很小的
-      OFFLINE，加上一条五秒后就消失的提示。第一次安装的人根本分不清是「Uptime Kuma
-      还没配置好」还是「这个应用坏了」。
+      1.5.3 修复了 Claude 用量面板每八小时就自己掉线的问题。
 
-      现在空白的网格会指出是以下三种情况中的哪一种，以及该怎么做：
+      上报服务本应在令牌过期前续期登录。但它为此使用的命令实际上从未续期过任何
+      东西——它报告成功，却什么都没改。于是登录每天悄悄失效两次，面板还说是 Claude
+      拒绝了它。看上去像是 Claude 的问题，其实是我们的问题。
 
-        * Uptime Kuma 没有响应。它是一个独立的应用，Service Dash 既不打包也不安装
-          它——面板会把这一点讲清楚，然后一步步说明如何安装、如何发布状态页，以及如何
-          让 KUMA_PORT 和 STATUS_SLUG 对得上。
-        * 有响应，但那个状态页上没有监控项。给出 Uptime Kuma 编辑器里的步骤，其中
-          「先添加一个分组」正是大多数空状态页卡住的地方。
-        * 卡片已经加载，是搜索和筛选把它们藏起来了。
+      现在改用真正有效的命令续期，并且越接近过期，检查得越频繁。
 
-      其他没有变化。如果你的仪表盘已经能看到卡片，这次更新对你来说是无感的。
+      只有 Claude 的上报服务受影响。如果你没有登录过它，或者根本不用 AI 用量面板，
+      这次更新对你没有任何变化。

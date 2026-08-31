@@ -3,6 +3,31 @@
 All notable changes to Service Dash are recorded here. This project follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.3] — 2026-08-31
+
+**Fixes the Claude usage panel logging itself out every eight hours.** Nothing else changed.
+
+### Fixed
+
+- **The reporter's token renewal has never renewed anything.**
+
+  It ran `claude auth status --json`, on the belief that a read command going through the credential path would renew an access token close to expiry. It does not — it exits `0`, reports `loggedIn: true`, and leaves the credential byte-for-byte identical.
+
+  So the login died silently at the eight-hour mark, twice a day, and the panel reported *"Claude refused the stored login. It has most likely expired."* That was true, and it read as Claude's fault. It was ours.
+
+  Renewal now uses `claude doctor`, which does refresh. Measured on a live credential: a no-op with 7 hours left, a clean refresh with 60 seconds left, refresh token intact either way. Of the commands tried it is the only one that touches the credential at all — `auth status`, `mcp list`, `agents`, `plugin list` and `auto-mode` all leave it alone.
+
+  Because renewal only happens on a poll, the loop also drops its sleep from 300s to 60s inside the last fifteen minutes. The gap between polls is the gap between chances, and an expired token is the one state `doctor` cannot rescue — it logs out instead.
+
+### Notes
+
+Two things learned the hard way, now recorded in `CLAUDE.md`:
+
+- **Refresh tokens rotate, and the previous one is invalidated immediately.** A copy of the credential file is therefore not a backup but a delayed logout: it carries a token already rotated out, looks valid on disk, and fails at the next renewal. This is the trap that looks most like diligence.
+- **That also rules out minting tokens here.** A memory-only refresh against the token endpoint would work exactly once, since the rotated replacement is discarded. Persisting it properly would mean owning rotation forever, where any slip is unrecoverable. Letting Claude Code do it is not the cautious option — it is the only correct one.
+
+Only the Claude reporter is affected. Codex looked healthy beside it purely because its access token is longer-lived; its reporter has no renewal either and will reach the same wall.
+
 ## [1.5.2] — 2026-08-30
 
 **An empty dashboard now explains itself.** A blank grid used to say almost nothing: a small `OFFLINE` in the top bar, and a toast that cleared itself after 5.2 seconds. Installing for the first time, you could not tell "Uptime Kuma is not set up yet" from "this app is broken" — which is exactly what happened when IceWhale's maintainer reviewed the app for their store, checked that every container was healthy, and reasonably concluded it was broken.
@@ -723,6 +748,7 @@ Housekeeping for the first public release. No functional changes to the dashboar
 
 See the [release history](https://github.com/cvaghela/service-dash/releases).
 
+[1.5.3]: https://github.com/cvaghela/service-dash/releases/tag/v1.5.3
 [1.5.2]: https://github.com/cvaghela/service-dash/releases/tag/v1.5.2
 [1.5.1]: https://github.com/cvaghela/service-dash/releases/tag/v1.5.1
 [1.5.0]: https://github.com/cvaghela/service-dash/releases/tag/v1.5.0
