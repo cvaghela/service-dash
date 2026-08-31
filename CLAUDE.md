@@ -196,10 +196,43 @@ three Compose files means three different shapes: named volumes at the root,
 
 Two things it must keep doing:
 
-- **Refresh through `claude auth status --json`, not by posting to the token
-  endpoint.** Claude Code owns the credential format, the rotation and the lock
-  file that stops two writers clobbering each other. Reimplementing that here
-  would mean owning all three.
+- **Renew with `claude doctor`, not `claude auth status`, and never by posting
+  to the token endpoint yourself.** Claude Code owns the credential format, the
+  rotation and the lock file that stops two writers clobbering each other;
+  reimplementing that here would mean owning all three.
+
+  `auth status` was the renewal call for two releases and **never renewed
+  anything**. It exits 0, reports `loggedIn: true`, and leaves the credential
+  byte-for-byte identical — so every login died silently at the eight-hour mark
+  and the panel told people to sign in again. Measured on a live credential,
+  `claude doctor` is a no-op with 7 hours left and issues a clean refresh with
+  60 seconds left. It is the only command of the ones tried that touches the
+  credential at all (`auth status`, `mcp list`, `agents`, `plugin list`,
+  `auto-mode` all leave it alone).
+
+  **Refresh tokens rotate, and the previous one is invalidated the instant a new
+  one is issued.** Two consequences, each of which cost a login to learn:
+
+  - **Never copy the credential aside and restore it.** A restored copy carries
+    a refresh token that has already been rotated out. It looks perfectly valid
+    on disk and fails at the next renewal — and doctor's response to a failed
+    renewal is to *log out*. A backup of an OAuth credential is not a safety
+    net, it is a delayed logout. This is the trap that looks most like
+    diligence.
+  - **Minting tokens here would be a one-shot.** A "safe" memory-only refresh
+    that never writes the file works exactly once, because the rotated
+    replacement is discarded and the old token is already dead.
+
+  Renewal only happens on a poll, so the poll interval near expiry is the real
+  safety margin: `renew_window_seconds` (1h) decides when doctor starts being
+  called, and `renew_tighten_seconds` (15m) drops the sleep to 60s so several
+  attempts land inside doctor's own refresh window, whose threshold is unknown.
+  An expired token is the one state doctor cannot rescue.
+
+  For the record, since every write-up still says otherwise: the OAuth token
+  endpoint is `https://platform.claude.com/v1/oauth/token`, not
+  `console.anthropic.com`. It moved, and nothing announced it — which is the
+  argument against depending on it directly.
 - **Classify failures by HTTP status, and never blank a good reading over a
   transient one.** Only 401/403 means the login is the problem. Everything else
   leaves the previous document untouched so the dashboard's own age thresholds

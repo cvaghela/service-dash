@@ -131,6 +131,41 @@ case "$d" in
 esac
 
 # ---------------------------------------------------------------------------
+printf '\ntoken renewal\n'
+# ---------------------------------------------------------------------------
+# `claude auth status` does NOT refresh an access token. It exits 0, reports
+# loggedIn, and leaves the credential byte-for-byte identical -- so while it was
+# the renewal call, every login died at the eight-hour mark and the panel told
+# people to sign in again. `claude doctor` is the command that actually
+# refreshes. Verified on a live credential: no-op at 7h, clean refresh at 60s.
+renew="$(sed -n '/^renew_if_needed()/,/^}/p' "$REPO/claude-usage.sh")"
+case "$renew" in
+    *"claude doctor"*) ok "renewal calls claude doctor" ;;
+    *)                 bad "renewal calls claude doctor" "found: $(printf '%s' "$renew" | tr '\n' ' ')" ;;
+esac
+case "$renew" in
+    *"auth status"*) bad "renewal does not use auth status" "auth status never refreshes anything" ;;
+    *)               ok  "renewal does not use auth status" ;;
+esac
+
+# Renewal only happens on a poll, so the poll interval near expiry is the real
+# safety margin. An expired token is the one state doctor cannot rescue: it logs
+# out instead.
+if grep -q "renew_tighten_seconds" "$REPO/claude-usage.sh"; then
+    ok "the poll tightens near expiry"
+else
+    bad "the poll tightens near expiry" "without it a single missed window expires the token"
+fi
+
+# Refresh tokens rotate and the old one is invalidated immediately, so a copy of
+# the credential is a delayed logout, not a backup. Cost two logins to learn.
+if grep -qE "(cp|mv).*(credentials|\.claude/)" "$REPO/claude-usage.sh"; then
+    bad "the reporter never copies the credential aside" "a restored copy carries a rotated-out refresh token"
+else
+    ok "the reporter never copies the credential aside"
+fi
+
+# ---------------------------------------------------------------------------
 printf '\nnginx.conf.template\n'
 # ---------------------------------------------------------------------------
 # nginx reads an unquoted { or } in a location regex as a block delimiter, so

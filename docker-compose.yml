@@ -2,7 +2,7 @@ name: service-dash
 
 services:
   service-dash:
-    image: ghcr.io/cvaghela/service-dash:1.5.2
+    image: ghcr.io/cvaghela/service-dash:1.5.3
     container_name: service-dash
     ports:
       # Change 8888 only when a different host port is required.
@@ -37,7 +37,7 @@ services:
   # Answers one question for nginx: is this browser really signed in to Uptime
   # Kuma? Without it, saving settings would have to trust the browser's word.
   kuma-auth:
-    image: ghcr.io/cvaghela/service-dash-kuma-auth:1.5.2
+    image: ghcr.io/cvaghela/service-dash-kuma-auth:1.5.3
     container_name: service-dash-kuma-auth
     environment:
       # Must point at the same Uptime Kuma as KUMA_PORT above — if you change
@@ -57,7 +57,7 @@ services:
     restart: unless-stopped
 
   network-info:
-    image: ghcr.io/cvaghela/service-dash-network-info:1.5.2
+    image: ghcr.io/cvaghela/service-dash-network-info:1.5.3
     container_name: service-dash-network-info
     network_mode: host
     read_only: true
@@ -139,7 +139,7 @@ services:
   #
   #   docker exec -it service-dash-claude-usage claude auth login
   claude-usage:
-    image: ghcr.io/cvaghela/service-dash-claude-usage:1.5.2
+    image: ghcr.io/cvaghela/service-dash-claude-usage:1.5.3
     container_name: service-dash-claude-usage
     environment:
       # Plan windows move slowly; polling harder gains nothing.
@@ -160,7 +160,7 @@ services:
   # localhost and hangs.
   #   docker exec -it service-dash-codex-usage codex login --device-auth
   codex-usage:
-    image: ghcr.io/cvaghela/service-dash-codex-usage:1.5.2
+    image: ghcr.io/cvaghela/service-dash-codex-usage:1.5.3
     container_name: service-dash-codex-usage
     environment:
       CODEX_USAGE_REFRESH_SECONDS: "300"

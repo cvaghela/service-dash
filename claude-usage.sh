@@ -108,19 +108,54 @@ token_expires_at() {
 # Refresh through the official client rather than by posting to the token
 # endpoint ourselves. Claude Code owns the rotation, the on-disk format and the
 # lock file that stops two writers clobbering each other; reimplementing that
-# here would mean owning all three. `auth status` is a read command that goes
-# through the credential path, so it renews an access token that is close to
-# expiry without spending any quota. If it cannot, the token stays stale and
-# the call below fails cleanly into "needs sign-in".
-renew_if_needed() {
+# here would mean owning all three.
+#
+# `claude doctor` is the command that does it. This used to be
+# `claude auth status --json`, on the belief that a read command going through
+# the credential path would renew a token close to expiry. It does not: it exits
+# 0, reports loggedIn, and leaves the file byte-for-byte identical. So nothing
+# ever renewed, and every login died silently at the eight-hour mark.
+#
+# Measured on a live credential: doctor is a no-op with 7 hours left, and issues
+# a clean refresh with 60 seconds left. The refresh token survives either way.
+#
+# TWO THINGS THAT COST A LOGIN TO LEARN:
+#
+#   * Refresh tokens ROTATE, and the previous one is invalidated the instant a
+#     new one is issued. Claude Code persists the replacement itself. This is
+#     the whole reason to call the official client rather than mint tokens here:
+#     getting rotation wrong is not a degraded panel, it is a login that cannot
+#     be recovered without a fresh `claude auth login`.
+#   * NEVER copy this credential file aside and restore it. A restored copy
+#     carries a refresh token that has already been rotated out, so it looks
+#     valid on disk and fails at the next renewal -- and doctor's response to a
+#     failed renewal is to log out. A backup of an OAuth credential is not a
+#     safety net; it is a delayed logout.
+#
+# doctor costs roughly 3.2s per run, so it is not called on every poll. The
+# window is deliberately generous and the poll tightens towards the end: doctor
+# has its own notion of "close to expiry" and the exact threshold is unknown, so
+# what matters is that many attempts land inside it before the token dies. An
+# expired token is the one state doctor cannot rescue.
+renew_window_seconds=3600
+renew_tighten_seconds=900
+
+seconds_until_expiry() {
     expires_at="$(token_expires_at)"
     case "$expires_at" in ''|*[!0-9]*) expires_at=0 ;; esac
-    now_ms="$(( $(date +%s) * 1000 ))"
-    # Five minutes of headroom, so a long poll never starts on a dying token.
-    if [ "$expires_at" -gt 0 ] && [ "$expires_at" -gt "$(( now_ms + 300000 ))" ]; then
+    if [ "$expires_at" -le 0 ]; then
+        echo 0
+        return
+    fi
+    echo "$(( expires_at / 1000 - $(date +%s) ))"
+}
+
+renew_if_needed() {
+    left="$(seconds_until_expiry)"
+    if [ "$left" -gt "$renew_window_seconds" ]; then
         return 0
     fi
-    claude auth status --json >/dev/null 2>&1 || true
+    claude doctor >/dev/null 2>&1 || true
 }
 
 # Body, then the HTTP status on its own last line. The status is the whole
@@ -321,5 +356,14 @@ poll_once() {
 mkdir -p /status
 while :; do
     poll_once
-    sleep "$refresh_seconds"
+    # Renewal only ever happens on a poll, so the gap between polls is the gap
+    # between chances. Near expiry that gap has to be smaller than doctor's own
+    # refresh window, which we do not know -- 60s is below the smallest value
+    # observed to work.
+    left="$(seconds_until_expiry)"
+    if [ "$left" -gt 0 ] && [ "$left" -le "$renew_tighten_seconds" ]; then
+        sleep 60
+    else
+        sleep "$refresh_seconds"
+    fi
 done
