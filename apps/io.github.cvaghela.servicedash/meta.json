@@ -4,7 +4,7 @@
     "amd64",
     "arm64"
   ],
-  "update_at": "2026-08-30",
+  "update_at": "2026-08-31",
   "author": "Chintan Vaghela",
   "developer": "Chintan Vaghela",
   "thumbnail": "/apps/io.github.cvaghela.servicedash/assets/thumbnail.webp",
@@ -23,10 +23,10 @@
     "before_install": "### Before you install\n\nService Dash reads your monitors from **Uptime Kuma**. It does not\ninstall Kuma for you, so set that up first:\n\n1. Install **Uptime Kuma** -- it is in the official ZimaOS app store --\n   and leave it on its default port `3001`. If you run it on another\n   port, change `KUMA_PORT` below and `KUMA_URL` on the `kuma-auth`\n   service to match. Kuma must be on this same host.\n2. In Uptime Kuma, create a **status page** and add the monitors you\n   want on the dashboard.\n3. Note the status page's **slug** -- the last part of its URL. If it is\n   not `homelab`, change `STATUS_SLUG` below to match.\n\n### Getting local and public URLs on one card\n\nBoth addresses come from Uptime Kuma, from **how you name the\nmonitors**. Give a service two monitors:\n\n| Monitor name | Points at | Shows on the card as |\n| --- | --- | --- |\n| `Plex` | your public URL | **External** |\n| `Plex local` | your LAN URL | **Local** |\n\nService Dash pairs them by name into a single card carrying both.\n`Plex (local)`, `Plex - local` and `Plex.local` are recognised the same\nway. A service with only one monitor simply shows one address.\n\nEach address is the monitor's own URL in Kuma, so it is set in Kuma, not\nhere. The dashboard opens whichever address your browser can actually\nreach -- the local one when you are on the LAN, the public one when you\nare not -- deciding per card and without testing anything. The switch in\nthe top bar pins it to **Local** or **External** if you would rather\nchoose yourself.\n\nBoth addresses read **URL Locked** until you sign in to Uptime Kuma from\nthe dashboard -- signed out, they are never sent to the browser at all.\n\nThen open Service Dash on port **8888**.\n"
   },
   "title": "Service Dash",
-  "release_note": "1.5.2 makes an empty dashboard explain itself. A blank grid used to say\nalmost nothing: a small OFFLINE in the top bar, and a toast that cleared\nitself after five seconds. Installing for the first time, you could not\ntell \"Uptime Kuma is not set up yet\" from \"this app is broken\".\n\nA blank grid now names which of three things happened, and what to do\nabout it:\n\n  * Uptime Kuma is not answering. It is a separate application, and\n    Service Dash does not bundle or install it -- so the panel says that\n    plainly, then walks through installing it, publishing a status page,\n    and matching KUMA_PORT and STATUS_SLUG.\n  * It answered, but that status page has no monitors on it. Steps for\n    the Uptime Kuma editor, including adding a group first, which is\n    where most empty pages get stuck.\n  * Your cards are loaded, and the search and filters are hiding them.\n\nNothing else changed. If your dashboard already shows cards, this release\nis invisible to you.\n",
+  "release_note": "1.5.3 stops the Claude usage panel logging itself out every eight hours.\n\nThe reporter was supposed to renew its login before the token expired. The\ncommand it used for that turned out never to renew anything -- it reported\nsuccess and changed nothing -- so the login quietly died twice a day and the\npanel said Claude had refused it. That read as Claude's fault. It was ours.\n\nIt now renews with a command that actually works, and checks more often as\nthe token gets close to expiry.\n\nOnly the Claude reporter is affected. If you have not signed in to it, or\nyou do not use the AI usage panel at all, nothing here changes for you.\n",
   "base_url": "https://cdn.jsdelivr.net/gh/cvaghela/service-dash@gh-pages",
   "id": "io.github.cvaghela.servicedash",
-  "version": "1.5.2",
+  "version": "1.5.3",
   "categories": [
     "networking"
   ],

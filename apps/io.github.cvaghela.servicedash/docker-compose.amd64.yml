@@ -2,7 +2,7 @@ name: service-dash
 
 services:
   service-dash:
-    image: ghcr.io/cvaghela/service-dash:1.5.2
+    image: ghcr.io/cvaghela/service-dash:1.5.3
     container_name: service-dash
     ports:
       - target: 80
@@ -45,7 +45,7 @@ services:
     # the official store, which still packages a v1 main.zip for older clients,
     # and it documents the three settings worth changing at install time.
   kuma-auth:
-    image: ghcr.io/cvaghela/service-dash-kuma-auth:1.5.2
+    image: ghcr.io/cvaghela/service-dash-kuma-auth:1.5.3
     container_name: service-dash-kuma-auth
     environment:
       # Must point at the same Uptime Kuma as KUMA_PORT above.
@@ -69,7 +69,7 @@ services:
     restart: unless-stopped
 
   network-info:
-    image: ghcr.io/cvaghela/service-dash-network-info:1.5.2
+    image: ghcr.io/cvaghela/service-dash-network-info:1.5.3
     container_name: service-dash-network-info
     network_mode: host
     read_only: true
@@ -170,7 +170,7 @@ services:
   #
   #   docker exec -it service-dash-claude-usage claude auth login
   claude-usage:
-    image: ghcr.io/cvaghela/service-dash-claude-usage:1.5.2
+    image: ghcr.io/cvaghela/service-dash-claude-usage:1.5.3
     container_name: service-dash-claude-usage
     environment:
       # Plan windows move slowly; polling harder gains nothing.
@@ -197,7 +197,7 @@ services:
   # localhost and hangs.
   #   docker exec -it service-dash-codex-usage codex login --device-auth
   codex-usage:
-    image: ghcr.io/cvaghela/service-dash-codex-usage:1.5.2
+    image: ghcr.io/cvaghela/service-dash-codex-usage:1.5.3
     container_name: service-dash-codex-usage
     environment:
       CODEX_USAGE_REFRESH_SECONDS: "300"
@@ -225,7 +225,7 @@ x-casaos:
   index: /
   port_map: "8888"
   scheme: http
-  version: "1.5.2"
+  version: "1.5.3"
   icon: https://cdn.jsdelivr.net/gh/cvaghela/service-dash@gh-pages/apps/io.github.cvaghela.servicedash/assets/icon.png
   title:
     en_US: Service Dash
