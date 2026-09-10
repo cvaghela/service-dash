@@ -329,6 +329,35 @@ host:
 Read usage with the passive GET only. Codex also attaches rate limits to a
 completed turn, but polling that would spend quota to measure quota.
 
+**Renewal here is REACTIVE, and deliberately unlike Claude's.** `codex login
+status` was the renewal call, on exactly the false assumption that sat in
+`claude-usage.sh`: that a read command going through the credential path renews
+it. It exits 0, prints "Logged in using ChatGPT", and changes nothing. This
+reporter never renewed either — it only looked healthy because a Codex access
+token lasts **ten days** rather than eight hours. The first one expired on
+2026-09-08, twelve days after sign-in, exactly as predicted.
+
+Three measured facts decide the design:
+
+- **Nothing refreshes a healthy token.** With ten days left, `login status`,
+  `exec` and `doctor` are all no-ops. Refresh is expiry-driven and the threshold
+  is not published, so there is no window to aim at.
+- **An expired token IS recoverable** — the opposite of Claude, where doctor
+  answers a failed renewal by logging out. `codex exec` refreshed a token dead
+  for 28 hours, rotating both tokens and writing a fresh ten-day one. So nothing
+  has to be predicted: wait for the 401, refresh, retry once.
+- **It costs nothing.** The exec *fails* on the trusted-directory check, and
+  that is the point: the credential is refreshed during start-up, before any
+  turn is sent. Usage read 92% before and after three of them. **Do not "fix"
+  that failure with `--skip-git-repo-check`** — it lets the turn through and
+  starts charging for what is only meant to be a token refresh.
+
+Renewal therefore lives inside the `401|403` branch of `poll_once` and gets
+exactly one retry. Never fire it per-poll (288 client spawns a day for nothing)
+and never on a transient status (a bad network minute becomes a process storm).
+`test-reporters.sh` covers all four of those, two of them behaviourally rather
+than by grepping the source.
+
 **Each reporter owns its own file** (`/status/<provider>.json`), served by one
 nginx regex location. That regex is **quoted**, and must stay quoted: nginx
 reads an unquoted `{` or `}` in a location regex as a block delimiter, so the

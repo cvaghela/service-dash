@@ -2,7 +2,7 @@ name: service-dash
 
 services:
   service-dash:
-    image: ghcr.io/cvaghela/service-dash:1.5.3
+    image: ghcr.io/cvaghela/service-dash:1.5.4
     container_name: service-dash
     ports:
       - target: 80
@@ -59,7 +59,7 @@ services:
   # Answers one question for nginx: is this browser really signed in to Uptime
   # Kuma? Without it, saving settings would have to trust the browser's word.
   kuma-auth:
-    image: ghcr.io/cvaghela/service-dash-kuma-auth:1.5.3
+    image: ghcr.io/cvaghela/service-dash-kuma-auth:1.5.4
     container_name: service-dash-kuma-auth
     environment:
       # Must point at the same Uptime Kuma as KUMA_PORT above.
@@ -83,7 +83,7 @@ services:
     restart: unless-stopped
 
   network-info:
-    image: ghcr.io/cvaghela/service-dash-network-info:1.5.3
+    image: ghcr.io/cvaghela/service-dash-network-info:1.5.4
     container_name: service-dash-network-info
     network_mode: host
     read_only: true
@@ -184,7 +184,7 @@ services:
   #
   #   docker exec -it service-dash-claude-usage claude auth login
   claude-usage:
-    image: ghcr.io/cvaghela/service-dash-claude-usage:1.5.3
+    image: ghcr.io/cvaghela/service-dash-claude-usage:1.5.4
     container_name: service-dash-claude-usage
     environment:
       # Plan windows move slowly; polling harder gains nothing.
@@ -211,7 +211,7 @@ services:
   # localhost and hangs.
   #   docker exec -it service-dash-codex-usage codex login --device-auth
   codex-usage:
-    image: ghcr.io/cvaghela/service-dash-codex-usage:1.5.3
+    image: ghcr.io/cvaghela/service-dash-codex-usage:1.5.4
     container_name: service-dash-codex-usage
     environment:
       CODEX_USAGE_REFRESH_SECONDS: "300"
@@ -243,8 +243,8 @@ x-casaos:
   architectures:
     - amd64
     - arm64
-  version: "1.5.3"
-  update_at: "2026-08-31"
+  version: "1.5.4"
+  update_at: "2026-09-09"
   author: Chintan Vaghela
   developer: Chintan Vaghela
   icon: https://cdn.jsdelivr.net/gh/cvaghela/service-dash@main/appstore/Apps/ServiceDash/icon.png
@@ -1379,217 +1379,248 @@ x-casaos:
         然后在 **8888** 端口打开 Service Dash。
   release_notes:
     en_US: |
-      1.5.3 stops the Claude usage panel logging itself out every eight hours.
+      1.5.4 does for the Codex usage panel what 1.5.3 did for Claude: stops it
+      logging itself out.
 
-      The reporter was supposed to renew its login before the token expired. The
-      command it used for that turned out never to renew anything -- it reported
-      success and changed nothing -- so the login quietly died twice a day and the
-      panel said Claude had refused it. That read as Claude's fault. It was ours.
+      The reporter was meant to renew its login before the token expired. The
+      command it used never renewed anything -- it reported success and changed
+      nothing. Codex tokens last ten days rather than eight hours, so this took
+      longer to show than the Claude one, but it was the same bug: the panel went
+      dark and said Codex had refused the login.
 
-      It now renews with a command that actually works, and checks more often as
-      the token gets close to expiry.
+      Renewal now happens when it is actually needed. Nothing can refresh a
+      healthy Codex token, so instead of guessing when to try, the reporter waits
+      for the rejection, renews, and tries once more. An expired Codex login
+      recovers by itself this way, with no sign-in and no cost.
 
-      Only the Claude reporter is affected. If you have not signed in to it, or
-      you do not use the AI usage panel at all, nothing here changes for you.
+      Only the Codex reporter is affected. If you have not signed in to it, or you
+      do not use the AI usage panel, nothing here changes for you.
     en_GB: |
-      1.5.3 stops the Claude usage panel logging itself out every eight hours.
+      1.5.4 does for the Codex usage panel what 1.5.3 did for Claude: stops it
+      logging itself out.
 
-      The reporter was supposed to renew its login before the token expired. The
-      command it used for that turned out never to renew anything -- it reported
-      success and changed nothing -- so the login quietly died twice a day and the
-      panel said Claude had refused it. That read as Claude's fault. It was ours.
+      The reporter was meant to renew its login before the token expired. The
+      command it used never renewed anything -- it reported success and changed
+      nothing. Codex tokens last ten days rather than eight hours, so this took
+      longer to show than the Claude one, but it was the same bug: the panel went
+      dark and said Codex had refused the login.
 
-      It now renews with a command that actually works, and checks more often as
-      the token gets close to expiry.
+      Renewal now happens when it is actually needed. Nothing can refresh a
+      healthy Codex token, so instead of guessing when to try, the reporter waits
+      for the rejection, renews, and tries once more. An expired Codex login
+      recovers by itself this way, with no sign-in and no cost.
 
-      Only the Claude reporter is affected. If you have not signed in to it, or
-      you do not use the AI usage panel at all, nothing here changes for you.
+      Only the Codex reporter is affected. If you have not signed in to it, or you
+      do not use the AI usage panel, nothing here changes for you.
     de_DE: |
-      1.5.3 sorgt dafür, dass sich das Claude-Nutzungspanel nicht mehr alle acht
-      Stunden selbst abmeldet.
+      1.5.4 tut für das Codex-Nutzungspanel, was 1.5.3 für Claude getan hat: es
+      meldet sich nicht mehr selbst ab.
 
       Der Reporter sollte seine Anmeldung erneuern, bevor das Token abläuft. Der
-      dafür verwendete Befehl hat jedoch nie etwas erneuert -- er meldete Erfolg
-      und änderte nichts. Also starb die Anmeldung zweimal täglich still, und das
-      Panel behauptete, Claude habe sie abgelehnt. Das sah nach Claudes Fehler
-      aus. Es war unserer.
+      verwendete Befehl hat nie etwas erneuert -- er meldete Erfolg und änderte
+      nichts. Codex-Token halten zehn Tage statt acht Stunden, deshalb fiel es
+      später auf als bei Claude, aber es war derselbe Fehler: das Panel wurde leer
+      und behauptete, Codex habe die Anmeldung abgelehnt.
 
-      Jetzt wird mit einem Befehl erneuert, der tatsächlich funktioniert, und
-      gegen Ende der Laufzeit häufiger geprüft.
+      Die Erneuerung geschieht jetzt dann, wenn sie wirklich gebraucht wird. Ein
+      gesundes Codex-Token lässt sich gar nicht erneuern, also rät der Reporter
+      nicht mehr, wann er es versuchen soll: er wartet die Ablehnung ab, erneuert
+      und versucht es genau einmal erneut. Eine abgelaufene Codex-Anmeldung erholt
+      sich so von selbst, ohne neue Anmeldung und ohne Kosten.
 
-      Betroffen ist nur der Claude-Reporter. Wenn Sie sich dort nie angemeldet
-      haben oder das KI-Nutzungspanel gar nicht verwenden, ändert sich für Sie
-      nichts.
+      Betroffen ist nur der Codex-Reporter. Wenn Sie sich dort nie angemeldet
+      haben oder das KI-Nutzungspanel nicht verwenden, ändert sich nichts.
     el_GR: |
-      Η έκδοση 1.5.3 σταματά το πάνελ χρήσης Claude από το να αποσυνδέεται μόνο
-      του κάθε οκτώ ώρες.
+      Η έκδοση 1.5.4 κάνει για το πάνελ χρήσης Codex ό,τι έκανε η 1.5.3 για το
+      Claude: σταματά να αποσυνδέεται μόνο του.
 
       Ο reporter υποτίθεται ότι ανανέωνε τη σύνδεσή του πριν λήξει το token. Η
-      εντολή που χρησιμοποιούσε γι' αυτό τελικά δεν ανανέωνε τίποτα -- ανέφερε
-      επιτυχία και δεν άλλαζε τίποτα. Έτσι η σύνδεση πέθαινε σιωπηλά δύο φορές
-      την ημέρα και το πάνελ έλεγε ότι το Claude την απέρριψε. Έμοιαζε με φταίξιμο
-      του Claude. Ήταν δικό μας.
+      εντολή που χρησιμοποιούσε δεν ανανέωνε ποτέ τίποτα -- ανέφερε επιτυχία και
+      δεν άλλαζε τίποτα. Τα token του Codex κρατούν δέκα ημέρες αντί για οκτώ
+      ώρες, γι' αυτό φάνηκε αργότερα από του Claude, αλλά ήταν το ίδιο σφάλμα: το
+      πάνελ άδειαζε και έλεγε ότι το Codex απέρριψε τη σύνδεση.
 
-      Τώρα ανανεώνει με εντολή που πράγματι δουλεύει, και ελέγχει συχνότερα όσο
-      πλησιάζει η λήξη.
+      Η ανανέωση γίνεται τώρα όταν πράγματι χρειάζεται. Ένα υγιές token του Codex
+      δεν ανανεώνεται καθόλου, οπότε αντί να μαντεύει πότε να προσπαθήσει, ο
+      reporter περιμένει την απόρριψη, ανανεώνει και ξαναδοκιμάζει μία φορά. Μια
+      ληγμένη σύνδεση Codex συνέρχεται έτσι μόνη της, χωρίς νέα σύνδεση και χωρίς
+      κόστος.
 
-      Επηρεάζεται μόνο ο reporter του Claude. Αν δεν έχετε συνδεθεί σε αυτόν, ή
-      δεν χρησιμοποιείτε καθόλου το πάνελ χρήσης AI, δεν αλλάζει τίποτα για εσάς.
+      Επηρεάζεται μόνο ο reporter του Codex.
     fr_FR: |
-      La version 1.5.3 empêche le panneau d'utilisation Claude de se déconnecter
-      tout seul toutes les huit heures.
+      La version 1.5.4 fait pour le panneau d'utilisation Codex ce que la 1.5.3 a
+      fait pour Claude : elle l'empêche de se déconnecter tout seul.
 
-      Le rapporteur était censé renouveler sa session avant l'expiration du jeton.
-      La commande utilisée pour cela ne renouvelait en réalité rien : elle
-      signalait un succès et ne changeait rien. La session mourait donc en silence
-      deux fois par jour, et le panneau affirmait que Claude l'avait refusée. Cela
-      ressemblait à une faute de Claude. C'était la nôtre.
+      Le rapporteur devait renouveler sa session avant l'expiration du jeton. La
+      commande utilisée ne renouvelait rien : elle signalait un succès et ne
+      changeait rien. Les jetons Codex durent dix jours et non huit heures, ce qui
+      a retardé la découverte, mais c'était le même défaut : le panneau se vidait
+      en affirmant que Codex avait refusé la session.
 
-      Le renouvellement passe désormais par une commande qui fonctionne vraiment,
-      avec des vérifications plus fréquentes à l'approche de l'expiration.
+      Le renouvellement a désormais lieu quand il est réellement nécessaire. Un
+      jeton Codex valide ne peut pas être renouvelé, alors plutôt que de deviner
+      le bon moment, le rapporteur attend le refus, renouvelle et réessaie une
+      fois. Une session Codex expirée se rétablit ainsi d'elle-même, sans
+      reconnexion et sans coût.
 
-      Seul le rapporteur Claude est concerné. Si vous ne vous y êtes jamais
-      connecté, ou si vous n'utilisez pas le panneau d'utilisation IA, rien ne
-      change pour vous.
+      Seul le rapporteur Codex est concerné.
     hr_HR: |
-      Verzija 1.5.3 sprječava da se ploča s Claude potrošnjom sama odjavljuje
-      svakih osam sati.
+      Verzija 1.5.4 čini za ploču s Codex potrošnjom ono što je 1.5.3 učinila za
+      Claude: sprječava da se sama odjavljuje.
 
-      Reporter je trebao obnoviti prijavu prije isteka tokena. Naredba koju je za
-      to koristio zapravo nikad ništa nije obnavljala -- javljala je uspjeh i
-      ništa nije mijenjala. Prijava je tako tiho umirala dvaput dnevno, a ploča je
-      tvrdila da ju je Claude odbio. Djelovalo je kao Claudeova greška. Bila je
-      naša.
+      Reporter je trebao obnoviti prijavu prije isteka tokena. Naredba koju je
+      koristio nikad ništa nije obnavljala -- javljala je uspjeh i ništa nije
+      mijenjala. Codexovi tokeni traju deset dana umjesto osam sati, pa se to
+      pokazalo kasnije nego kod Claudea, ali radilo se o istoj grešci: ploča bi se
+      ispraznila i tvrdila da je Codex odbio prijavu.
 
-      Sada se obnavlja naredbom koja doista radi, uz češće provjere kako se bliži
-      istek.
+      Obnova se sada događa onda kad je zaista potrebna. Zdrav Codex token uopće
+      se ne može obnoviti, pa umjesto da nagađa kada pokušati, reporter čeka
+      odbijanje, obnovi i pokuša još jednom. Istekla Codex prijava tako se
+      oporavlja sama, bez ponovne prijave i bez troška.
 
-      Zahvaćen je samo Claude reporter. Ako se niste prijavili u njega ili uopće
-      ne koristite ploču s AI potrošnjom, za vas se ništa ne mijenja.
+      Zahvaćen je samo Codex reporter.
     it_IT: |
-      La 1.5.3 impedisce al pannello di utilizzo Claude di disconnettersi da solo
-      ogni otto ore.
+      La 1.5.4 fa per il pannello di utilizzo Codex quello che la 1.5.3 ha fatto
+      per Claude: gli impedisce di disconnettersi da solo.
 
       Il reporter avrebbe dovuto rinnovare l'accesso prima della scadenza del
-      token. Il comando che usava non rinnovava in realtà nulla: segnalava
-      successo e non cambiava niente. Così l'accesso moriva in silenzio due volte
-      al giorno e il pannello diceva che Claude lo aveva rifiutato. Sembrava colpa
-      di Claude. Era nostra.
+      token. Il comando che usava non rinnovava nulla: segnalava successo e non
+      cambiava niente. I token di Codex durano dieci giorni invece di otto ore,
+      per questo si è visto più tardi rispetto a Claude, ma era lo stesso difetto:
+      il pannello si svuotava dicendo che Codex aveva rifiutato l'accesso.
 
-      Ora rinnova con un comando che funziona davvero, e controlla più spesso man
-      mano che la scadenza si avvicina.
+      Il rinnovo ora avviene quando serve davvero. Un token Codex valido non è
+      rinnovabile, quindi invece di indovinare quando tentare, il reporter aspetta
+      il rifiuto, rinnova e riprova una volta sola. Un accesso Codex scaduto si
+      riprende così da solo, senza nuovo login e senza costi.
 
-      È interessato solo il reporter di Claude. Se non vi siete mai collegati, o
-      non usate affatto il pannello di utilizzo AI, per voi non cambia nulla.
+      È interessato solo il reporter di Codex.
     ja_JP: |
-      1.5.3 では、Claude 使用状況パネルが 8 時間ごとに勝手にサインアウトしてしまう
-      問題を修正しました。
+      1.5.4 では、1.5.3 が Claude に対して行ったことを Codex 使用状況パネルにも
+      適用しました。勝手にサインアウトしなくなります。
 
-      レポーターはトークンの期限が切れる前にログインを更新するはずでした。ところが
-      そのために使っていたコマンドは、実際には何も更新していませんでした。成功を
-      報告しながら、何も変えていなかったのです。その結果、ログインは 1 日に 2 回
-      静かに切れ、パネルは「Claude が拒否した」と表示していました。Claude の問題の
-      ように見えますが、こちらの問題でした。
+      レポーターはトークンの期限が切れる前にログインを更新するはずでしたが、その
+      ために使っていたコマンドは何も更新していませんでした。成功を報告しながら、
+      何も変えていなかったのです。Codex のトークンは 8 時間ではなく 10 日もつため、
+      Claude より発覚が遅れただけで、同じ不具合でした。パネルは空になり、Codex が
+      ログインを拒否したと表示していました。
 
-      現在は実際に更新できるコマンドを使い、期限が近づくほど確認の間隔を短くします。
+      更新は、本当に必要になった時点で行われるようになりました。有効な Codex
+      トークンはそもそも更新できないため、いつ試すかを推測するのはやめ、拒否されて
+      から更新し、もう一度だけ試します。期限切れの Codex ログインは、この方法で
+      サインインも費用もなく自動的に復旧します。
 
-      影響を受けるのは Claude のレポーターだけです。サインインしていない場合や、
-      AI 使用状況パネルを使っていない場合は、変わるところはありません。
+      影響を受けるのは Codex のレポーターだけです。
     ko_KR: |
-      1.5.3은 Claude 사용량 패널이 여덟 시간마다 스스로 로그아웃되던 문제를
-      고칩니다.
+      1.5.4는 1.5.3이 Claude에 해준 일을 Codex 사용량 패널에도 적용합니다. 스스로
+      로그아웃되지 않게 합니다.
 
-      리포터는 토큰이 만료되기 전에 로그인을 갱신해야 했습니다. 그런데 그 용도로
-      쓰던 명령은 실제로는 아무것도 갱신하지 않았습니다. 성공했다고 보고하면서
-      아무것도 바꾸지 않았습니다. 그래서 로그인은 하루에 두 번 조용히 끊겼고,
-      패널은 Claude가 거부했다고 표시했습니다. Claude 잘못처럼 보였지만 저희
-      잘못이었습니다.
+      리포터는 토큰이 만료되기 전에 로그인을 갱신해야 했지만, 그 용도로 쓰던 명령은
+      아무것도 갱신하지 않았습니다. 성공했다고 보고하면서 아무것도 바꾸지 않았습니다.
+      Codex 토큰은 여덟 시간이 아니라 열흘을 가기 때문에 Claude보다 늦게 드러났을
+      뿐, 같은 버그였습니다. 패널은 비어 버리고 Codex가 로그인을 거부했다고
+      표시했습니다.
 
-      이제는 실제로 동작하는 명령으로 갱신하며, 만료가 가까워질수록 더 자주
-      확인합니다.
+      이제 갱신은 정말 필요할 때 이루어집니다. 정상적인 Codex 토큰은 애초에 갱신할
+      수 없으므로, 언제 시도할지 추측하는 대신 거부를 기다렸다가 갱신하고 한 번만 더
+      시도합니다. 만료된 Codex 로그인은 이렇게 스스로 회복되며, 다시 로그인할 필요도
+      비용도 없습니다.
 
-      Claude 리포터만 해당됩니다. 로그인한 적이 없거나 AI 사용량 패널을 쓰지
-      않는다면 달라지는 것은 없습니다.
+      Codex 리포터만 해당됩니다.
     nb_NO: |
-      1.5.3 hindrer at Claude-brukspanelet logger seg selv ut hver åttende time.
+      1.5.4 gjør for Codex-brukspanelet det 1.5.3 gjorde for Claude: hindrer at det
+      logger seg selv ut.
 
       Rapportøren skulle fornye innloggingen før tokenet utløp. Kommandoen den
-      brukte til det fornyet i praksis ingenting -- den meldte om suksess og endret
-      ingenting. Dermed døde innloggingen stille to ganger om dagen, og panelet sa
-      at Claude hadde avvist den. Det så ut som Claudes feil. Det var vår.
+      brukte fornyet aldri noe -- den meldte om suksess og endret ingenting.
+      Codex-tokener varer ti dager i stedet for åtte timer, så dette viste seg
+      senere enn hos Claude, men det var samme feil: panelet ble tomt og sa at
+      Codex hadde avvist innloggingen.
 
-      Nå fornyes det med en kommando som faktisk virker, og det sjekkes oftere jo
-      nærmere utløpet man kommer.
+      Fornyelsen skjer nå når den faktisk trengs. Et friskt Codex-token lar seg
+      ikke fornye i det hele tatt, så i stedet for å gjette når den skal prøve,
+      venter rapportøren på avvisningen, fornyer og prøver én gang til. En utløpt
+      Codex-innlogging kommer seg slik av seg selv, uten ny innlogging og uten
+      kostnad.
 
-      Bare Claude-rapportøren er berørt. Har du ikke logget inn der, eller bruker
-      du ikke KI-brukspanelet i det hele tatt, endrer dette ingenting for deg.
+      Bare Codex-rapportøren er berørt.
     pt_PT: |
-      A 1.5.3 impede que o painel de utilização do Claude termine a sessão
-      sozinho de oito em oito horas.
+      A 1.5.4 faz pelo painel de utilização do Codex o que a 1.5.3 fez pelo
+      Claude: impede que termine a sessão sozinho.
 
       O repórter devia renovar a sessão antes de o token expirar. O comando que
-      usava para isso nunca renovava nada: comunicava sucesso e não alterava coisa
-      alguma. Assim, a sessão morria em silêncio duas vezes por dia e o painel
-      dizia que o Claude a tinha recusado. Parecia culpa do Claude. Era nossa.
+      usava nunca renovava nada: comunicava sucesso e não alterava coisa alguma.
+      Os tokens do Codex duram dez dias em vez de oito horas, pelo que isto
+      demorou mais a aparecer do que no Claude, mas era o mesmo defeito: o painel
+      esvaziava-se e dizia que o Codex tinha recusado a sessão.
 
-      Agora renova com um comando que funciona mesmo, e verifica com mais
-      frequência à medida que a expiração se aproxima.
+      A renovação acontece agora quando é mesmo necessária. Um token Codex válido
+      não pode sequer ser renovado, por isso, em vez de adivinhar quando tentar, o
+      repórter espera pela recusa, renova e tenta mais uma vez. Uma sessão Codex
+      expirada recupera assim sozinha, sem novo início de sessão e sem custo.
 
-      Só o repórter do Claude é afetado. Se nunca iniciou sessão nele, ou não usa
-      o painel de utilização de IA, nada muda para si.
+      Só o repórter do Codex é afetado.
     ru_RU: |
-      Версия 1.5.3 избавляет панель расхода Claude от самопроизвольного выхода из
-      аккаунта каждые восемь часов.
+      Версия 1.5.4 делает для панели расхода Codex то же, что 1.5.3 сделала для
+      Claude: избавляет её от самопроизвольного выхода из аккаунта.
 
       Репортёр должен был продлевать вход до истечения токена. Команда, которой он
-      для этого пользовался, на деле ничего не продлевала: сообщала об успехе и
-      ничего не меняла. Поэтому вход тихо умирал дважды в сутки, а панель писала,
-      что Claude его отклонил. Выглядело это как вина Claude. Вина была наша.
+      для этого пользовался, не продлевала ничего: сообщала об успехе и ничего не
+      меняла. Токены Codex живут десять дней, а не восемь часов, поэтому проблема
+      проявилась позже, чем у Claude, но это была та же ошибка: панель пустела и
+      сообщала, что Codex отклонил вход.
 
-      Теперь продление выполняется командой, которая действительно работает, а
-      проверки учащаются по мере приближения срока.
+      Продление теперь происходит тогда, когда оно действительно нужно. Здоровый
+      токен Codex продлить вообще нельзя, поэтому вместо угадывания момента
+      репортёр дожидается отказа, продлевает и повторяет попытку ровно один раз.
+      Просроченный вход Codex так восстанавливается сам, без повторной авторизации
+      и без затрат.
 
-      Затронут только репортёр Claude. Если вы в него не входили или вовсе не
-      пользуетесь панелью расхода ИИ, для вас ничего не меняется.
+      Затронут только репортёр Codex.
     sv_SE: |
-      1.5.3 gör att Claude-användningspanelen inte längre loggar ut sig själv var
-      åttonde timme.
+      1.5.4 gör för Codex-användningspanelen det 1.5.3 gjorde för Claude: hindrar
+      den från att logga ut sig själv.
 
       Rapportören skulle förnya inloggningen innan token gick ut. Kommandot den
-      använde för det förnyade i praktiken ingenting -- det rapporterade framgång
-      och ändrade inget. Inloggningen dog alltså tyst två gånger om dagen, och
-      panelen sa att Claude hade avvisat den. Det såg ut som Claudes fel. Det var
-      vårt.
+      använde förnyade aldrig något -- det rapporterade framgång och ändrade
+      inget. Codex-token varar tio dagar i stället för åtta timmar, så det tog
+      längre tid att märka än hos Claude, men det var samma fel: panelen tömdes
+      och sa att Codex hade avvisat inloggningen.
 
-      Nu förnyas den med ett kommando som faktiskt fungerar, och kontrollen sker
-      oftare ju närmare utgången man kommer.
+      Förnyelsen sker nu när den verkligen behövs. En frisk Codex-token går inte
+      att förnya alls, så i stället för att gissa när den ska försöka väntar
+      rapportören på avvisningen, förnyar och försöker en gång till. En utgången
+      Codex-inloggning återhämtar sig på så vis av sig själv, utan ny inloggning
+      och utan kostnad.
 
-      Bara Claude-rapportören berörs. Har du inte loggat in där, eller använder du
-      inte AI-användningspanelen alls, ändras ingenting för dig.
+      Bara Codex-rapportören berörs.
     tr_TR: |
-      1.5.3, Claude kullanım panosunun her sekiz saatte bir kendi kendine oturumu
-      kapatmasını engelliyor.
+      1.5.4, 1.5.3'ün Claude için yaptığını Codex kullanım panosu için yapıyor:
+      kendi kendine oturum kapatmasını engelliyor.
 
-      Raporlayıcının, jetonun süresi dolmadan oturumu yenilemesi gerekiyordu. Bunun
-      için kullandığı komut aslında hiçbir şeyi yenilemiyordu: başarı bildiriyor,
-      hiçbir şeyi değiştirmiyordu. Böylece oturum günde iki kez sessizce ölüyor,
-      pano da Claude'un onu reddettiğini söylüyordu. Claude'un hatası gibi
-      görünüyordu. Bizimdi.
+      Raporlayıcının, jetonun süresi dolmadan oturumu yenilemesi gerekiyordu.
+      Kullandığı komut hiçbir şeyi yenilemiyordu: başarı bildiriyor, hiçbir şeyi
+      değiştirmiyordu. Codex jetonları sekiz saat değil on gün dayandığı için bu
+      Claude'dakinden geç ortaya çıktı, ama aynı hataydı: pano boşalıyor ve
+      Codex'in oturumu reddettiğini söylüyordu.
 
-      Artık gerçekten işe yarayan bir komutla yenileniyor ve süre dolmaya
-      yaklaştıkça daha sık kontrol ediliyor.
+      Yenileme artık gerçekten gerektiğinde yapılıyor. Sağlam bir Codex jetonu
+      zaten yenilenemiyor; bu yüzden ne zaman deneyeceğini tahmin etmek yerine
+      raporlayıcı reddi bekliyor, yeniliyor ve yalnızca bir kez daha deniyor.
+      Süresi dolmuş bir Codex oturumu böylece kendi kendine, yeniden giriş
+      yapmadan ve maliyetsiz olarak toparlanıyor.
 
-      Yalnızca Claude raporlayıcısı etkileniyor. Ona hiç giriş yapmadıysanız ya da
-      yapay zekâ kullanım panosunu hiç kullanmıyorsanız sizin için değişen bir şey
-      yok.
+      Yalnızca Codex raporlayıcısı etkileniyor.
     zh_CN: |
-      1.5.3 修复了 Claude 用量面板每八小时就自己掉线的问题。
+      1.5.4 对 Codex 用量面板做了 1.5.3 对 Claude 做的事：让它不再自己掉线。
 
-      上报服务本应在令牌过期前续期登录。但它为此使用的命令实际上从未续期过任何
-      东西——它报告成功，却什么都没改。于是登录每天悄悄失效两次，面板还说是 Claude
-      拒绝了它。看上去像是 Claude 的问题，其实是我们的问题。
+      上报服务本应在令牌过期前续期登录，但它用的那条命令从未续期过任何东西——报告
+      成功，却什么都没改。Codex 的令牌能用十天而不是八小时，所以比 Claude 那个晚
+      暴露，但问题是一样的：面板会变空，并且说是 Codex 拒绝了登录。
 
-      现在改用真正有效的命令续期，并且越接近过期，检查得越频繁。
+      现在续期发生在真正需要的时候。健康的 Codex 令牌根本无法续期，所以上报服务不再
+      猜测什么时候去试，而是等到被拒绝，续期，然后只重试一次。过期的 Codex 登录就这样
+      自己恢复，无需重新登录，也没有任何花费。
 
-      只有 Claude 的上报服务受影响。如果你没有登录过它，或者根本不用 AI 用量面板，
-      这次更新对你没有任何变化。
+      只有 Codex 的上报服务受影响。

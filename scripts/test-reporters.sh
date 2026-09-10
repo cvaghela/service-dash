@@ -131,6 +131,90 @@ case "$d" in
 esac
 
 # ---------------------------------------------------------------------------
+printf '\ncodex renewal (reactive)\n'
+# ---------------------------------------------------------------------------
+# Codex never renewed either. `codex login status` was the call, on the same
+# false assumption as Claude's `auth status`: it exits 0, prints "Logged in
+# using ChatGPT", and changes nothing. Measured on a live credential -- the
+# token simply lasts ten days rather than eight hours, so it took that long to
+# show.
+#
+# Nothing refreshes a healthy Codex token, so there is no window to aim at. But
+# an EXPIRED one is recoverable (`codex exec` refreshed one 28 hours dead),
+# which Claude's is not. Hence: wait for the rejection, refresh, retry once.
+crenew="$(sed -n '/^renew_after_rejection()/,/^}/p' "$REPO/codex-usage.sh")"
+case "$crenew" in
+    *"codex exec"*) ok "codex renewal runs codex exec" ;;
+    *)              bad "codex renewal runs codex exec" "found: $(printf '%s' "$crenew" | tr '\n' ' ')" ;;
+esac
+case "$crenew" in
+    *"login status"*) bad "codex renewal does not use login status" "login status never refreshes anything" ;;
+    *)                ok  "codex renewal does not use login status" ;;
+esac
+
+# The exec is meant to DIE on the trusted-directory check: the refresh happens
+# during start-up, before any turn is sent, so it costs no quota. Adding this
+# flag lets the turn through and starts charging for a token refresh.
+case "$crenew" in
+    *"--skip-git-repo-check"*) bad "the renewal exec stays free" "--skip-git-repo-check sends a real turn" ;;
+    *)                         ok  "the renewal exec stays free" ;;
+esac
+
+# Reactive, not per-poll. Renewal must sit inside the rejection branch: firing
+# it on every poll would spawn the client 288 times a day for nothing, and
+# firing it on a timeout would turn a bad network minute into a process storm.
+cpoll="$(sed -n '/^poll_once()/,/^}/p' "$REPO/codex-usage.sh")"
+if printf '%s' "$cpoll" | grep -qE '401\|403\)'; then
+    ok "renewal is triggered by a rejection"
+else
+    bad "renewal is triggered by a rejection" "no 401|403 branch found in poll_once"
+fi
+
+# Behavioural, not textual: a 401 must renew once and then succeed on the retry.
+(
+    . "$WORK/codex-usage.sh.sh"
+    credentials_file="$WORK/fake-codex-auth.json"
+    printf '{}' > "$credentials_file"
+    read_access_token() { echo "tok"; }
+    account_id() { echo "acct"; }
+    write_status() { echo "STATUS_WRITTEN" > "$WORK/outcome"; }
+    write_disconnected() { echo "DISCONNECTED:$1" > "$WORK/outcome"; }
+    renew_after_rejection() { echo $(( $(cat "$WORK/renewals") + 1 )) > "$WORK/renewals"; }
+    # The counter lives in a file: fetch_usage runs inside a command
+    # substitution, so a shell variable incremented here never reaches the
+    # caller and every attempt would look like the first.
+    echo 0 > "$WORK/attempts"
+    fetch_usage() {
+        n=$(( $(cat "$WORK/attempts") + 1 )); echo "$n" > "$WORK/attempts"
+        if [ "$n" -eq 1 ]; then printf 'body\n401\n'; else printf '{"plan_type":"pro","rate_limit":{"primary_window":{"used_percent":5,"limit_window_seconds":18000,"reset_at":1790000000}}}\n200\n'; fi
+    }
+    echo 0 > "$WORK/renewals"
+    poll_once
+) >/dev/null 2>&1
+outcome="$(cat "$WORK/outcome" 2>/dev/null || echo "(nothing)")"
+renewals="$(cat "$WORK/renewals" 2>/dev/null || echo "?")"
+[ "$outcome" = "STATUS_WRITTEN" ] && [ "$renewals" = "1" ] \
+    && ok "a 401 renews once and the retry succeeds" \
+    || bad "a 401 renews once and the retry succeeds" "outcome=$outcome renewals=$renewals"
+
+# ...and a transient failure must NOT spawn the client.
+(
+    . "$WORK/codex-usage.sh.sh"
+    credentials_file="$WORK/fake-codex-auth.json"
+    read_access_token() { echo "tok"; }
+    account_id() { echo "acct"; }
+    write_status() { :; }
+    write_disconnected() { :; }
+    renew_after_rejection() { echo "SPAWNED" > "$WORK/transient"; }
+    fetch_usage() { printf 'oops\n503\n'; }
+    : > "$WORK/transient"
+    poll_once
+) >/dev/null 2>&1
+[ ! -s "$WORK/transient" ] \
+    && ok "a transient failure does not spawn the client" \
+    || bad "a transient failure does not spawn the client" "renewal ran on a 503"
+
+# ---------------------------------------------------------------------------
 printf '\ntoken renewal\n'
 # ---------------------------------------------------------------------------
 # `claude auth status` does NOT refresh an access token. It exits 0, reports
