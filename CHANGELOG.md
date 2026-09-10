@@ -3,6 +3,38 @@
 All notable changes to Service Dash are recorded here. This project follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.4] — 2026-09-09
+
+**Does for the Codex usage panel what 1.5.3 did for Claude: stops it logging itself out.** Nothing else changed.
+
+### Fixed
+
+- **The Codex reporter's token renewal never renewed anything either.**
+
+  It ran `codex login status`, on exactly the false assumption that sat in `claude-usage.sh` for two releases — that a read command going through the credential path renews it. It exits `0`, prints "Logged in using ChatGPT", and changes nothing.
+
+  This one only looked healthy because a Codex access token lasts **ten days** rather than eight hours. The first one expired on 2026-09-08, twelve days after sign-in, and the panel went dark saying Codex had refused the login.
+
+  Renewal is now **reactive**, and deliberately unlike Claude's. Three measurements decided that:
+
+  | Question | Codex | Claude |
+  | --- | --- | --- |
+  | Can a healthy token be refreshed? | No — `login status`, `exec` and `doctor` are all no-ops with 10 days left | No — `doctor` is a no-op at 7h |
+  | Is an **expired** token recoverable? | **Yes** — `codex exec` refreshed one 28 hours dead | **No** — `doctor` logs out instead |
+  | So renewal must be… | reactive: wait for the 401, renew, retry once | predictive: renew *before* expiry, with a tightening poll |
+
+  Because an expired Codex login recovers, there is no window to guess. Renewal sits in the `401|403` branch of `poll_once` and gets exactly one retry.
+
+  It also costs nothing. The `codex exec` **fails** on the trusted-directory check, which is the point: the credential is refreshed during start-up, before any turn is sent. Usage read 92% before and after three of them.
+
+### Notes
+
+Verified on a real host rather than reasoned about: the reporter image was built and run against a fabricated credential so the endpoint returned a genuine 401. It wrote the correct document, the real `codex` binary ran (leaving its state files behind), and shadowing `codex` with a recorder showed **exactly one** invocation per poll — not zero, not repeated.
+
+Six new regression tests, four mutation-tested, two of them behavioural rather than textual. One guards `--skip-git-repo-check`, which looks like an obvious tidy-up of a command that "shouldn't be failing" and would quietly start spending quota on every token refresh.
+
+Only the Codex reporter is affected.
+
 ## [1.5.3] — 2026-08-31
 
 **Fixes the Claude usage panel logging itself out every eight hours.** Nothing else changed.
@@ -748,6 +780,7 @@ Housekeeping for the first public release. No functional changes to the dashboar
 
 See the [release history](https://github.com/cvaghela/service-dash/releases).
 
+[1.5.4]: https://github.com/cvaghela/service-dash/releases/tag/v1.5.4
 [1.5.3]: https://github.com/cvaghela/service-dash/releases/tag/v1.5.3
 [1.5.2]: https://github.com/cvaghela/service-dash/releases/tag/v1.5.2
 [1.5.1]: https://github.com/cvaghela/service-dash/releases/tag/v1.5.1

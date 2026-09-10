@@ -83,11 +83,35 @@ account_id() {
     jq -r '.tokens.account_id // empty' "$credentials_file" 2>/dev/null
 }
 
-# Refresh through the official client, for the same reason the Claude reporter
-# does: Codex owns the credential format and the rotation, and `login status`
-# is a read command that goes through that path without spending quota.
-renew_if_needed() {
-    codex login status >/dev/null 2>&1 || true
+# Renew REACTIVELY, not on a schedule, and never by posting to the token
+# endpoint ourselves -- Codex owns the credential format and the rotation.
+#
+# `codex login status` was the renewal call here, on exactly the false
+# assumption that sat in claude-usage.sh for two releases: that a read command
+# going through the credential path renews it. It does not. It exits 0, prints
+# "Logged in using ChatGPT", and changes nothing. So this reporter never renewed
+# either; it only looked healthy because a Codex access token lasts ten days
+# rather than eight hours.
+#
+# Nothing refreshes a HEALTHY Codex token. Measured with ten days left:
+# `login status`, `exec` and `doctor` are all no-ops. Refresh is expiry-driven
+# and the threshold is not published, so there is no window we could reliably
+# aim at.
+#
+# That would be a problem if an expired token were unrecoverable, the way
+# Claude's is -- there, doctor answers a failed renewal by logging out, which is
+# why claude-usage.sh has to renew BEFORE expiry and tightens its poll to manage
+# it. Codex is the opposite: `codex exec` refreshed a token that had been dead
+# for 28 hours, verified on a live credential. So there is nothing to predict.
+# Wait for the rejection, refresh, try once more.
+#
+# The exec FAILS, and that is the point. It dies on the trusted-directory check,
+# which happens after the credential is refreshed during start-up and before any
+# turn is sent, so no quota is spent -- usage read 92% before and after three of
+# these. Do NOT "fix" the failure by adding --skip-git-repo-check: that lets the
+# turn through and starts charging for what is only meant to be a token refresh.
+renew_after_rejection() {
+    codex exec 'noop' >/dev/null 2>&1 || true
 }
 
 fetch_usage() {
@@ -196,8 +220,6 @@ poll_once() {
         return
     fi
 
-    renew_if_needed
-
     token="$(read_access_token)" || {
         write_disconnected "The stored login was signed out, or cannot be read."
         return
@@ -206,6 +228,22 @@ poll_once() {
     response="$(fetch_usage "$token" "$(account_id)")"
     http_status="$(printf '%s' "$response" | tail -n 1)"
     usage="$(printf '%s' "$response" | sed '$d')"
+
+    # A rejection is the ONLY thing that triggers a renewal, and it gets exactly
+    # one retry. Anything else -- a timeout, a 500, a dropped packet -- must not
+    # spawn the client, or a bad network minute turns into a process storm.
+    case "$http_status" in
+        401|403)
+            renew_after_rejection
+            token="$(read_access_token)" || {
+                write_disconnected "The stored login was signed out, or cannot be read."
+                return
+            }
+            response="$(fetch_usage "$token" "$(account_id)")"
+            http_status="$(printf '%s' "$response" | tail -n 1)"
+            usage="$(printf '%s' "$response" | sed '$d')"
+            ;;
+    esac
 
     case "$http_status" in
         200) ;;
