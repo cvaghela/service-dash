@@ -1,2 +1,2 @@
-ghcr.io/hectorm/cetusguard:v1 sha256:9e75fdf5ccf53021905143d4dc93335a25be2558a2b894cdeae28c1538bdc4a4
+ghcr.io/hectorm/cetusguard:v1 sha256:2fe5b6fb4b338303ee8860d67ff944c5a915c9b8f1d00ea251856d8acd1157a6
 netdata/netdata:stable sha256:d9f6f14c2fb0517168bd9c5da952f6cb735df757919c37172695c2fbb63c3252
