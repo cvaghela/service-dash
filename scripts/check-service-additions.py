@@ -26,6 +26,13 @@ person upgrading will look, and naming the service is the minimum honest
 disclosure -- it forces whoever adds a service to state the upgrade path rather
 than assume one.
 
+A second, later gap of the same kind: a CasaOS update rewrites image tags and
+nothing else, so changing an existing service's `environment` or `volumes` is
+just as undeliverable as adding a service -- and reads as even more innocuous in
+review. 1.5.5 moved Netdata's Docker access off a raw socket onto `DOCKER_HOST`,
+which is a security fix that an updating install would never receive. Image-tag
+changes are exempt, because those are precisely what an update *does* deliver.
+
 Run with no previous tag (a first release) and it passes trivially.
 """
 
@@ -53,6 +60,36 @@ def services_in(text: str) -> set:
     if end:
         rest = rest[: end.start()]
     return set(SERVICE_RE.findall(rest))
+
+
+def service_bodies(text: str) -> dict:
+    """Each service's definition, minus its `image:` line.
+
+    The image line is excluded deliberately: a CasaOS update rewrites image tags
+    and only image tags, so a tag change needs no upgrade note while anything
+    else in the body does.
+    """
+    start = text.find("\nservices:\n")
+    if start == -1:
+        return {}
+    rest = text[start + len("\nservices:\n") :]
+    end = re.search(r"^\S", rest, re.M)
+    if end:
+        rest = rest[: end.start()]
+
+    bodies, current, lines = {}, None, []
+    for line in rest.splitlines():
+        match = SERVICE_RE.match(line + "\n") or SERVICE_RE.match(line)
+        if match:
+            if current:
+                bodies[current] = "\n".join(lines)
+            current, lines = match.group(1), []
+            continue
+        if current is not None and not re.match(r"^\s*image:", line):
+            lines.append(line)
+    if current:
+        bodies[current] = "\n".join(lines)
+    return bodies
 
 
 def previous_tag() -> str:
@@ -86,19 +123,37 @@ def main() -> int:
     new = (REPO / STORE_COMPOSE).read_text()
     added = sorted(services_in(new) - services_in(old))
 
-    if not added:
-        print(f"ok: no services added since {tag}")
+    # Changed bodies count too: an update delivers new image tags and nothing
+    # else, so an edited `environment` or `volumes` reaches an existing install
+    # by no route at all -- see the note at the top about 1.5.5.
+    old_bodies, new_bodies = service_bodies(old), service_bodies(new)
+    changed = sorted(
+        name
+        for name, body in new_bodies.items()
+        if name in old_bodies and body != old_bodies[name]
+    )
+
+    if not added and not changed:
+        print(f"ok: no services added or redefined since {tag}")
         return 0
+
+    notable = sorted(set(added) | set(changed))
 
     readme = README.read_text()
     heading = f"### Upgrading from {tag.lstrip('v')}"
     section_start = readme.find(heading)
     if section_start == -1:
+        what = []
+        if added:
+            what.append(f"adds {', '.join(added)}")
+        if changed:
+            what.append(f"redefines {', '.join(changed)}")
         print(
-            f"FAIL: this release adds {', '.join(added)} to {STORE_COMPOSE}, "
+            f"FAIL: this release {' and '.join(what)} in {STORE_COMPOSE}, "
             f"but README.md has no '{heading}' section.\n\n"
-            "A CasaOS app update rewrites image tags and does NOT add services, so an\n"
-            "existing install will not get these by updating. Say how it does.",
+            "A CasaOS app update rewrites image tags and nothing else: it does not add\n"
+            "services, and it does not apply a changed environment or volume. An existing\n"
+            "install will not get this by updating. Say how it does.",
             file=sys.stderr,
         )
         return 1
@@ -106,18 +161,23 @@ def main() -> int:
     end = readme.find("\n### ", section_start + 1)
     section = readme[section_start : end if end != -1 else len(readme)]
 
-    missing = [s for s in added if s not in section]
+    missing = [s for s in notable if s not in section]
     if missing:
         print(
             f"FAIL: '{heading}' does not mention {', '.join(missing)}.\n\n"
-            "These services are new in this release. A CasaOS app update will not add\n"
-            "them, so that section must name them and say how an existing install gets\n"
-            "them -- do not leave it to be inferred.",
+            "These services are new or redefined in this release. A CasaOS app update\n"
+            "delivers neither, so that section must name them and say how an existing\n"
+            "install gets the change -- do not leave it to be inferred.",
             file=sys.stderr,
         )
         return 1
 
-    print(f"ok: {', '.join(added)} added since {tag}, and the upgrade section names them")
+    summary = []
+    if added:
+        summary.append(f"{', '.join(added)} added")
+    if changed:
+        summary.append(f"{', '.join(changed)} redefined")
+    print(f"ok: {'; '.join(summary)} since {tag}, and the upgrade section names them")
     return 0
 
 

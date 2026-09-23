@@ -3,6 +3,45 @@
 All notable changes to Service Dash are recorded here. This project follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.5] — 2026-09-23
+
+**Netdata no longer holds the Docker socket.** Nothing changes on screen.
+
+### Security
+
+- **Netdata mounted `/var/run/docker.sock` directly, and `:ro` was not the safeguard it looked like.**
+
+  A read-only bind makes the *mount* read-only, never the Docker API: `POST /containers/create` is accepted through
+  one. So the stack's most privileged container — the one with `pid: host`, `SYS_ADMIN`, `SYS_PTRACE` and the host root
+  — also held unrestricted Docker access, while the README said in three places that CetusGuard was the only service
+  with the socket. Found by a reviewer on the BigBear store submission, not by anything here.
+
+  Netdata does need Docker, but for one thing: turning a cgroup id into a container name. Measured on a real host, with
+  no Docker access every container chart falls back to a truncated id like `80a653f2a9c5`, which also breaks each card's
+  saved container mapping because that is stored by name. So the lookup is required and the raw socket is not.
+
+  It now reaches CetusGuard over `DOCKER_HOST`. The allowlist gains one rule, minimal by measurement — container
+  inspect alone is sufficient, and adding `/_ping`, `/version` or the container list changed nothing. Verified through
+  the proxy: `GET /containers/<id>/json` is 200, `POST /containers/create` is 403.
+
+### Fixed
+
+- **Three documentation claims that did not survive checking**, each a blanket statement with an undisclosed
+  exception: "nothing else is privileged" omitted `network-info`'s `network_mode: host`; the store entry described
+  `/status` as served read-only, which the CasaOS conversion does not preserve; and "withheld entirely" overstated the
+  privacy model, which is a screen-level control rather than an access control on the endpoints.
+- **The idle-memory figure.** The docs said the two reporters cost about 12MB while `docker stats` shows ~165MB for
+  `claude-usage`. Both describe something real — the cgroup holds 0.1MB of `anon` and 177MB of reclaimable page cache
+  from a large image — so the docs now give the measured figures and explain the difference.
+
+### Added
+
+- `scripts/check-docker-socket.py`, which fails the build if any service but `docker-metadata` mounts the socket,
+  reaches Docker without going through it, or is stranded on a network where the proxy name cannot resolve.
+- `check-service-additions.py` now also catches a **redefined** service, not just an added one. A CasaOS update
+  rewrites image tags and nothing else, so a changed `environment` or `volumes` reaches an existing install by no
+  route at all — which is exactly what this release does.
+
 ## [1.5.4] — 2026-09-09
 
 **Does for the Codex usage panel what 1.5.3 did for Claude: stops it logging itself out.** Nothing else changed.
@@ -780,6 +819,7 @@ Housekeeping for the first public release. No functional changes to the dashboar
 
 See the [release history](https://github.com/cvaghela/service-dash/releases).
 
+[1.5.5]: https://github.com/cvaghela/service-dash/releases/tag/v1.5.5
 [1.5.4]: https://github.com/cvaghela/service-dash/releases/tag/v1.5.4
 [1.5.3]: https://github.com/cvaghela/service-dash/releases/tag/v1.5.3
 [1.5.2]: https://github.com/cvaghela/service-dash/releases/tag/v1.5.2
