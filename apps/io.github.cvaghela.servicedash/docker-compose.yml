@@ -2,7 +2,7 @@ name: service-dash
 
 services:
   service-dash:
-    image: ghcr.io/cvaghela/service-dash:1.5.4
+    image: ghcr.io/cvaghela/service-dash:1.5.5
     container_name: service-dash
     ports:
       - target: 80
@@ -45,7 +45,7 @@ services:
     # the official store, which still packages a v1 main.zip for older clients,
     # and it documents the three settings worth changing at install time.
   kuma-auth:
-    image: ghcr.io/cvaghela/service-dash-kuma-auth:1.5.4
+    image: ghcr.io/cvaghela/service-dash-kuma-auth:1.5.5
     container_name: service-dash-kuma-auth
     environment:
       # Must point at the same Uptime Kuma as KUMA_PORT above.
@@ -69,7 +69,7 @@ services:
     restart: unless-stopped
 
   network-info:
-    image: ghcr.io/cvaghela/service-dash-network-info:1.5.4
+    image: ghcr.io/cvaghela/service-dash-network-info:1.5.5
     container_name: service-dash-network-info
     network_mode: host
     read_only: true
@@ -102,10 +102,14 @@ services:
     environment:
       CETUSGUARD_BACKEND_ADDR: unix:///var/run/docker.sock
       CETUSGUARD_FRONTEND_ADDR: tcp://0.0.0.0:2375
-      # Read-only, and only the two network endpoints the dashboard needs.
+      # Every rule here was measured, not assumed: netdata resolves container
+      # names with exactly this set, and adding /_ping, /version or the
+      # container list changed nothing. The only request it makes that is NOT
+      # allowed is GET /images/json, which is refused and costs it nothing.
       CETUSGUARD_RULES: |
         GET %API_PREFIX_NETWORKS%(\?.*)?
         GET %API_PREFIX_NETWORKS%/%NETWORK_ID_OR_NAME%(\?.*)?
+        GET %API_PREFIX_CONTAINERS%/%CONTAINER_ID_OR_NAME%/json(\?.*)?
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     networks:
@@ -122,6 +126,16 @@ services:
     pid: host
     environment:
       DISABLE_TELEMETRY: "1"
+      # Netdata needs Docker only to turn a cgroup id into a container name.
+      # It used to get that from a direct bind of /var/run/docker.sock -- which
+      # is the whole Docker API, `:ro` or not: that mode makes the MOUNT
+      # read-only, never the socket, so POST /containers/create still worked.
+      # Measured on a real host: without any Docker access every chart reads as
+      # a truncated id (`80a653f2a9c5`) and the per-card container mapping,
+      # which is stored by name, breaks whenever a container is recreated. So
+      # the access is required -- but the raw socket is not. Through CetusGuard
+      # names resolve exactly as before while POST /containers/create is 403.
+      DOCKER_HOST: tcp://docker-metadata:2375
     cap_add:
       - SYS_PTRACE
       - SYS_ADMIN
@@ -145,7 +159,6 @@ services:
       - /sys:/host/sys:ro
       - /etc/os-release:/host/etc/os-release:ro
       - /var/log:/host/var/log:ro
-      - /var/run/docker.sock:/var/run/docker.sock:ro
       - /run/dbus:/run/dbus:ro
     networks:
       service-dash-network:
@@ -170,7 +183,7 @@ services:
   #
   #   docker exec -it service-dash-claude-usage claude auth login
   claude-usage:
-    image: ghcr.io/cvaghela/service-dash-claude-usage:1.5.4
+    image: ghcr.io/cvaghela/service-dash-claude-usage:1.5.5
     container_name: service-dash-claude-usage
     environment:
       # Plan windows move slowly; polling harder gains nothing.
@@ -197,7 +210,7 @@ services:
   # localhost and hangs.
   #   docker exec -it service-dash-codex-usage codex login --device-auth
   codex-usage:
-    image: ghcr.io/cvaghela/service-dash-codex-usage:1.5.4
+    image: ghcr.io/cvaghela/service-dash-codex-usage:1.5.5
     container_name: service-dash-codex-usage
     environment:
       CODEX_USAGE_REFRESH_SECONDS: "300"
@@ -225,7 +238,7 @@ x-casaos:
   index: /
   port_map: "8888"
   scheme: http
-  version: "1.5.4"
+  version: "1.5.5"
   icon: https://cdn.jsdelivr.net/gh/cvaghela/service-dash@gh-pages/apps/io.github.cvaghela.servicedash/assets/icon.png
   title:
     en_US: Service Dash
