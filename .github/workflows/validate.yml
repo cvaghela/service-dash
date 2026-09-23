@@ -53,6 +53,13 @@ jobs:
           python3 -m pip install --quiet pyyaml
           python3 scripts/check-compose-networks.py
 
+      # A step in the existing job, deliberately not a job of its own: a new job
+      # name would be an unlisted context and block every PR (see the note above).
+      - name: Check only CetusGuard holds the Docker socket
+        run: |
+          python3 -m pip install --quiet pyyaml
+          python3 scripts/check-docker-socket.py
+
       - name: Reporter regression tests
         run: sh scripts/test-reporters.sh
 

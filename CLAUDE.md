@@ -33,6 +33,7 @@ docker compose -f docker-compose.casaos.yml config --quiet
 docker compose -f docker-compose.yml -f docker-compose.build.yml config --quiet
 docker compose -f appstore/Apps/ServiceDash/docker-compose.yml config --quiet
 python3 scripts/check-compose-networks.py   # every nginx upstream is reachable
+python3 scripts/check-docker-socket.py      # only CetusGuard holds the Docker socket
 python3 scripts/check-release.py            # one version, stated the same everywhere
 python3 scripts/check-service-additions.py  # a new service must come with an upgrade path
 sh scripts/test-reporters.sh                # regression tests for the AI reporters
@@ -187,8 +188,14 @@ Compose file carried correct 1.5.0 image tags and no reporters, so it was not a
 stale CDN entry. A CasaOS *update* separately rewrites image tags without adding
 new services. Between them, a profile-gated service reaches ZimaOS users by no
 route at all, and the enable command the settings page printed found nothing to
-start. Present-but-idle costs ~6MB of RAM
-and makes "enable" a sign-in. Do not reintroduce a profile here. It is the
+start. Present-but-idle costs almost nothing — measured on the smoke host, the
+cgroup holds 0.1MB of `anon` with the reporter asleep — and makes "enable" a
+sign-in. **Do not quote a `docker stats` figure as the cost.** That column
+charges page cache to the cgroup, and this image is large enough to make it look
+alarming: the same idle container reads 165MB there, 177MB of which is
+reclaimable `file`. The docs said 6MB and 12MB for two releases while anyone
+running `docker stats` saw 165MB, which reads as a false claim rather than a
+different metric. Do not reintroduce a profile here. It is the
 only service that holds a credential, and the only one whose image carries
 Claude Code — which is why it starts for nobody by default. Adding it to the
 three Compose files means three different shapes: named volumes at the root,
@@ -394,6 +401,41 @@ A guard that has never failed is a guard nobody has tested. Reintroduce the
 original fault, watch the guard fail *by name*, then restore. Two of these
 passed vacuously on first writing — the nginx one only inspected quoted regexes,
 so removing the quotes made it find nothing and succeed.
+
+## The Docker socket
+
+**Only `docker-metadata` (CetusGuard) mounts it. Everything else comes through
+the allowlist over `DOCKER_HOST`.** `netdata` held a direct bind for two
+releases while the README said in three places that CetusGuard was the only
+service with it — caught by a reviewer on the BigBear store PR, not by anything
+here. Every static check passed the whole time.
+
+Three things are worth keeping, because each was measured rather than reasoned:
+
+- **`:ro` on a socket mount restricts nothing.** It makes the *mount*
+  read-only, never the Docker API: `POST /containers/create` still works
+  through a `:ro` socket. It is the detail that makes a bad mount look
+  reviewed, and it is why `check-docker-socket.py` matches on the path and
+  ignores the mode.
+- **The access is genuinely required, so "just remove it" is wrong.** With no
+  Docker access netdata falls back to the truncated id — `cgroup ... is called
+  '80a653f2a9c5'` — for every container. That is not cosmetic: each card's
+  container mapping is stored *by name*, so ids break the mapping every time a
+  container is recreated.
+- **`DOCKER_HOST` works; a bind of CetusGuard's own unix socket was not needed.**
+  Netdata honours `DOCKER_HOST=tcp://docker-metadata:2375` and resolves names
+  through it exactly as before, while `POST /containers/create` returns 403.
+
+The allowlist gained exactly one rule, and the set is minimal by measurement,
+not by guess: `GET %API_PREFIX_CONTAINERS%/%CONTAINER_ID_OR_NAME%/json` alone is
+sufficient. Adding `/_ping`, `/version` or the container list changed nothing.
+The only request netdata makes that is refused is `GET /images/json`, which it
+does not need.
+
+Routing through the proxy creates a dependency `check-compose-networks.py`
+cannot see — it follows nginx upstreams only. Strand netdata and
+`docker-metadata` on different networks and there is no error: names quietly
+fall back to ids. `check-docker-socket.py` covers that case too.
 
 ## The empty state
 

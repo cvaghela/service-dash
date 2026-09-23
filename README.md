@@ -93,7 +93,7 @@ session is real. You already have that login, so the dashboard does not invent a
 | --- | --- |
 | **Live service cards** | Status and uptime for every monitor on your Kuma status page. Search, filter by status or category, click to open. |
 | **Real service icons** | Automatic matching against the full [selfh.st](https://github.com/selfhst/icons) catalogue — 2,880 icons and growing — with a live picker per card. No internet? Every card falls back to a monogram drawn in the browser. |
-| **Private by default** | Service URLs, the host's own LAN and WAN addresses, and the AI usage panel are all withheld until you sign in, so the dashboard can sit on a screen other people can see. |
+| **Private by default** | Service URLs, the host's own LAN and WAN addresses, and the AI usage panel are not requested until you sign in, so they never reach the browser and the dashboard can sit on a screen other people can see. It is a screen-level control, not an access control — see [What signing in reveals](#what-signing-in-reveals). |
 | **Behaves like an app on a phone** | No stray pinch-zoom, no double-tap zoom, no lurch when a field takes focus, and content clear of the notch. Taps and saves carry haptic feedback where the browser supports it (Android and Chrome; iOS Safari has no Vibration API). |
 | **Built to stay smooth** | Compositing is budgeted deliberately: large surfaces carry no `backdrop-filter`, small ones keep the glass. Worth about 190MB of GPU layer memory on a phone and roughly double the scroll frame rate on desktop. |
 | **Offline-tolerant** | Fonts, icons and the icon catalogue all degrade to local fallbacks. Nothing on the page depends on reaching the internet. |
@@ -117,7 +117,8 @@ Rootful is not a preference. The bundled Netdata Agent runs with `pid: host`, `S
 unconfined AppArmor profile and read-only mounts of the host root, `/proc` and `/sys`; the network helper uses host
 networking to read the default route. Those are what produce real host metrics, and rootless Docker cannot grant them.
 Nothing else in the stack is privileged — the dashboard itself asks for nothing, and the Docker socket goes only to
-CetusGuard, restricted to read-only network queries.
+CetusGuard, restricted to read-only network and container-inspection queries. Netdata needs Docker to turn a cgroup id
+into a container name, and reaches it through that allowlist rather than holding a socket of its own.
 
 <details>
 <summary><strong>Platform support</strong></summary>
@@ -491,6 +492,7 @@ flowchart LR
     A --> K
     N -->|"reads"| I[("network-info<br/><i>LAN route + WAN</i>")]
     N -->|"veth names"| D["docker-metadata<br/><i>CetusGuard, read-only</i>"]
+    ND -->|"container names"| D
     D --> S[("Docker socket")]
     N -.->|"reads, if enabled"| AI[("ai-usage<br/><i>claude-usage · codex-usage</i>")]
     AI -.-> AP(["Claude / ChatGPT<br/><i>plan usage endpoints</i>"])
@@ -499,10 +501,10 @@ flowchart LR
 | Service | Role |
 | --- | --- |
 | `service-dash` | nginx serving the page and proxying `/kuma/`, `/netdata/` and `/icon-index` |
-| `netdata` | Bundled Agent for host and per-container metrics. Port 19999 is **not** published |
+| `netdata` | Bundled Agent for host and per-container metrics. Port 19999 is **not** published. Reads container names through `docker-metadata`, not the socket |
 | `kuma-auth` | Asks Kuma whether a browser's token is real, so nginx can allow a settings write |
 | `network-info` | Reads the host's default route and looks up the WAN address |
-| `docker-metadata` | CetusGuard, allowing only read-only Docker **network** queries |
+| `docker-metadata` | CetusGuard, allowing only read-only Docker **network** and **container-inspect** queries |
 | `claude-usage` | Reads your Claude plan's usage limits and nothing else. Idle until you sign in |
 | `codex-usage` | Reads your ChatGPT plan's Codex usage limits and nothing else. Idle until you sign in |
 
@@ -513,9 +515,15 @@ read-only. It publishes no port and needs neither host PID visibility nor `SYS_A
 **WAN** is looked up server-side via `api.ipify.org`, with Cloudflare trace as a fallback. Those providers see the
 host's public IP and nothing else — no browser identifiers, no dashboard or Kuma data.
 
-**Docker names.** CetusGuard is the only service with the Docker socket, and its allowlist permits read-only network
-listing and inspection alone. Container creation, exec, logs and secrets stay blocked. It exists so `veth` interface
-names can be shown as container names.
+**Docker names.** CetusGuard is the only service holding the Docker socket. Its allowlist permits read-only network
+listing and inspection, plus read-only inspection of a single container. Container creation, exec, logs and secrets stay
+blocked — verified by probe: `GET /containers/<id>/json` answers 200 while `POST /containers/create` answers 403.
+
+Two services need it. nginx resolves `veth` interface names to container names; Netdata turns a cgroup id into a
+container name, and without that every per-container chart reads as a truncated id like `80a653f2a9c5`, which also
+breaks each card's saved container mapping because that is stored by name. Netdata reaches CetusGuard over
+`DOCKER_HOST`, so no service but CetusGuard mounts the socket. Note that mounting a socket `:ro` would not have been a
+substitute: that makes the *mount* read-only, never the Docker API.
 
 **AI usage.** The two reporters run always and do nothing until you sign in. They can hold real logins, so it is
 worth being precise about what that buys. Each calls one endpoint returning usage percentages and reset times; neither reads
@@ -656,7 +664,7 @@ Then hard-refresh the browser.
 
 ## Updating
 
-The current release is **1.5.4**; the Compose files in this repository reference the matching `1.5.4` images.
+The current release is **1.5.5**; the Compose files in this repository reference the matching `1.5.5` images.
 
 Most releases are drop-in:
 
@@ -668,9 +676,48 @@ Some change the Compose file, and an image pull cannot carry that. Each release'
 Compose files ship as release assets so you can take the correct one.
 
 **Installed from the ZimaOS app store?** Updates arrive on the app's tile — the store entry is republished with each
-release, and ZimaOS compares its version against what you have. A release that changes the Compose file changes it
-there too, so there is nothing to hand-edit; check the release notes for anything that needs a setting changed at
-install time.
+release, and ZimaOS compares its version against what you have. **What the update applies is the image tags, and
+nothing else.** It does not add a service the release introduced, and it does not apply a changed `environment` or
+`volumes`, so a release that edits the Compose file needs the change made by hand or the app reinstalled. Each release
+that is in that position says so in its own upgrade section below.
+
+### Upgrading from 1.5.4
+
+**The Compose file changed, so an image pull alone will not carry it.** On a standard host, take `docker-compose.yml`
+from the release page, or make the change yourself — it is two edits to `netdata` and one to `docker-metadata`:
+
+```yaml
+  docker-metadata:
+    environment:
+      CETUSGUARD_RULES: |
+        GET %API_PREFIX_NETWORKS%(\?.*)?
+        GET %API_PREFIX_NETWORKS%/%NETWORK_ID_OR_NAME%(\?.*)?
+        GET %API_PREFIX_CONTAINERS%/%CONTAINER_ID_OR_NAME%/json(\?.*)?   # <- add this line
+
+  netdata:
+    environment:
+      DOCKER_HOST: tcp://docker-metadata:2375                            # <- add this line
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro                     # <- delete this line
+```
+
+**On CasaOS/ZimaOS, updating the app is not enough.** The update rewrites image tags and leaves the rest of the file
+alone, so an install that updates to 1.5.5 runs the new images while `netdata` keeps the socket mount it had. The
+security change simply does not arrive.
+
+**Check which case you are in:**
+
+```bash
+sudo docker inspect service-dash-netdata \
+  --format '{{range .Mounts}}{{.Destination}} {{end}}' | tr ' ' '\n' | grep docker.sock
+```
+
+Output means `netdata` still has the socket and you have the old configuration. No output means you are on the new one.
+
+To fix it, either reinstall the app from the store — which writes a fresh Compose file — or apply the three edits above
+to `/var/lib/casaos/apps/service-dash/docker-compose.yml` and run `sudo docker compose -f <that file> up -d`. Nothing
+about the dashboard changes either way: container names and per-card CPU and memory work the same, because `netdata`
+still gets the one lookup it needs, through `docker-metadata`.
 
 ### Upgrading from 1.4.2
 
@@ -712,8 +759,9 @@ serves the panel's route as a 404 when the reporters are absent, which it reads 
 What the new file adds:
 
 - Two services, `claude-usage` and `codex-usage`. They run from the start and stay idle until you sign in — with no
-  credential each writes an honest "nobody has signed in yet" document, the panel stays hidden, and together they cost
-  about 12MB of RAM and no measurable CPU
+  credential each writes an honest "nobody has signed in yet" document, the panel stays hidden, and idle each holds
+  about 0.1MB of anonymous memory and no measurable CPU. `docker stats` shows far more for `claude-usage` (~165MB on a
+  ZimaBoard) because page cache from its large image is charged to the container; that is reclaimable, not held
 - The volumes they need: a shared status volume, plus one per provider for its login
 - A read-only mount of that status volume on the dashboard, so it can serve what they write
 

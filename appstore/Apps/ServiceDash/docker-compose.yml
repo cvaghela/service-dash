@@ -2,7 +2,7 @@ name: service-dash
 
 services:
   service-dash:
-    image: ghcr.io/cvaghela/service-dash:1.5.4
+    image: ghcr.io/cvaghela/service-dash:1.5.5
     container_name: service-dash
     ports:
       - target: 80
@@ -59,7 +59,7 @@ services:
   # Answers one question for nginx: is this browser really signed in to Uptime
   # Kuma? Without it, saving settings would have to trust the browser's word.
   kuma-auth:
-    image: ghcr.io/cvaghela/service-dash-kuma-auth:1.5.4
+    image: ghcr.io/cvaghela/service-dash-kuma-auth:1.5.5
     container_name: service-dash-kuma-auth
     environment:
       # Must point at the same Uptime Kuma as KUMA_PORT above.
@@ -83,7 +83,7 @@ services:
     restart: unless-stopped
 
   network-info:
-    image: ghcr.io/cvaghela/service-dash-network-info:1.5.4
+    image: ghcr.io/cvaghela/service-dash-network-info:1.5.5
     container_name: service-dash-network-info
     network_mode: host
     read_only: true
@@ -116,10 +116,14 @@ services:
     environment:
       CETUSGUARD_BACKEND_ADDR: unix:///var/run/docker.sock
       CETUSGUARD_FRONTEND_ADDR: tcp://0.0.0.0:2375
-      # Read-only, and only the two network endpoints the dashboard needs.
+      # Every rule here was measured, not assumed: netdata resolves container
+      # names with exactly this set, and adding /_ping, /version or the
+      # container list changed nothing. The only request it makes that is NOT
+      # allowed is GET /images/json, which is refused and costs it nothing.
       CETUSGUARD_RULES: |
         GET %API_PREFIX_NETWORKS%(\?.*)?
         GET %API_PREFIX_NETWORKS%/%NETWORK_ID_OR_NAME%(\?.*)?
+        GET %API_PREFIX_CONTAINERS%/%CONTAINER_ID_OR_NAME%/json(\?.*)?
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     networks:
@@ -136,6 +140,16 @@ services:
     pid: host
     environment:
       DISABLE_TELEMETRY: "1"
+      # Netdata needs Docker only to turn a cgroup id into a container name.
+      # It used to get that from a direct bind of /var/run/docker.sock -- which
+      # is the whole Docker API, `:ro` or not: that mode makes the MOUNT
+      # read-only, never the socket, so POST /containers/create still worked.
+      # Measured on a real host: without any Docker access every chart reads as
+      # a truncated id (`80a653f2a9c5`) and the per-card container mapping,
+      # which is stored by name, breaks whenever a container is recreated. So
+      # the access is required -- but the raw socket is not. Through CetusGuard
+      # names resolve exactly as before while POST /containers/create is 403.
+      DOCKER_HOST: tcp://docker-metadata:2375
     cap_add:
       - SYS_PTRACE
       - SYS_ADMIN
@@ -159,7 +173,6 @@ services:
       - /sys:/host/sys:ro
       - /etc/os-release:/host/etc/os-release:ro
       - /var/log:/host/var/log:ro
-      - /var/run/docker.sock:/var/run/docker.sock:ro
       - /run/dbus:/run/dbus:ro
     networks:
       service-dash-network:
@@ -184,7 +197,7 @@ services:
   #
   #   docker exec -it service-dash-claude-usage claude auth login
   claude-usage:
-    image: ghcr.io/cvaghela/service-dash-claude-usage:1.5.4
+    image: ghcr.io/cvaghela/service-dash-claude-usage:1.5.5
     container_name: service-dash-claude-usage
     environment:
       # Plan windows move slowly; polling harder gains nothing.
@@ -211,7 +224,7 @@ services:
   # localhost and hangs.
   #   docker exec -it service-dash-codex-usage codex login --device-auth
   codex-usage:
-    image: ghcr.io/cvaghela/service-dash-codex-usage:1.5.4
+    image: ghcr.io/cvaghela/service-dash-codex-usage:1.5.5
     container_name: service-dash-codex-usage
     environment:
       CODEX_USAGE_REFRESH_SECONDS: "300"
@@ -243,8 +256,8 @@ x-casaos:
   architectures:
     - amd64
     - arm64
-  version: "1.5.4"
-  update_at: "2026-09-09"
+  version: "1.5.5"
+  update_at: "2026-09-23"
   author: Chintan Vaghela
   developer: Chintan Vaghela
   icon: https://cdn.jsdelivr.net/gh/cvaghela/service-dash@main/appstore/Apps/ServiceDash/icon.png
@@ -1379,248 +1392,252 @@ x-casaos:
         然后在 **8888** 端口打开 Service Dash。
   release_notes:
     en_US: |
-      1.5.4 does for the Codex usage panel what 1.5.3 did for Claude: stops it
-      logging itself out.
+      1.5.5 takes the Docker socket away from the metrics agent.
 
-      The reporter was meant to renew its login before the token expired. The
-      command it used never renewed anything -- it reported success and changed
-      nothing. Codex tokens last ten days rather than eight hours, so this took
-      longer to show than the Claude one, but it was the same bug: the panel went
-      dark and said Codex had refused the login.
+      Netdata mounted the Docker socket directly, which grants the whole Docker API.
+      Mounting it read-only restricts the mount, not the API. Netdata needs Docker for
+      one thing only: turning a container id into a name for the per-container charts.
 
-      Renewal now happens when it is actually needed. Nothing can refresh a
-      healthy Codex token, so instead of guessing when to try, the reporter waits
-      for the rejection, renews, and tries once more. An expired Codex login
-      recovers by itself this way, with no sign-in and no cost.
+      It now asks CetusGuard for that single lookup instead, on an allowlist that
+      answers container inspection and refuses everything else. Nothing changes on
+      screen -- container names and per-card CPU and memory work exactly as before.
 
-      Only the Codex reporter is affected. If you have not signed in to it, or you
-      do not use the AI usage panel, nothing here changes for you.
+      **Updating in the store will not apply this.** A CasaOS app update rewrites image
+      tags and leaves the rest of the Compose file alone, so an existing install keeps
+      the old socket mount. Reinstall the app, or make the change by hand -- the
+      README's "Upgrading from 1.5.4" section gives the exact lines.
     en_GB: |
-      1.5.4 does for the Codex usage panel what 1.5.3 did for Claude: stops it
-      logging itself out.
+      1.5.5 takes the Docker socket away from the metrics agent.
 
-      The reporter was meant to renew its login before the token expired. The
-      command it used never renewed anything -- it reported success and changed
-      nothing. Codex tokens last ten days rather than eight hours, so this took
-      longer to show than the Claude one, but it was the same bug: the panel went
-      dark and said Codex had refused the login.
+      Netdata mounted the Docker socket directly, which grants the whole Docker API.
+      Mounting it read-only restricts the mount, not the API. Netdata needs Docker for
+      one thing only: turning a container id into a name for the per-container charts.
 
-      Renewal now happens when it is actually needed. Nothing can refresh a
-      healthy Codex token, so instead of guessing when to try, the reporter waits
-      for the rejection, renews, and tries once more. An expired Codex login
-      recovers by itself this way, with no sign-in and no cost.
+      It now asks CetusGuard for that single lookup instead, on an allowlist that
+      answers container inspection and refuses everything else. Nothing changes on
+      screen -- container names and per-card CPU and memory behave exactly as before.
 
-      Only the Codex reporter is affected. If you have not signed in to it, or you
-      do not use the AI usage panel, nothing here changes for you.
+      **Updating in the store will not apply this.** A CasaOS app update rewrites image
+      tags and leaves the rest of the Compose file alone, so an existing installation
+      keeps the old socket mount. Reinstall the app, or make the change by hand -- the
+      README's "Upgrading from 1.5.4" section gives the exact lines.
     de_DE: |
-      1.5.4 tut für das Codex-Nutzungspanel, was 1.5.3 für Claude getan hat: es
-      meldet sich nicht mehr selbst ab.
+      1.5.5 nimmt dem Metrik-Agenten den Docker-Socket weg.
 
-      Der Reporter sollte seine Anmeldung erneuern, bevor das Token abläuft. Der
-      verwendete Befehl hat nie etwas erneuert -- er meldete Erfolg und änderte
-      nichts. Codex-Token halten zehn Tage statt acht Stunden, deshalb fiel es
-      später auf als bei Claude, aber es war derselbe Fehler: das Panel wurde leer
-      und behauptete, Codex habe die Anmeldung abgelehnt.
+      Netdata hat den Docker-Socket direkt eingebunden, was Zugriff auf die komplette
+      Docker-API bedeutet. Ein Einbinden als read-only beschränkt die Einbindung, nicht
+      die API. Netdata braucht Docker für genau eine Sache: aus einer Container-ID
+      einen Namen für die Container-Diagramme zu machen.
 
-      Die Erneuerung geschieht jetzt dann, wenn sie wirklich gebraucht wird. Ein
-      gesundes Codex-Token lässt sich gar nicht erneuern, also rät der Reporter
-      nicht mehr, wann er es versuchen soll: er wartet die Ablehnung ab, erneuert
-      und versucht es genau einmal erneut. Eine abgelaufene Codex-Anmeldung erholt
-      sich so von selbst, ohne neue Anmeldung und ohne Kosten.
+      Diese eine Abfrage läuft jetzt über CetusGuard, mit einer Freigabeliste, die nur
+      das Abfragen eines Containers erlaubt und alles andere ablehnt. Auf dem Bildschirm
+      ändert sich nichts -- Container-Namen sowie CPU und Speicher pro Karte
+      funktionieren genau wie vorher.
 
-      Betroffen ist nur der Codex-Reporter. Wenn Sie sich dort nie angemeldet
-      haben oder das KI-Nutzungspanel nicht verwenden, ändert sich nichts.
+      **Ein Update im Store übernimmt das nicht.** Ein CasaOS-App-Update schreibt nur
+      die Image-Tags neu und lässt den Rest der Compose-Datei unverändert, eine
+      bestehende Installation behält also die alte Socket-Einbindung. Installiere die
+      App neu oder nimm die Änderung selbst vor -- der Abschnitt "Upgrading from 1.5.4"
+      in der README nennt die genauen Zeilen.
     el_GR: |
-      Η έκδοση 1.5.4 κάνει για το πάνελ χρήσης Codex ό,τι έκανε η 1.5.3 για το
-      Claude: σταματά να αποσυνδέεται μόνο του.
+      Η 1.5.5 αφαιρεί το Docker socket από τον πράκτορα μετρήσεων.
 
-      Ο reporter υποτίθεται ότι ανανέωνε τη σύνδεσή του πριν λήξει το token. Η
-      εντολή που χρησιμοποιούσε δεν ανανέωνε ποτέ τίποτα -- ανέφερε επιτυχία και
-      δεν άλλαζε τίποτα. Τα token του Codex κρατούν δέκα ημέρες αντί για οκτώ
-      ώρες, γι' αυτό φάνηκε αργότερα από του Claude, αλλά ήταν το ίδιο σφάλμα: το
-      πάνελ άδειαζε και έλεγε ότι το Codex απέρριψε τη σύνδεση.
+      Το Netdata προσάρτηζε το Docker socket απευθείας, κάτι που δίνει πρόσβαση σε
+      ολόκληρο το Docker API. Η προσάρτηση ως read-only περιορίζει την προσάρτηση, όχι
+      το API. Το Netdata χρειάζεται το Docker για ένα μόνο πράγμα: να μετατρέπει ένα
+      container id σε όνομα για τα γραφήματα ανά container.
 
-      Η ανανέωση γίνεται τώρα όταν πράγματι χρειάζεται. Ένα υγιές token του Codex
-      δεν ανανεώνεται καθόλου, οπότε αντί να μαντεύει πότε να προσπαθήσει, ο
-      reporter περιμένει την απόρριψη, ανανεώνει και ξαναδοκιμάζει μία φορά. Μια
-      ληγμένη σύνδεση Codex συνέρχεται έτσι μόνη της, χωρίς νέα σύνδεση και χωρίς
-      κόστος.
+      Τώρα ζητά αυτή τη μία αναζήτηση από το CetusGuard, με μια λίστα που επιτρέπει
+      μόνο την επιθεώρηση ενός container και απορρίπτει όλα τα άλλα. Στην οθόνη δεν
+      αλλάζει τίποτα -- τα ονόματα των containers και η CPU και η μνήμη ανά κάρτα
+      δουλεύουν όπως πριν.
 
-      Επηρεάζεται μόνο ο reporter του Codex.
+      **Η ενημέρωση από το store δεν το εφαρμόζει αυτό.** Μια ενημέρωση εφαρμογής CasaOS
+      ξαναγράφει μόνο τα image tags και αφήνει το υπόλοιπο αρχείο Compose ως είναι, οπότε
+      μια υπάρχουσα εγκατάσταση κρατά την παλιά προσάρτηση. Εγκατέστησε ξανά την
+      εφαρμογή ή κάνε την αλλαγή με το χέρι -- η ενότητα "Upgrading from 1.5.4" στο
+      README δίνει τις ακριβείς γραμμές.
     fr_FR: |
-      La version 1.5.4 fait pour le panneau d'utilisation Codex ce que la 1.5.3 a
-      fait pour Claude : elle l'empêche de se déconnecter tout seul.
+      La 1.5.5 retire le socket Docker à l'agent de métriques.
 
-      Le rapporteur devait renouveler sa session avant l'expiration du jeton. La
-      commande utilisée ne renouvelait rien : elle signalait un succès et ne
-      changeait rien. Les jetons Codex durent dix jours et non huit heures, ce qui
-      a retardé la découverte, mais c'était le même défaut : le panneau se vidait
-      en affirmant que Codex avait refusé la session.
+      Netdata montait le socket Docker directement, ce qui donne accès à toute l'API
+      Docker. Le monter en read-only restreint le montage, pas l'API. Netdata n'a
+      besoin de Docker que pour une chose : transformer un id de conteneur en nom pour
+      les graphiques par conteneur.
 
-      Le renouvellement a désormais lieu quand il est réellement nécessaire. Un
-      jeton Codex valide ne peut pas être renouvelé, alors plutôt que de deviner
-      le bon moment, le rapporteur attend le refus, renouvelle et réessaie une
-      fois. Une session Codex expirée se rétablit ainsi d'elle-même, sans
-      reconnexion et sans coût.
+      Cette seule requête passe désormais par CetusGuard, avec une liste
+      d'autorisations qui répond à l'inspection d'un conteneur et refuse tout le reste.
+      Rien ne change à l'écran -- les noms de conteneurs ainsi que le CPU et la mémoire
+      par carte fonctionnent exactement comme avant.
 
-      Seul le rapporteur Codex est concerné.
+      **Mettre à jour depuis le store n'appliquera pas ce changement.** Une mise à jour
+      d'application CasaOS réécrit les tags d'images et laisse le reste du fichier
+      Compose tel quel : une installation existante conserve donc l'ancien montage.
+      Réinstalle l'application ou fais la modification à la main -- la section
+      "Upgrading from 1.5.4" du README donne les lignes exactes.
     hr_HR: |
-      Verzija 1.5.4 čini za ploču s Codex potrošnjom ono što je 1.5.3 učinila za
-      Claude: sprječava da se sama odjavljuje.
+      1.5.5 uzima Docker socket agentu za metrike.
 
-      Reporter je trebao obnoviti prijavu prije isteka tokena. Naredba koju je
-      koristio nikad ništa nije obnavljala -- javljala je uspjeh i ništa nije
-      mijenjala. Codexovi tokeni traju deset dana umjesto osam sati, pa se to
-      pokazalo kasnije nego kod Claudea, ali radilo se o istoj grešci: ploča bi se
-      ispraznila i tvrdila da je Codex odbio prijavu.
+      Netdata je Docker socket montirao izravno, što daje pristup cijelom Docker API-ju.
+      Montiranje kao read-only ograničava montiranje, a ne API. Netdata treba Docker
+      samo za jedno: pretvoriti id kontejnera u naziv za grafikone po kontejneru.
 
-      Obnova se sada događa onda kad je zaista potrebna. Zdrav Codex token uopće
-      se ne može obnoviti, pa umjesto da nagađa kada pokušati, reporter čeka
-      odbijanje, obnovi i pokuša još jednom. Istekla Codex prijava tako se
-      oporavlja sama, bez ponovne prijave i bez troška.
+      Taj jedan upit sada ide preko CetusGuarda, uz listu dopuštenja koja odgovara na
+      pregled jednog kontejnera i odbija sve ostalo. Na zaslonu se ništa ne mijenja --
+      nazivi kontejnera te CPU i memorija po kartici rade kao i prije.
 
-      Zahvaćen je samo Codex reporter.
+      **Ažuriranje u storeu ovo neće primijeniti.** CasaOS ažuriranje aplikacije
+      prepisuje samo image tagove i ostavlja ostatak Compose datoteke nedirnutim, pa
+      postojeća instalacija zadržava staro montiranje. Ponovno instaliraj aplikaciju
+      ili izmjenu napravi ručno -- odjeljak "Upgrading from 1.5.4" u README-u navodi
+      točne linije.
     it_IT: |
-      La 1.5.4 fa per il pannello di utilizzo Codex quello che la 1.5.3 ha fatto
-      per Claude: gli impedisce di disconnettersi da solo.
+      La 1.5.5 toglie il socket Docker all'agente delle metriche.
 
-      Il reporter avrebbe dovuto rinnovare l'accesso prima della scadenza del
-      token. Il comando che usava non rinnovava nulla: segnalava successo e non
-      cambiava niente. I token di Codex durano dieci giorni invece di otto ore,
-      per questo si è visto più tardi rispetto a Claude, ma era lo stesso difetto:
-      il pannello si svuotava dicendo che Codex aveva rifiutato l'accesso.
+      Netdata montava il socket Docker direttamente, il che concede tutta l'API Docker.
+      Montarlo in read-only limita il montaggio, non l'API. Netdata ha bisogno di
+      Docker per una cosa sola: trasformare un id di container in un nome per i grafici
+      per container.
 
-      Il rinnovo ora avviene quando serve davvero. Un token Codex valido non è
-      rinnovabile, quindi invece di indovinare quando tentare, il reporter aspetta
-      il rifiuto, rinnova e riprova una volta sola. Un accesso Codex scaduto si
-      riprende così da solo, senza nuovo login e senza costi.
+      Ora chiede quella singola ricerca a CetusGuard, con una lista di autorizzazioni
+      che risponde all'ispezione di un container e rifiuta tutto il resto. Sullo
+      schermo non cambia nulla -- i nomi dei container e CPU e memoria per scheda
+      funzionano esattamente come prima.
 
-      È interessato solo il reporter di Codex.
+      **L'aggiornamento dallo store non applicherà questa modifica.** Un aggiornamento
+      di app CasaOS riscrive i tag delle immagini e lascia invariato il resto del file
+      Compose, quindi un'installazione esistente conserva il vecchio montaggio.
+      Reinstalla l'app oppure applica la modifica a mano -- la sezione "Upgrading from
+      1.5.4" del README indica le righe esatte.
     ja_JP: |
-      1.5.4 では、1.5.3 が Claude に対して行ったことを Codex 使用状況パネルにも
-      適用しました。勝手にサインアウトしなくなります。
+      1.5.5 はメトリクスエージェントから Docker ソケットを取り上げます。
 
-      レポーターはトークンの期限が切れる前にログインを更新するはずでしたが、その
-      ために使っていたコマンドは何も更新していませんでした。成功を報告しながら、
-      何も変えていなかったのです。Codex のトークンは 8 時間ではなく 10 日もつため、
-      Claude より発覚が遅れただけで、同じ不具合でした。パネルは空になり、Codex が
-      ログインを拒否したと表示していました。
+      Netdata は Docker ソケットを直接マウントしていました。これは Docker API 全体への
+      アクセスを与えるものです。read-only でマウントしてもマウントが読み取り専用になる
+      だけで、API は制限されません。Netdata が Docker を必要とするのは 1 点だけで、
+      コンテナ ID をコンテナ別グラフ用の名前に変換するためです。
 
-      更新は、本当に必要になった時点で行われるようになりました。有効な Codex
-      トークンはそもそも更新できないため、いつ試すかを推測するのはやめ、拒否されて
-      から更新し、もう一度だけ試します。期限切れの Codex ログインは、この方法で
-      サインインも費用もなく自動的に復旧します。
+      その 1 回の問い合わせは、コンテナの照会だけに応答しそれ以外をすべて拒否する
+      許可リストを通して、CetusGuard に行くようになりました。画面上の表示は変わりません
+      -- コンテナ名、カードごとの CPU とメモリは以前とまったく同じように動きます。
 
-      影響を受けるのは Codex のレポーターだけです。
+      **ストアからの更新ではこの変更は適用されません。** CasaOS のアプリ更新はイメージ
+      タグを書き換えるだけで Compose ファイルの残りはそのままなので、既存のインストール
+      は古いマウントを保持します。アプリを再インストールするか、手作業で変更してください
+      -- README の "Upgrading from 1.5.4" の節に正確な行が載っています。
     ko_KR: |
-      1.5.4는 1.5.3이 Claude에 해준 일을 Codex 사용량 패널에도 적용합니다. 스스로
-      로그아웃되지 않게 합니다.
+      1.5.5는 메트릭 에이전트에서 Docker 소켓을 회수합니다.
 
-      리포터는 토큰이 만료되기 전에 로그인을 갱신해야 했지만, 그 용도로 쓰던 명령은
-      아무것도 갱신하지 않았습니다. 성공했다고 보고하면서 아무것도 바꾸지 않았습니다.
-      Codex 토큰은 여덟 시간이 아니라 열흘을 가기 때문에 Claude보다 늦게 드러났을
-      뿐, 같은 버그였습니다. 패널은 비어 버리고 Codex가 로그인을 거부했다고
-      표시했습니다.
+      Netdata는 Docker 소켓을 직접 마운트했는데, 이는 Docker API 전체를 허용하는 것입니다.
+      read-only로 마운트해도 마운트만 읽기 전용이 되고 API는 제한되지 않습니다. Netdata가
+      Docker를 필요로 하는 것은 단 하나, 컨테이너 id를 컨테이너별 차트용 이름으로 바꾸는
+      일입니다.
 
-      이제 갱신은 정말 필요할 때 이루어집니다. 정상적인 Codex 토큰은 애초에 갱신할
-      수 없으므로, 언제 시도할지 추측하는 대신 거부를 기다렸다가 갱신하고 한 번만 더
-      시도합니다. 만료된 Codex 로그인은 이렇게 스스로 회복되며, 다시 로그인할 필요도
-      비용도 없습니다.
+      이제 그 한 번의 조회를 CetusGuard에 요청하며, 허용 목록은 컨테이너 조회에만 응답하고
+      나머지는 모두 거부합니다. 화면에서 달라지는 것은 없습니다 -- 컨테이너 이름과 카드별
+      CPU, 메모리는 이전과 똑같이 동작합니다.
 
-      Codex 리포터만 해당됩니다.
+      **스토어에서 업데이트해도 이 변경은 적용되지 않습니다.** CasaOS 앱 업데이트는 이미지
+      태그만 다시 쓰고 Compose 파일의 나머지는 그대로 두므로, 기존 설치는 예전 마운트를
+      유지합니다. 앱을 다시 설치하거나 직접 수정하세요 -- README의 "Upgrading from 1.5.4"
+      절에 정확한 줄이 나와 있습니다.
     nb_NO: |
-      1.5.4 gjør for Codex-brukspanelet det 1.5.3 gjorde for Claude: hindrer at det
-      logger seg selv ut.
+      1.5.5 tar Docker-socketen fra metrikkagenten.
 
-      Rapportøren skulle fornye innloggingen før tokenet utløp. Kommandoen den
-      brukte fornyet aldri noe -- den meldte om suksess og endret ingenting.
-      Codex-tokener varer ti dager i stedet for åtte timer, så dette viste seg
-      senere enn hos Claude, men det var samme feil: panelet ble tomt og sa at
-      Codex hadde avvist innloggingen.
+      Netdata monterte Docker-socketen direkte, noe som gir tilgang til hele
+      Docker-API-et. Å montere den read-only begrenser monteringen, ikke API-et.
+      Netdata trenger Docker til én ting: å gjøre en container-id om til et navn i
+      diagrammene per container.
 
-      Fornyelsen skjer nå når den faktisk trengs. Et friskt Codex-token lar seg
-      ikke fornye i det hele tatt, så i stedet for å gjette når den skal prøve,
-      venter rapportøren på avvisningen, fornyer og prøver én gang til. En utløpt
-      Codex-innlogging kommer seg slik av seg selv, uten ny innlogging og uten
-      kostnad.
+      Det ene oppslaget går nå gjennom CetusGuard, med en tillatelsesliste som svarer
+      på oppslag av én container og avviser alt annet. Ingenting endrer seg på skjermen
+      -- containernavn og CPU og minne per kort virker akkurat som før.
 
-      Bare Codex-rapportøren er berørt.
+      **En oppdatering i butikken vil ikke ta i bruk dette.** En CasaOS-appoppdatering
+      skriver om image-tagger og lar resten av Compose-filen være, så en eksisterende
+      installasjon beholder den gamle monteringen. Installer appen på nytt, eller gjør
+      endringen selv -- avsnittet "Upgrading from 1.5.4" i README-en gir de nøyaktige
+      linjene.
     pt_PT: |
-      A 1.5.4 faz pelo painel de utilização do Codex o que a 1.5.3 fez pelo
-      Claude: impede que termine a sessão sozinho.
+      A 1.5.5 retira o socket Docker ao agente de métricas.
 
-      O repórter devia renovar a sessão antes de o token expirar. O comando que
-      usava nunca renovava nada: comunicava sucesso e não alterava coisa alguma.
-      Os tokens do Codex duram dez dias em vez de oito horas, pelo que isto
-      demorou mais a aparecer do que no Claude, mas era o mesmo defeito: o painel
-      esvaziava-se e dizia que o Codex tinha recusado a sessão.
+      O Netdata montava o socket Docker diretamente, o que dá acesso a toda a API do
+      Docker. Montá-lo como read-only restringe a montagem, não a API. O Netdata só
+      precisa do Docker para uma coisa: transformar um id de contentor num nome para os
+      gráficos por contentor.
 
-      A renovação acontece agora quando é mesmo necessária. Um token Codex válido
-      não pode sequer ser renovado, por isso, em vez de adivinhar quando tentar, o
-      repórter espera pela recusa, renova e tenta mais uma vez. Uma sessão Codex
-      expirada recupera assim sozinha, sem novo início de sessão e sem custo.
+      Essa única consulta passa agora pelo CetusGuard, com uma lista de permissões que
+      responde à inspeção de um contentor e recusa tudo o resto. No ecrã nada muda --
+      os nomes dos contentores e o CPU e a memória por cartão funcionam exatamente como
+      antes.
 
-      Só o repórter do Codex é afetado.
+      **Atualizar na loja não aplica esta alteração.** Uma atualização de aplicação
+      CasaOS reescreve as tags das imagens e deixa o resto do ficheiro Compose
+      intacto, pelo que uma instalação existente mantém a montagem antiga. Reinstala a
+      aplicação ou faz a alteração à mão -- a secção "Upgrading from 1.5.4" do README
+      indica as linhas exatas.
     ru_RU: |
-      Версия 1.5.4 делает для панели расхода Codex то же, что 1.5.3 сделала для
-      Claude: избавляет её от самопроизвольного выхода из аккаунта.
+      1.5.5 забирает Docker-сокет у агента метрик.
 
-      Репортёр должен был продлевать вход до истечения токена. Команда, которой он
-      для этого пользовался, не продлевала ничего: сообщала об успехе и ничего не
-      меняла. Токены Codex живут десять дней, а не восемь часов, поэтому проблема
-      проявилась позже, чем у Claude, но это была та же ошибка: панель пустела и
-      сообщала, что Codex отклонил вход.
+      Netdata монтировал Docker-сокет напрямую, а это доступ ко всему Docker API.
+      Монтирование как read-only ограничивает монтирование, а не API. Docker нужен
+      Netdata только для одного: превратить id контейнера в имя для графиков по
+      контейнерам.
 
-      Продление теперь происходит тогда, когда оно действительно нужно. Здоровый
-      токен Codex продлить вообще нельзя, поэтому вместо угадывания момента
-      репортёр дожидается отказа, продлевает и повторяет попытку ровно один раз.
-      Просроченный вход Codex так восстанавливается сам, без повторной авторизации
-      и без затрат.
+      Теперь этот единственный запрос идёт через CetusGuard, со списком разрешений,
+      который отвечает на запрос одного контейнера и отклоняет всё остальное. На экране
+      ничего не меняется -- имена контейнеров, а также CPU и память на карточку
+      работают точно так же, как раньше.
 
-      Затронут только репортёр Codex.
+      **Обновление в магазине это не применит.** Обновление приложения CasaOS
+      перезаписывает только теги образов и оставляет остальной файл Compose без
+      изменений, поэтому существующая установка сохраняет старое монтирование.
+      Переустановите приложение или внесите изменение вручную -- раздел "Upgrading from
+      1.5.4" в README приводит точные строки.
     sv_SE: |
-      1.5.4 gör för Codex-användningspanelen det 1.5.3 gjorde för Claude: hindrar
-      den från att logga ut sig själv.
+      1.5.5 tar Docker-socketen från metrikagenten.
 
-      Rapportören skulle förnya inloggningen innan token gick ut. Kommandot den
-      använde förnyade aldrig något -- det rapporterade framgång och ändrade
-      inget. Codex-token varar tio dagar i stället för åtta timmar, så det tog
-      längre tid att märka än hos Claude, men det var samma fel: panelen tömdes
-      och sa att Codex hade avvisat inloggningen.
+      Netdata monterade Docker-socketen direkt, vilket ger tillgång till hela
+      Docker-API:et. Att montera den read-only begränsar monteringen, inte API:et.
+      Netdata behöver Docker till en enda sak: att göra ett container-id till ett namn
+      i diagrammen per container.
 
-      Förnyelsen sker nu när den verkligen behövs. En frisk Codex-token går inte
-      att förnya alls, så i stället för att gissa när den ska försöka väntar
-      rapportören på avvisningen, förnyar och försöker en gång till. En utgången
-      Codex-inloggning återhämtar sig på så vis av sig själv, utan ny inloggning
-      och utan kostnad.
+      Den enda uppslagningen går nu via CetusGuard, med en tillåtelselista som svarar
+      på uppslagning av en container och avvisar allt annat. Ingenting ändras på
+      skärmen -- containernamn samt CPU och minne per kort fungerar precis som förut.
 
-      Bara Codex-rapportören berörs.
+      **En uppdatering i butiken tillämpar inte detta.** En CasaOS-appuppdatering
+      skriver om image-taggar och lämnar resten av Compose-filen orörd, så en
+      befintlig installation behåller den gamla monteringen. Installera om appen eller
+      gör ändringen för hand -- avsnittet "Upgrading from 1.5.4" i README anger de
+      exakta raderna.
     tr_TR: |
-      1.5.4, 1.5.3'ün Claude için yaptığını Codex kullanım panosu için yapıyor:
-      kendi kendine oturum kapatmasını engelliyor.
+      1.5.5, Docker socket'ini metrik ajanından geri alıyor.
 
-      Raporlayıcının, jetonun süresi dolmadan oturumu yenilemesi gerekiyordu.
-      Kullandığı komut hiçbir şeyi yenilemiyordu: başarı bildiriyor, hiçbir şeyi
-      değiştirmiyordu. Codex jetonları sekiz saat değil on gün dayandığı için bu
-      Claude'dakinden geç ortaya çıktı, ama aynı hataydı: pano boşalıyor ve
-      Codex'in oturumu reddettiğini söylüyordu.
+      Netdata, Docker socket'ini doğrudan bağlıyordu; bu da Docker API'sinin tamamına
+      erişim demek. Onu read-only bağlamak bağlamayı kısıtlar, API'yi değil. Netdata'nın
+      Docker'a tek bir şey için ihtiyacı var: konteyner id'sini, konteyner başına
+      grafikler için bir isme dönüştürmek.
 
-      Yenileme artık gerçekten gerektiğinde yapılıyor. Sağlam bir Codex jetonu
-      zaten yenilenemiyor; bu yüzden ne zaman deneyeceğini tahmin etmek yerine
-      raporlayıcı reddi bekliyor, yeniliyor ve yalnızca bir kez daha deniyor.
-      Süresi dolmuş bir Codex oturumu böylece kendi kendine, yeniden giriş
-      yapmadan ve maliyetsiz olarak toparlanıyor.
+      Bu tek sorgu artık CetusGuard üzerinden gidiyor; izin listesi yalnızca tek bir
+      konteynerin incelenmesine yanıt veriyor, geri kalan her şeyi reddediyor. Ekranda
+      hiçbir şey değişmiyor -- konteyner adları ile kart başına CPU ve bellek tam olarak
+      eskisi gibi çalışıyor.
 
-      Yalnızca Codex raporlayıcısı etkileniyor.
+      **Mağazadan güncellemek bunu uygulamaz.** CasaOS uygulama güncellemesi yalnızca
+      image etiketlerini yeniden yazar ve Compose dosyasının kalanına dokunmaz; mevcut
+      bir kurulum eski bağlamayı korur. Uygulamayı yeniden kurun ya da değişikliği elle
+      yapın -- README'deki "Upgrading from 1.5.4" bölümü tam satırları veriyor.
     zh_CN: |
-      1.5.4 对 Codex 用量面板做了 1.5.3 对 Claude 做的事：让它不再自己掉线。
+      1.5.5 把 Docker socket 从指标代理手里收回。
 
-      上报服务本应在令牌过期前续期登录，但它用的那条命令从未续期过任何东西——报告
-      成功，却什么都没改。Codex 的令牌能用十天而不是八小时，所以比 Claude 那个晚
-      暴露，但问题是一样的：面板会变空，并且说是 Codex 拒绝了登录。
+      Netdata 之前直接挂载 Docker socket，而那等于开放整个 Docker API。以 read-only 挂载
+      限制的是挂载本身，不是 API。Netdata 需要 Docker 只为一件事：把容器 id 变成按容器
+      图表上的名字。
 
-      现在续期发生在真正需要的时候。健康的 Codex 令牌根本无法续期，所以上报服务不再
-      猜测什么时候去试，而是等到被拒绝，续期，然后只重试一次。过期的 Codex 登录就这样
-      自己恢复，无需重新登录，也没有任何花费。
+      现在这一次查询改为经由 CetusGuard，其放行清单只回应对单个容器的查询，其余一律拒绝。
+      界面上没有任何变化 -- 容器名称以及每张卡片的 CPU 和内存都和以前完全一样。
 
-      只有 Codex 的上报服务受影响。
+      **在应用商店里更新不会应用这项改动。** CasaOS 的应用更新只会重写镜像标签，Compose
+      文件的其余部分保持原样，因此已有的安装会保留旧的挂载。请重新安装应用，或手动修改
+      -- README 中 "Upgrading from 1.5.4" 一节给出了确切的行。
