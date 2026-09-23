@@ -437,6 +437,31 @@ cannot see — it follows nginx upstreams only. Strand netdata and
 `docker-metadata` on different networks and there is no error: names quietly
 fall back to ids. `check-docker-socket.py` covers that case too.
 
+**Observed on the smoke host the day 1.5.5 shipped, both halves.** This had been
+reasoning until then, and reasoning is what the 1.5.0 note warns about:
+
+- **Updating gave the new images and the old settings.** Afterwards the stack
+  ran 1.5.5 images while `netdata` still had its socket mount, `DOCKER_HOST` was
+  unset, and `CETUSGUARD_RULES` still held only the two network rules. The tell
+  was `docker-metadata`: it was **not recreated at all**, while every container
+  whose image moved was. Compose only recreates a container whose definition
+  changed, so its definition in the managed file was untouched.
+- **Reinstalling from the store delivered the change.** Compose file rewritten,
+  every container recreated, socket mount gone, `DOCKER_HOST` set, the inspect
+  rule present — and the image tags went from `:latest` to a pinned `1.5.5`,
+  which is how you can tell a store-written file from a hand-rolled one.
+
+The dashboard was healthy in **both** states, which is the whole problem: the
+broken-but-working case is indistinguishable by eye, so "I updated and it still
+works" is not evidence that a Compose change arrived. The only thing that
+settles it is inspecting the container:
+
+    docker inspect service-dash-netdata \
+      --format '{{range .Mounts}}{{.Destination}} {{end}}' | tr ' ' '\n' | grep docker.sock
+
+Output means the old configuration. That command is in the README's upgrade
+section for exactly this reason.
+
 ## The empty state
 
 A blank grid has three quite different causes and, until this existed, said
