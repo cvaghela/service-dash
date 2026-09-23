@@ -33,6 +33,11 @@ review. 1.5.5 moved Netdata's Docker access off a raw socket onto `DOCKER_HOST`,
 which is a security fix that an updating install would never receive. Image-tag
 changes are exempt, because those are precisely what an update *does* deliver.
 
+Both halves were observed on a real host when 1.5.5 shipped: updating left the
+old settings in place and did not even recreate the service whose definition had
+not changed, while reinstalling from the store applied everything. The dashboard
+looked healthy either way. See "The Docker socket" in CLAUDE.md.
+
 Run with no previous tag (a first release) and it passes trivially.
 """
 
