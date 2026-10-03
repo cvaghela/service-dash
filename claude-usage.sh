@@ -96,9 +96,29 @@ describe_shape() {
     ' 2>/dev/null | cut -c1-1500
 }
 
+# `// empty` does NOT catch an empty string -- jq's `//` only replaces null and
+# false, so `""` passes straight through and `jq -e` exits 0 on it. A logged-out
+# credential therefore read as a perfectly good token, got sent to the API, and
+# came back 401, which the panel reported as "your login expired". Nothing had
+# expired; there was no token at all. The emptiness test is done in the shell so
+# it does not depend on jq's exit-code subtleties.
 read_access_token() {
     [ -r "$credentials_file" ] || return 1
-    jq -er '.claudeAiOauth.accessToken // empty' "$credentials_file" 2>/dev/null
+    tok="$(jq -r '.claudeAiOauth.accessToken // ""' "$credentials_file" 2>/dev/null)"
+    [ -n "$tok" ] || return 1
+    printf '%s' "$tok"
+}
+
+# A credential that has been signed out keeps its metadata and blanks its
+# tokens: scopes, subscriptionType and rateLimitTier all survive, both tokens
+# become "" and expiresAt becomes 0. That is worth telling apart from "never
+# signed in", because the leftover metadata is proof a login WAS here -- saying
+# nobody had signed in would be the dashboard contradicting its own history.
+credential_is_stub() {
+    [ -r "$credentials_file" ] || return 1
+    [ "$(jq -r '((.claudeAiOauth.accessToken // "") == "")
+                and ((.claudeAiOauth.refreshToken // "") == "")' \
+            "$credentials_file" 2>/dev/null)" = "true" ]
 }
 
 token_expires_at() {
@@ -151,8 +171,18 @@ seconds_until_expiry() {
 }
 
 renew_if_needed() {
+    # Nothing to renew, so do not reach for the one command that can log you
+    # out. seconds_until_expiry() reports 0 for an expiry it cannot read, and 0
+    # is inside the window, so a blanked credential used to call doctor on EVERY
+    # poll -- measured on the smoke host at roughly 288 runs a day for four days
+    # against a credential with no tokens in it. An already-expired token is the
+    # other case doctor cannot rescue, and calling it there is what destroys a
+    # credential that could still have been recovered by hand.
+    if credential_is_stub; then
+        return 0
+    fi
     left="$(seconds_until_expiry)"
-    if [ "$left" -gt "$renew_window_seconds" ]; then
+    if [ "$left" -le 0 ] || [ "$left" -gt "$renew_window_seconds" ]; then
         return 0
     fi
     claude doctor >/dev/null 2>&1 || true
@@ -289,6 +319,15 @@ plan_label() {
 poll_once() {
     if [ ! -r "$credentials_file" ]; then
         write_disconnected "Nobody has signed in yet."
+        return
+    fi
+
+    # Signed in once, then signed out by a renewal that failed. Checked before
+    # the API call on purpose: sending the blank token gets a 401, and a 401 is
+    # reported as an expiry, which sends the reader looking for a token lifetime
+    # when the login is simply gone.
+    if credential_is_stub; then
+        write_disconnected "Sign in again."
         return
     fi
 

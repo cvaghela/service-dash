@@ -230,6 +230,30 @@ Two things it must keep doing:
     that never writes the file works exactly once, because the rotated
     replacement is discarded and the old token is already dead.
 
+  **The logout stopped being hypothetical on 2026-09-29.** doctor was called
+  five times in the six minutes before expiry -- the tightened poll working as
+  designed, each run leaving a `.claude.json.backup` -- the refresh was refused
+  anyway, and doctor signed the credential out. What it writes is a *stub*, not
+  a deletion: `scopes`, `subscriptionType` and `rateLimitTier` all survive while
+  both tokens become `""` and `expiresAt` becomes `0`. Three things followed,
+  and all three are now covered by `test-reporters.sh`:
+
+  - **`jq`'s `// empty` does not catch an empty string.** `//` only replaces
+    null and false, so `""` passed through, `jq -e` exited 0, and the blank
+    token was sent to the API. The 401 that came back was reported as "your
+    login expired" -- for four days, about an expiry that never happened.
+  - **A zero expiry is not an imminent one.** `seconds_until_expiry` reports 0
+    for an expiry it cannot read, 0 is inside the renew window, so the stub
+    called doctor on every poll: roughly 288 runs a day, for four days, against
+    tokens that were empty. doctor is the command that logs you out, so that is
+    the opposite of harmless. It is now skipped for a stub and for an
+    already-expired token, which is the other state it cannot rescue -- calling
+    it there is what turns a credential someone could still recover by hand
+    into one that is gone.
+  - **The stub is its own state and says so.** "Nobody has signed in yet" would
+    contradict the leftover metadata, and the expiry message was simply untrue,
+    so it reports `Sign in again.`
+
   Renewal only happens on a poll, so the poll interval near expiry is the real
   safety margin: `renew_window_seconds` (1h) decides when doctor starts being
   called, and `renew_tighten_seconds` (15m) drops the sleep to 60s so several

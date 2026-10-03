@@ -249,6 +249,88 @@ else
     ok "the reporter never copies the credential aside"
 fi
 
+# A signed-out credential keeps its metadata and blanks its tokens. Three
+# things went wrong with that shape on a real host over four days, and each is
+# checked behaviourally rather than by grepping for a string.
+
+# 1. jq's `//` only replaces null and false, so an empty accessToken used to
+#    read as a valid token, reach the API, and come back 401 -- which the panel
+#    reported as an expiry. An empty token is not a token.
+(
+    . "$WORK/claude-usage.sh.sh"
+    credentials_file="$WORK/stub-claude-auth.json"
+    cat > "$credentials_file" <<'STUB'
+{"claudeAiOauth":{"accessToken":"","refreshToken":"","expiresAt":0,
+ "scopes":["user:profile"],"subscriptionType":"max"}}
+STUB
+    read_access_token >/dev/null 2>&1 && echo "ACCEPTED" > "$WORK/tokres" || echo "REJECTED" > "$WORK/tokres"
+) >/dev/null 2>&1
+[ "$(cat "$WORK/tokres" 2>/dev/null)" = "REJECTED" ] \
+    && ok "an empty accessToken is not accepted as a token" \
+    || bad "an empty accessToken is not accepted as a token" "jq // empty does not catch \"\""
+
+# 2. The panel must say the login is gone, not that it expired. Nothing expired
+#    -- a failed renewal removed it, and the leftover scopes prove a login was
+#    there, so "nobody has signed in" would be wrong too.
+(
+    . "$WORK/claude-usage.sh.sh"
+    credentials_file="$WORK/stub-claude-auth.json"
+    renew_if_needed() { :; }
+    write_status() { echo "STATUS_WRITTEN" > "$WORK/stubout"; }
+    write_disconnected() { echo "DISCONNECTED:$1" > "$WORK/stubout"; }
+    fetch_usage() { printf 'body\n401\n'; }
+    poll_once
+) >/dev/null 2>&1
+stubout="$(cat "$WORK/stubout" 2>/dev/null || echo "(nothing)")"
+case "$stubout" in
+    *"Sign in again"*) ok "a blanked credential says to sign in, not that it expired" ;;
+    *) bad "a blanked credential says to sign in, not that it expired" "got: $stubout" ;;
+esac
+
+# 3. doctor must not be called when there is nothing to renew. Reported 0 for an
+#    expiry it could not read, 0 is inside the renew window, so a blanked
+#    credential called doctor on every poll -- about 288 runs a day for four
+#    days, against tokens that were empty. doctor is also what logs you out on a
+#    failed refresh, so this is the opposite of harmless.
+(
+    . "$WORK/claude-usage.sh.sh"
+    credentials_file="$WORK/stub-claude-auth.json"
+    claude() { echo "DOCTOR_RAN" > "$WORK/doctor"; }
+    : > "$WORK/doctor"
+    renew_if_needed
+) >/dev/null 2>&1
+[ ! -s "$WORK/doctor" ] \
+    && ok "doctor is not called for a credential with no tokens" \
+    || bad "doctor is not called for a credential with no tokens" "it ran against an empty credential"
+
+# ...and not for an already-expired one either, which doctor cannot rescue:
+# calling it there is what turns a recoverable credential into a logged-out one.
+(
+    . "$WORK/claude-usage.sh.sh"
+    credentials_file="$WORK/expired-claude-auth.json"
+    printf '{"claudeAiOauth":{"accessToken":"t","refreshToken":"r","expiresAt":1000}}' > "$credentials_file"
+    claude() { echo "DOCTOR_RAN" > "$WORK/doctor2"; }
+    : > "$WORK/doctor2"
+    renew_if_needed
+) >/dev/null 2>&1
+[ ! -s "$WORK/doctor2" ] \
+    && ok "doctor is not called for an already-expired token" \
+    || bad "doctor is not called for an already-expired token" "doctor logs out on a failed refresh"
+
+# ...but it IS still called inside the window, or renewal never happens at all.
+(
+    . "$WORK/claude-usage.sh.sh"
+    credentials_file="$WORK/soon-claude-auth.json"
+    printf '{"claudeAiOauth":{"accessToken":"t","refreshToken":"r","expiresAt":%s}}' \
+        "$(( ($(date +%s) + 600) * 1000 ))" > "$credentials_file"
+    claude() { echo "DOCTOR_RAN" > "$WORK/doctor3"; }
+    : > "$WORK/doctor3"
+    renew_if_needed
+) >/dev/null 2>&1
+[ -s "$WORK/doctor3" ] \
+    && ok "doctor is still called inside the renewal window" \
+    || bad "doctor is still called inside the renewal window" "renewal would never run"
+
 # ---------------------------------------------------------------------------
 printf '\nnginx.conf.template\n'
 # ---------------------------------------------------------------------------
