@@ -4,7 +4,7 @@
     "amd64",
     "arm64"
   ],
-  "update_at": "2026-09-23",
+  "update_at": "2026-10-03",
   "author": "Chintan Vaghela",
   "developer": "Chintan Vaghela",
   "thumbnail": "/apps/io.github.cvaghela.servicedash/assets/thumbnail.webp",
@@ -23,16 +23,16 @@
     "before_install": "### Before you install\n\nService Dash reads your monitors from **Uptime Kuma**. It does not\ninstall Kuma for you, so set that up first:\n\n1. Install **Uptime Kuma** -- it is in the official ZimaOS app store --\n   and leave it on its default port `3001`. If you run it on another\n   port, change `KUMA_PORT` below and `KUMA_URL` on the `kuma-auth`\n   service to match. Kuma must be on this same host.\n2. In Uptime Kuma, create a **status page** and add the monitors you\n   want on the dashboard.\n3. Note the status page's **slug** -- the last part of its URL. If it is\n   not `homelab`, change `STATUS_SLUG` below to match.\n\n### Getting local and public URLs on one card\n\nBoth addresses come from Uptime Kuma, from **how you name the\nmonitors**. Give a service two monitors:\n\n| Monitor name | Points at | Shows on the card as |\n| --- | --- | --- |\n| `Plex` | your public URL | **External** |\n| `Plex local` | your LAN URL | **Local** |\n\nService Dash pairs them by name into a single card carrying both.\n`Plex (local)`, `Plex - local` and `Plex.local` are recognised the same\nway. A service with only one monitor simply shows one address.\n\nEach address is the monitor's own URL in Kuma, so it is set in Kuma, not\nhere. The dashboard opens whichever address your browser can actually\nreach -- the local one when you are on the LAN, the public one when you\nare not -- deciding per card and without testing anything. The switch in\nthe top bar pins it to **Local** or **External** if you would rather\nchoose yourself.\n\nBoth addresses read **URL Locked** until you sign in to Uptime Kuma from\nthe dashboard -- signed out, they are never sent to the browser at all.\n\nThen open Service Dash on port **8888**.\n"
   },
   "title": "Service Dash",
-  "release_note": "1.5.5 takes the Docker socket away from the metrics agent.\n\nNetdata mounted the Docker socket directly, which grants the whole Docker API.\nMounting it read-only restricts the mount, not the API. Netdata needs Docker for\none thing only: turning a container id into a name for the per-container charts.\n\nIt now asks CetusGuard for that single lookup instead, on an allowlist that\nanswers container inspection and refuses everything else. Nothing changes on\nscreen -- container names and per-card CPU and memory work exactly as before.\n\n**Updating in the store will not apply this.** A CasaOS app update rewrites image\ntags and leaves the rest of the Compose file alone, so an existing install keeps\nthe old socket mount. Reinstall the app, or make the change by hand -- the\nREADME's \"Upgrading from 1.5.4\" section gives the exact lines.\n",
+  "release_note": "1.5.6 fixes a Claude usage panel that said your login had expired when it had\nactually been signed out.\n\nWhen a renewal fails, Claude Code signs the credential out rather than leaving\nit expired. The tokens are blanked and the rest of the record stays behind, so\nthe reporter could not tell the difference: it sent the blank token to Claude,\ngot a refusal, and reported that refusal as an expiry -- for four days, about an\nexpiry that never happened.\n\nThat case now says \"Sign in again.\" The reporter also stops running the renewal\ncommand when there is nothing left to renew. That command is the one that signs\nyou out when a refresh fails, and it was being run around 288 times a day\nagainst an empty credential.\n\nNothing else changed and no settings change, so updating the images is enough --\nincluding from the app store.\n",
   "base_url": "https://cvaghela.github.io/service-dash/pages",
   "id": "io.github.cvaghela.servicedash",
-  "version": "1.5.5",
+  "version": "1.5.6",
   "categories": [
     "networking"
   ],
   "min_memory": 0,
   "min_image_size": {
-    "amd64": 335790907,
-    "arm64": 328570479
+    "amd64": 327490768,
+    "arm64": 319438763
   }
 }
