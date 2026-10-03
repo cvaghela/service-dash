@@ -3,6 +3,39 @@
 All notable changes to Service Dash are recorded here. This project follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.6] — 2026-10-03
+
+**The Claude panel said your login had expired when it had been signed out.** Updating the images is enough.
+
+### Fixed
+
+- **A signed-out credential was reported as an expired one, for four days.**
+
+  When a renewal fails, Claude Code signs the credential out rather than leaving it expired, and what it writes is a
+  *stub*, not a deletion: `scopes`, `subscriptionType` and `rateLimitTier` all survive while both tokens become `""`
+  and `expiresAt` becomes `0`. The reporter could not see that, and three things met on the shape.
+
+  `jq`'s `//` only replaces null and false, so `// empty` let an empty `accessToken` through and `jq -e` exited 0 on
+  it. The blank token went to the API, the API answered 401, and a 401 is reported as an expiry — so the existing
+  "signed out, or cannot be read" branch was unreachable for exactly the case it was written for.
+
+  `seconds_until_expiry` reports 0 for an expiry it cannot read, and 0 is inside the renew window, so the stub called
+  `claude doctor` on **every poll**: roughly 288 runs a day, for four days, against tokens that were empty. `doctor`
+  is the command that signs you out when a refresh fails, so that is not a harmless waste. It is now skipped for a
+  stub, and for an already-expired token — the other state `doctor` cannot rescue, where calling it is what turns a
+  credential someone could still recover by hand into one that is gone.
+
+  The stub is now its own state and reports `Sign in again.` rather than an expiry that never happened.
+
+  This does not prevent a failed renewal. It stops one being invisible, stops it being reported as the wrong cause,
+  and stops the reporter repeatedly running the command that caused it.
+
+### Added
+
+- Five cases in `scripts/test-reporters.sh` for the stub shape. Four fail by name against the previous script — the
+  empty token being accepted, the expiry message, `doctor` running on a stub, and `doctor` running on an expired
+  token. The fifth checks `doctor` is still called inside the window, so the fix cannot become "never renew anything".
+
 ## [1.5.5] — 2026-09-23
 
 **Netdata no longer holds the Docker socket.** Nothing changes on screen.
@@ -819,6 +852,7 @@ Housekeeping for the first public release. No functional changes to the dashboar
 
 See the [release history](https://github.com/cvaghela/service-dash/releases).
 
+[1.5.6]: https://github.com/cvaghela/service-dash/releases/tag/v1.5.6
 [1.5.5]: https://github.com/cvaghela/service-dash/releases/tag/v1.5.5
 [1.5.4]: https://github.com/cvaghela/service-dash/releases/tag/v1.5.4
 [1.5.3]: https://github.com/cvaghela/service-dash/releases/tag/v1.5.3

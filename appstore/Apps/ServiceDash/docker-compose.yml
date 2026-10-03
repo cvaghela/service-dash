@@ -2,7 +2,7 @@ name: service-dash
 
 services:
   service-dash:
-    image: ghcr.io/cvaghela/service-dash:1.5.5
+    image: ghcr.io/cvaghela/service-dash:1.5.6
     container_name: service-dash
     ports:
       - target: 80
@@ -59,7 +59,7 @@ services:
   # Answers one question for nginx: is this browser really signed in to Uptime
   # Kuma? Without it, saving settings would have to trust the browser's word.
   kuma-auth:
-    image: ghcr.io/cvaghela/service-dash-kuma-auth:1.5.5
+    image: ghcr.io/cvaghela/service-dash-kuma-auth:1.5.6
     container_name: service-dash-kuma-auth
     environment:
       # Must point at the same Uptime Kuma as KUMA_PORT above.
@@ -83,7 +83,7 @@ services:
     restart: unless-stopped
 
   network-info:
-    image: ghcr.io/cvaghela/service-dash-network-info:1.5.5
+    image: ghcr.io/cvaghela/service-dash-network-info:1.5.6
     container_name: service-dash-network-info
     network_mode: host
     read_only: true
@@ -197,7 +197,7 @@ services:
   #
   #   docker exec -it service-dash-claude-usage claude auth login
   claude-usage:
-    image: ghcr.io/cvaghela/service-dash-claude-usage:1.5.5
+    image: ghcr.io/cvaghela/service-dash-claude-usage:1.5.6
     container_name: service-dash-claude-usage
     environment:
       # Plan windows move slowly; polling harder gains nothing.
@@ -224,7 +224,7 @@ services:
   # localhost and hangs.
   #   docker exec -it service-dash-codex-usage codex login --device-auth
   codex-usage:
-    image: ghcr.io/cvaghela/service-dash-codex-usage:1.5.5
+    image: ghcr.io/cvaghela/service-dash-codex-usage:1.5.6
     container_name: service-dash-codex-usage
     environment:
       CODEX_USAGE_REFRESH_SECONDS: "300"
@@ -256,8 +256,8 @@ x-casaos:
   architectures:
     - amd64
     - arm64
-  version: "1.5.5"
-  update_at: "2026-09-23"
+  version: "1.5.6"
+  update_at: "2026-10-03"
   author: Chintan Vaghela
   developer: Chintan Vaghela
   icon: https://cdn.jsdelivr.net/gh/cvaghela/service-dash@main/appstore/Apps/ServiceDash/icon.png
@@ -1392,252 +1392,247 @@ x-casaos:
         然后在 **8888** 端口打开 Service Dash。
   release_notes:
     en_US: |
-      1.5.5 takes the Docker socket away from the metrics agent.
+      1.5.6 fixes a Claude usage panel that said your login had expired when it had
+      actually been signed out.
 
-      Netdata mounted the Docker socket directly, which grants the whole Docker API.
-      Mounting it read-only restricts the mount, not the API. Netdata needs Docker for
-      one thing only: turning a container id into a name for the per-container charts.
+      When a renewal fails, Claude Code signs the credential out rather than leaving
+      it expired. The tokens are blanked and the rest of the record stays behind, so
+      the reporter could not tell the difference: it sent the blank token to Claude,
+      got a refusal, and reported that refusal as an expiry -- for four days, about an
+      expiry that never happened.
 
-      It now asks CetusGuard for that single lookup instead, on an allowlist that
-      answers container inspection and refuses everything else. Nothing changes on
-      screen -- container names and per-card CPU and memory work exactly as before.
+      That case now says "Sign in again." The reporter also stops running the renewal
+      command when there is nothing left to renew. That command is the one that signs
+      you out when a refresh fails, and it was being run around 288 times a day
+      against an empty credential.
 
-      **Updating in the store will not apply this.** A CasaOS app update rewrites image
-      tags and leaves the rest of the Compose file alone, so an existing install keeps
-      the old socket mount. Reinstall the app, or make the change by hand -- the
-      README's "Upgrading from 1.5.4" section gives the exact lines.
+      Nothing else changed and no settings change, so updating the images is enough --
+      including from the app store.
     en_GB: |
-      1.5.5 takes the Docker socket away from the metrics agent.
+      1.5.6 fixes a Claude usage panel that said your login had expired when it had
+      actually been signed out.
 
-      Netdata mounted the Docker socket directly, which grants the whole Docker API.
-      Mounting it read-only restricts the mount, not the API. Netdata needs Docker for
-      one thing only: turning a container id into a name for the per-container charts.
+      When a renewal fails, Claude Code signs the credential out rather than leaving
+      it expired. The tokens are blanked and the rest of the record stays behind, so
+      the reporter could not tell the difference: it sent the blank token to Claude,
+      got a refusal, and reported that refusal as an expiry -- for four days, about an
+      expiry that never happened.
 
-      It now asks CetusGuard for that single lookup instead, on an allowlist that
-      answers container inspection and refuses everything else. Nothing changes on
-      screen -- container names and per-card CPU and memory behave exactly as before.
+      That case now says "Sign in again." The reporter also stops running the renewal
+      command when there is nothing left to renew. That command is the one that signs
+      you out when a refresh fails, and it was being run around 288 times a day
+      against an empty credential.
 
-      **Updating in the store will not apply this.** A CasaOS app update rewrites image
-      tags and leaves the rest of the Compose file alone, so an existing installation
-      keeps the old socket mount. Reinstall the app, or make the change by hand -- the
-      README's "Upgrading from 1.5.4" section gives the exact lines.
+      Nothing else changed and no settings change, so updating the images is enough --
+      including from the app store.
     de_DE: |
-      1.5.5 nimmt dem Metrik-Agenten den Docker-Socket weg.
+      1.5.6 behebt eine Claude-Nutzungsanzeige, die von einem abgelaufenen Login
+      sprach, obwohl es tatsächlich abgemeldet worden war.
 
-      Netdata hat den Docker-Socket direkt eingebunden, was Zugriff auf die komplette
-      Docker-API bedeutet. Ein Einbinden als read-only beschränkt die Einbindung, nicht
-      die API. Netdata braucht Docker für genau eine Sache: aus einer Container-ID
-      einen Namen für die Container-Diagramme zu machen.
+      Wenn eine Erneuerung fehlschlägt, meldet Claude Code die Anmeldedaten ab,
+      anstatt sie ablaufen zu lassen. Die Tokens werden geleert, der Rest des
+      Datensatzes bleibt stehen -- der Reporter konnte den Unterschied nicht erkennen.
+      Er schickte das leere Token an Claude, bekam eine Ablehnung und meldete diese
+      Ablehnung als Ablauf. Vier Tage lang, für einen Ablauf, den es nie gab.
 
-      Diese eine Abfrage läuft jetzt über CetusGuard, mit einer Freigabeliste, die nur
-      das Abfragen eines Containers erlaubt und alles andere ablehnt. Auf dem Bildschirm
-      ändert sich nichts -- Container-Namen sowie CPU und Speicher pro Karte
-      funktionieren genau wie vorher.
+      Dieser Fall sagt jetzt "Sign in again." Außerdem ruft der Reporter den
+      Erneuerungsbefehl nicht mehr auf, wenn es nichts zu erneuern gibt. Genau dieser
+      Befehl meldet dich bei einer fehlgeschlagenen Erneuerung ab, und er lief rund
+      288-mal am Tag gegen leere Anmeldedaten.
 
-      **Ein Update im Store übernimmt das nicht.** Ein CasaOS-App-Update schreibt nur
-      die Image-Tags neu und lässt den Rest der Compose-Datei unverändert, eine
-      bestehende Installation behält also die alte Socket-Einbindung. Installiere die
-      App neu oder nimm die Änderung selbst vor -- der Abschnitt "Upgrading from 1.5.4"
-      in der README nennt die genauen Zeilen.
+      Sonst ändert sich nichts, auch keine Einstellungen -- die Images zu
+      aktualisieren genügt, auch aus dem App Store.
     el_GR: |
-      Η 1.5.5 αφαιρεί το Docker socket από τον πράκτορα μετρήσεων.
+      Η 1.5.6 διορθώνει το πάνελ χρήσης Claude, που έλεγε ότι η σύνδεσή σου έληξε, ενώ
+      στην πραγματικότητα είχε αποσυνδεθεί.
 
-      Το Netdata προσάρτηζε το Docker socket απευθείας, κάτι που δίνει πρόσβαση σε
-      ολόκληρο το Docker API. Η προσάρτηση ως read-only περιορίζει την προσάρτηση, όχι
-      το API. Το Netdata χρειάζεται το Docker για ένα μόνο πράγμα: να μετατρέπει ένα
-      container id σε όνομα για τα γραφήματα ανά container.
+      Όταν μια ανανέωση αποτύχει, το Claude Code αποσυνδέει τα διαπιστευτήρια αντί να
+      τα αφήσει να λήξουν. Τα tokens αδειάζουν και το υπόλοιπο μένει, έτσι ο reporter
+      δεν μπορούσε να δει τη διαφορά: έστελνε το κενό token στο Claude, έπαιρνε
+      άρνηση, και ανέφερε την άρνηση ως λήξη. Για τέσσερις μέρες, για μια λήξη που δεν
+      συνέβη ποτέ.
 
-      Τώρα ζητά αυτή τη μία αναζήτηση από το CetusGuard, με μια λίστα που επιτρέπει
-      μόνο την επιθεώρηση ενός container και απορρίπτει όλα τα άλλα. Στην οθόνη δεν
-      αλλάζει τίποτα -- τα ονόματα των containers και η CPU και η μνήμη ανά κάρτα
-      δουλεύουν όπως πριν.
+      Αυτή η περίπτωση τώρα λέει "Sign in again." Επίσης ο reporter σταματά να καλεί
+      την εντολή ανανέωσης όταν δεν υπάρχει τίποτα να ανανεωθεί. Αυτή η εντολή είναι
+      που σε αποσυνδέει όταν η ανανέωση αποτύχει, και εκτελούνταν περίπου 288 φορές τη
+      μέρα πάνω σε κενά διαπιστευτήρια.
 
-      **Η ενημέρωση από το store δεν το εφαρμόζει αυτό.** Μια ενημέρωση εφαρμογής CasaOS
-      ξαναγράφει μόνο τα image tags και αφήνει το υπόλοιπο αρχείο Compose ως είναι, οπότε
-      μια υπάρχουσα εγκατάσταση κρατά την παλιά προσάρτηση. Εγκατέστησε ξανά την
-      εφαρμογή ή κάνε την αλλαγή με το χέρι -- η ενότητα "Upgrading from 1.5.4" στο
-      README δίνει τις ακριβείς γραμμές.
+      Τίποτα άλλο δεν άλλαξε και καμία ρύθμιση, άρα αρκεί να ενημερώσεις τα images --
+      και από το app store.
     fr_FR: |
-      La 1.5.5 retire le socket Docker à l'agent de métriques.
+      La 1.5.6 corrige un panneau d'usage Claude qui annonçait une connexion expirée
+      alors qu'elle avait en réalité été déconnectée.
 
-      Netdata montait le socket Docker directement, ce qui donne accès à toute l'API
-      Docker. Le monter en read-only restreint le montage, pas l'API. Netdata n'a
-      besoin de Docker que pour une chose : transformer un id de conteneur en nom pour
-      les graphiques par conteneur.
+      Quand un renouvellement échoue, Claude Code déconnecte l'identifiant au lieu de
+      le laisser expirer. Les jetons sont vidés et le reste de l'enregistrement
+      subsiste : le rapporteur ne voyait pas la différence. Il envoyait le jeton vide à
+      Claude, recevait un refus, et signalait ce refus comme une expiration. Pendant
+      quatre jours, pour une expiration qui n'a jamais eu lieu.
 
-      Cette seule requête passe désormais par CetusGuard, avec une liste
-      d'autorisations qui répond à l'inspection d'un conteneur et refuse tout le reste.
-      Rien ne change à l'écran -- les noms de conteneurs ainsi que le CPU et la mémoire
-      par carte fonctionnent exactement comme avant.
+      Ce cas affiche maintenant « Sign in again. » Le rapporteur cesse aussi d'appeler
+      la commande de renouvellement quand il n'y a plus rien à renouveler. C'est
+      justement cette commande qui vous déconnecte lorsqu'un rafraîchissement échoue,
+      et elle tournait environ 288 fois par jour sur un identifiant vide.
 
-      **Mettre à jour depuis le store n'appliquera pas ce changement.** Une mise à jour
-      d'application CasaOS réécrit les tags d'images et laisse le reste du fichier
-      Compose tel quel : une installation existante conserve donc l'ancien montage.
-      Réinstalle l'application ou fais la modification à la main -- la section
-      "Upgrading from 1.5.4" du README donne les lignes exactes.
+      Rien d'autre ne change, aucun réglage non plus : mettre à jour les images suffit,
+      y compris depuis l'app store.
     hr_HR: |
-      1.5.5 uzima Docker socket agentu za metrike.
+      1.5.6 ispravlja Claude panel korištenja koji je tvrdio da je prijava istekla, a
+      zapravo je bila odjavljena.
 
-      Netdata je Docker socket montirao izravno, što daje pristup cijelom Docker API-ju.
-      Montiranje kao read-only ograničava montiranje, a ne API. Netdata treba Docker
-      samo za jedno: pretvoriti id kontejnera u naziv za grafikone po kontejneru.
+      Kad obnova ne uspije, Claude Code odjavi vjerodajnicu umjesto da je pusti da
+      istekne. Tokeni se isprazne, a ostatak zapisa ostane -- reporter nije mogao
+      vidjeti razliku. Poslao bi prazan token Claudeu, dobio odbijanje i to odbijanje
+      prijavio kao istek. Četiri dana, za istek koji se nikada nije dogodio.
 
-      Taj jedan upit sada ide preko CetusGuarda, uz listu dopuštenja koja odgovara na
-      pregled jednog kontejnera i odbija sve ostalo. Na zaslonu se ništa ne mijenja --
-      nazivi kontejnera te CPU i memorija po kartici rade kao i prije.
+      Taj slučaj sada kaže "Sign in again." Reporter više ne poziva naredbu za obnovu
+      kad nema što obnoviti. Upravo ta naredba vas odjavi kad osvježavanje ne uspije, a
+      izvodila se oko 288 puta dnevno nad praznom vjerodajnicom.
 
-      **Ažuriranje u storeu ovo neće primijeniti.** CasaOS ažuriranje aplikacije
-      prepisuje samo image tagove i ostavlja ostatak Compose datoteke nedirnutim, pa
-      postojeća instalacija zadržava staro montiranje. Ponovno instaliraj aplikaciju
-      ili izmjenu napravi ručno -- odjeljak "Upgrading from 1.5.4" u README-u navodi
-      točne linije.
+      Ništa drugo nije promijenjeno, nema promjena postavki -- dovoljno je ažurirati
+      image, i to i iz app storea.
     it_IT: |
-      La 1.5.5 toglie il socket Docker all'agente delle metriche.
+      La 1.5.6 corregge un pannello di utilizzo Claude che diceva che il login era
+      scaduto quando in realtà era stato disconnesso.
 
-      Netdata montava il socket Docker direttamente, il che concede tutta l'API Docker.
-      Montarlo in read-only limita il montaggio, non l'API. Netdata ha bisogno di
-      Docker per una cosa sola: trasformare un id di container in un nome per i grafici
-      per container.
+      Quando un rinnovo fallisce, Claude Code disconnette la credenziale invece di
+      lasciarla scadere. I token vengono svuotati e il resto del record rimane: il
+      reporter non vedeva la differenza. Inviava il token vuoto a Claude, riceveva un
+      rifiuto e segnalava quel rifiuto come una scadenza. Per quattro giorni, per una
+      scadenza che non c'è mai stata.
 
-      Ora chiede quella singola ricerca a CetusGuard, con una lista di autorizzazioni
-      che risponde all'ispezione di un container e rifiuta tutto il resto. Sullo
-      schermo non cambia nulla -- i nomi dei container e CPU e memoria per scheda
-      funzionano esattamente come prima.
+      Quel caso ora dice "Sign in again." Il reporter smette anche di chiamare il
+      comando di rinnovo quando non c'è più nulla da rinnovare. È proprio quel comando
+      che ti disconnette quando un refresh fallisce, e girava circa 288 volte al giorno
+      su una credenziale vuota.
 
-      **L'aggiornamento dallo store non applicherà questa modifica.** Un aggiornamento
-      di app CasaOS riscrive i tag delle immagini e lascia invariato il resto del file
-      Compose, quindi un'installazione esistente conserva il vecchio montaggio.
-      Reinstalla l'app oppure applica la modifica a mano -- la sezione "Upgrading from
-      1.5.4" del README indica le righe esatte.
+      Nient'altro cambia e nessuna impostazione, quindi aggiornare le immagini basta --
+      anche dall'app store.
     ja_JP: |
-      1.5.5 はメトリクスエージェントから Docker ソケットを取り上げます。
+      1.5.6 は、実際にはサインアウトされていたのに「ログインが期限切れ」と表示していた
+      Claude 使用状況パネルを修正します。
 
-      Netdata は Docker ソケットを直接マウントしていました。これは Docker API 全体への
-      アクセスを与えるものです。read-only でマウントしてもマウントが読み取り専用になる
-      だけで、API は制限されません。Netdata が Docker を必要とするのは 1 点だけで、
-      コンテナ ID をコンテナ別グラフ用の名前に変換するためです。
+      更新に失敗すると、Claude Code は資格情報を期限切れのまま残すのではなくサインアウト
+      します。トークンは空になり、残りの記録はそのまま残るため、レポーターは違いを
+      見分けられませんでした。空のトークンを Claude に送り、拒否を受け取り、その拒否を
+      期限切れとして報告していました。4 日間、起きていない期限切れについて。
 
-      その 1 回の問い合わせは、コンテナの照会だけに応答しそれ以外をすべて拒否する
-      許可リストを通して、CetusGuard に行くようになりました。画面上の表示は変わりません
-      -- コンテナ名、カードごとの CPU とメモリは以前とまったく同じように動きます。
+      このケースは "Sign in again." と表示するようになりました。また、更新するものが
+      何もないときは更新コマンドを呼ばなくなりました。そのコマンドは更新が失敗したときに
+      サインアウトさせるコマンドでもあり、空の資格情報に対して 1 日およそ 288 回
+      実行されていました。
 
-      **ストアからの更新ではこの変更は適用されません。** CasaOS のアプリ更新はイメージ
-      タグを書き換えるだけで Compose ファイルの残りはそのままなので、既存のインストール
-      は古いマウントを保持します。アプリを再インストールするか、手作業で変更してください
-      -- README の "Upgrading from 1.5.4" の節に正確な行が載っています。
+      ほかに変更はなく、設定の変更も不要です。イメージを更新すれば十分で、アプリ
+      ストアからの更新でも適用されます。
     ko_KR: |
-      1.5.5는 메트릭 에이전트에서 Docker 소켓을 회수합니다.
+      1.5.6은 실제로는 로그아웃된 상태인데 "로그인이 만료되었다"고 표시하던 Claude 사용량
+      패널을 고칩니다.
 
-      Netdata는 Docker 소켓을 직접 마운트했는데, 이는 Docker API 전체를 허용하는 것입니다.
-      read-only로 마운트해도 마운트만 읽기 전용이 되고 API는 제한되지 않습니다. Netdata가
-      Docker를 필요로 하는 것은 단 하나, 컨테이너 id를 컨테이너별 차트용 이름으로 바꾸는
-      일입니다.
+      갱신이 실패하면 Claude Code는 자격 증명을 만료 상태로 두는 대신 로그아웃시킵니다.
+      토큰은 비워지고 나머지 기록은 남기 때문에 리포터가 차이를 구분할 수 없었습니다. 빈
+      토큰을 Claude에 보내고, 거부를 받고, 그 거부를 만료로 보고했습니다. 나흘 동안,
+      일어나지도 않은 만료에 대해서요.
 
-      이제 그 한 번의 조회를 CetusGuard에 요청하며, 허용 목록은 컨테이너 조회에만 응답하고
-      나머지는 모두 거부합니다. 화면에서 달라지는 것은 없습니다 -- 컨테이너 이름과 카드별
-      CPU, 메모리는 이전과 똑같이 동작합니다.
+      이제 이 경우에는 "Sign in again."이라고 표시합니다. 또한 갱신할 것이 없을 때는 갱신
+      명령을 호출하지 않습니다. 그 명령은 갱신이 실패할 때 로그아웃시키는 명령이기도 하며,
+      빈 자격 증명을 상대로 하루 약 288번 실행되고 있었습니다.
 
-      **스토어에서 업데이트해도 이 변경은 적용되지 않습니다.** CasaOS 앱 업데이트는 이미지
-      태그만 다시 쓰고 Compose 파일의 나머지는 그대로 두므로, 기존 설치는 예전 마운트를
-      유지합니다. 앱을 다시 설치하거나 직접 수정하세요 -- README의 "Upgrading from 1.5.4"
-      절에 정확한 줄이 나와 있습니다.
+      다른 변경은 없고 설정도 그대로이므로 이미지만 업데이트하면 됩니다. 앱 스토어에서
+      업데이트해도 적용됩니다.
     nb_NO: |
-      1.5.5 tar Docker-socketen fra metrikkagenten.
+      1.5.6 retter et Claude-brukspanel som sa at innloggingen var utløpt, når den
+      faktisk var logget ut.
 
-      Netdata monterte Docker-socketen direkte, noe som gir tilgang til hele
-      Docker-API-et. Å montere den read-only begrenser monteringen, ikke API-et.
-      Netdata trenger Docker til én ting: å gjøre en container-id om til et navn i
-      diagrammene per container.
+      Når en fornyelse feiler, logger Claude Code ut legitimasjonen i stedet for å la
+      den utløpe. Tokenene tømmes og resten av oppføringen blir stående, så
+      rapportøren kunne ikke se forskjellen. Den sendte det tomme tokenet til Claude,
+      fikk avslag, og meldte avslaget som en utløpt innlogging. I fire dager, om en
+      utløpsdato som aldri inntraff.
 
-      Det ene oppslaget går nå gjennom CetusGuard, med en tillatelsesliste som svarer
-      på oppslag av én container og avviser alt annet. Ingenting endrer seg på skjermen
-      -- containernavn og CPU og minne per kort virker akkurat som før.
+      Dette tilfellet sier nå "Sign in again." Rapportøren slutter også å kjøre
+      fornyelseskommandoen når det ikke er noe å fornye. Det er nettopp den kommandoen
+      som logger deg ut når en fornyelse feiler, og den kjørte rundt 288 ganger om
+      dagen mot en tom legitimasjon.
 
-      **En oppdatering i butikken vil ikke ta i bruk dette.** En CasaOS-appoppdatering
-      skriver om image-tagger og lar resten av Compose-filen være, så en eksisterende
-      installasjon beholder den gamle monteringen. Installer appen på nytt, eller gjør
-      endringen selv -- avsnittet "Upgrading from 1.5.4" i README-en gir de nøyaktige
-      linjene.
+      Ingenting annet er endret og ingen innstillinger, så det er nok å oppdatere
+      imagene -- også fra appbutikken.
     pt_PT: |
-      A 1.5.5 retira o socket Docker ao agente de métricas.
+      A 1.5.6 corrige um painel de utilização do Claude que dizia que a sessão tinha
+      expirado quando, na verdade, tinha sido terminada.
 
-      O Netdata montava o socket Docker diretamente, o que dá acesso a toda a API do
-      Docker. Montá-lo como read-only restringe a montagem, não a API. O Netdata só
-      precisa do Docker para uma coisa: transformar um id de contentor num nome para os
-      gráficos por contentor.
+      Quando uma renovação falha, o Claude Code termina a sessão da credencial em vez
+      de a deixar expirar. Os tokens ficam vazios e o resto do registo permanece, pelo
+      que o reporter não distinguia a diferença: enviava o token vazio ao Claude,
+      recebia uma recusa e comunicava essa recusa como expiração. Durante quatro dias,
+      sobre uma expiração que nunca aconteceu.
 
-      Essa única consulta passa agora pelo CetusGuard, com uma lista de permissões que
-      responde à inspeção de um contentor e recusa tudo o resto. No ecrã nada muda --
-      os nomes dos contentores e o CPU e a memória por cartão funcionam exatamente como
-      antes.
+      Esse caso passa a dizer "Sign in again." O reporter também deixa de executar o
+      comando de renovação quando não há nada para renovar. É precisamente esse comando
+      que termina a sessão quando uma renovação falha, e corria cerca de 288 vezes por
+      dia sobre uma credencial vazia.
 
-      **Atualizar na loja não aplica esta alteração.** Uma atualização de aplicação
-      CasaOS reescreve as tags das imagens e deixa o resto do ficheiro Compose
-      intacto, pelo que uma instalação existente mantém a montagem antiga. Reinstala a
-      aplicação ou faz a alteração à mão -- a secção "Upgrading from 1.5.4" do README
-      indica as linhas exatas.
+      Nada mais muda e nenhuma configuração, pelo que atualizar as imagens é suficiente
+      -- incluindo a partir da loja de aplicações.
     ru_RU: |
-      1.5.5 забирает Docker-сокет у агента метрик.
+      1.5.6 исправляет панель использования Claude, которая сообщала об истёкшем входе,
+      хотя на самом деле вход был завершён.
 
-      Netdata монтировал Docker-сокет напрямую, а это доступ ко всему Docker API.
-      Монтирование как read-only ограничивает монтирование, а не API. Docker нужен
-      Netdata только для одного: превратить id контейнера в имя для графиков по
-      контейнерам.
+      Когда обновление не удаётся, Claude Code завершает вход вместо того, чтобы
+      оставить учётные данные истёкшими. Токены обнуляются, а остальная запись
+      остаётся, поэтому репортер не видел разницы: он отправлял пустой токен в Claude,
+      получал отказ и сообщал этот отказ как истечение. Четыре дня — об истечении,
+      которого не было.
 
-      Теперь этот единственный запрос идёт через CetusGuard, со списком разрешений,
-      который отвечает на запрос одного контейнера и отклоняет всё остальное. На экране
-      ничего не меняется -- имена контейнеров, а также CPU и память на карточку
-      работают точно так же, как раньше.
+      Теперь в этом случае выводится "Sign in again." Кроме того, репортер больше не
+      вызывает команду обновления, когда обновлять нечего. Именно эта команда завершает
+      ваш вход при неудачном обновлении, и она запускалась около 288 раз в сутки на
+      пустых учётных данных.
 
-      **Обновление в магазине это не применит.** Обновление приложения CasaOS
-      перезаписывает только теги образов и оставляет остальной файл Compose без
-      изменений, поэтому существующая установка сохраняет старое монтирование.
-      Переустановите приложение или внесите изменение вручную -- раздел "Upgrading from
-      1.5.4" в README приводит точные строки.
+      Больше ничего не изменилось, настройки тоже, так что достаточно обновить образы —
+      в том числе из магазина приложений.
     sv_SE: |
-      1.5.5 tar Docker-socketen från metrikagenten.
+      1.5.6 rättar en Claude-användningspanel som sa att inloggningen hade gått ut, när
+      den i själva verket hade loggats ut.
 
-      Netdata monterade Docker-socketen direkt, vilket ger tillgång till hela
-      Docker-API:et. Att montera den read-only begränsar monteringen, inte API:et.
-      Netdata behöver Docker till en enda sak: att göra ett container-id till ett namn
-      i diagrammen per container.
+      När en förnyelse misslyckas loggar Claude Code ut uppgifterna i stället för att
+      låta dem gå ut. Tokens töms och resten av posten står kvar, så rapportören kunde
+      inte se skillnaden. Den skickade den tomma token till Claude, fick ett avslag och
+      rapporterade avslaget som att inloggningen gått ut. I fyra dagar, om en utgång
+      som aldrig inträffade.
 
-      Den enda uppslagningen går nu via CetusGuard, med en tillåtelselista som svarar
-      på uppslagning av en container och avvisar allt annat. Ingenting ändras på
-      skärmen -- containernamn samt CPU och minne per kort fungerar precis som förut.
+      Det fallet säger nu "Sign in again." Rapportören slutar också köra
+      förnyelsekommandot när det inte finns något att förnya. Det är just det kommandot
+      som loggar ut dig när en förnyelse misslyckas, och det kördes omkring 288 gånger
+      per dygn mot tomma uppgifter.
 
-      **En uppdatering i butiken tillämpar inte detta.** En CasaOS-appuppdatering
-      skriver om image-taggar och lämnar resten av Compose-filen orörd, så en
-      befintlig installation behåller den gamla monteringen. Installera om appen eller
-      gör ändringen för hand -- avsnittet "Upgrading from 1.5.4" i README anger de
-      exakta raderna.
+      Inget annat är ändrat och inga inställningar, så det räcker att uppdatera
+      avbildningarna -- även från appbutiken.
     tr_TR: |
-      1.5.5, Docker socket'ini metrik ajanından geri alıyor.
+      1.5.6, aslında oturumu kapatılmışken "oturumun süresi doldu" diyen Claude
+      kullanım panelini düzeltiyor.
 
-      Netdata, Docker socket'ini doğrudan bağlıyordu; bu da Docker API'sinin tamamına
-      erişim demek. Onu read-only bağlamak bağlamayı kısıtlar, API'yi değil. Netdata'nın
-      Docker'a tek bir şey için ihtiyacı var: konteyner id'sini, konteyner başına
-      grafikler için bir isme dönüştürmek.
+      Bir yenileme başarısız olduğunda Claude Code kimlik bilgisini süresi dolmuş
+      bırakmak yerine oturumu kapatıyor. Token'lar boşaltılıyor, kaydın geri kalanı
+      duruyor; bu yüzden raporlayıcı farkı göremiyordu. Boş token'ı Claude'a
+      gönderiyor, ret alıyor ve bu reddi süre dolumu olarak bildiriyordu. Dört gün
+      boyunca, hiç yaşanmamış bir süre dolumu için.
 
-      Bu tek sorgu artık CetusGuard üzerinden gidiyor; izin listesi yalnızca tek bir
-      konteynerin incelenmesine yanıt veriyor, geri kalan her şeyi reddediyor. Ekranda
-      hiçbir şey değişmiyor -- konteyner adları ile kart başına CPU ve bellek tam olarak
-      eskisi gibi çalışıyor.
+      Bu durum artık "Sign in again." diyor. Raporlayıcı ayrıca yenilenecek bir şey
+      kalmadığında yenileme komutunu çalıştırmayı bırakıyor. Yenileme başarısız
+      olduğunda sizi oturumdan çıkaran komut tam olarak bu, ve boş bir kimlik bilgisine
+      karşı günde yaklaşık 288 kez çalışıyordu.
 
-      **Mağazadan güncellemek bunu uygulamaz.** CasaOS uygulama güncellemesi yalnızca
-      image etiketlerini yeniden yazar ve Compose dosyasının kalanına dokunmaz; mevcut
-      bir kurulum eski bağlamayı korur. Uygulamayı yeniden kurun ya da değişikliği elle
-      yapın -- README'deki "Upgrading from 1.5.4" bölümü tam satırları veriyor.
+      Başka hiçbir şey değişmedi, ayarlar da değişmiyor; imajları güncellemek yeterli --
+      uygulama mağazasından güncellemek de dahil.
     zh_CN: |
-      1.5.5 把 Docker socket 从指标代理手里收回。
+      1.5.6 修复了 Claude 用量面板：它说登录已过期，其实登录是被登出了。
 
-      Netdata 之前直接挂载 Docker socket，而那等于开放整个 Docker API。以 read-only 挂载
-      限制的是挂载本身，不是 API。Netdata 需要 Docker 只为一件事：把容器 id 变成按容器
-      图表上的名字。
+      续期失败时，Claude Code 会把凭据登出，而不是让它过期。令牌被清空，记录的其余部分
+      还留着，所以上报服务分不出区别：它把空令牌发给 Claude，收到拒绝，再把这次拒绝
+      报告成过期。整整四天，为一次根本没发生的过期。
 
-      现在这一次查询改为经由 CetusGuard，其放行清单只回应对单个容器的查询，其余一律拒绝。
-      界面上没有任何变化 -- 容器名称以及每张卡片的 CPU 和内存都和以前完全一样。
+      这种情况现在会显示 "Sign in again."。另外，没有东西可续期时，上报服务不再调用
+      续期命令。正是这条命令会在刷新失败时把你登出，而它当时每天大约执行 288 次，
+      对着一份空凭据。
 
-      **在应用商店里更新不会应用这项改动。** CasaOS 的应用更新只会重写镜像标签，Compose
-      文件的其余部分保持原样，因此已有的安装会保留旧的挂载。请重新安装应用，或手动修改
-      -- README 中 "Upgrading from 1.5.4" 一节给出了确切的行。
+      其他没有任何改动，也不需要改设置，更新镜像就够了，从应用商店更新同样适用。
