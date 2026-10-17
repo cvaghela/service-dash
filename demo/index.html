@@ -1637,6 +1637,46 @@ html {
     overscroll-behavior: contain;
     padding: 0 0 6px;
 }
+/* The category picker is a radio list with one extra column: a remove button
+   on categories the user made, which built-in ones do not get. */
+.cardSettingField .storage-source-option.has-remove {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+}
+.categoryRemove {
+    display: grid;
+    place-items: center;
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    border: 1px solid transparent;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--muted-2);
+    font: inherit;
+    line-height: 1;
+    cursor: pointer;
+    touch-action: manipulation;
+}
+.categoryRemove:hover,
+.categoryRemove:focus-visible {
+    border-color: var(--stroke);
+    color: var(--text);
+}
+.categoryAdd {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    padding: 4px 0 8px;
+}
+.field .categoryAdd input {
+    flex: 1;
+    min-width: 0;
+    padding: 7px 11px;
+    font-size: 12.5px;
+}
+.categoryAdd .pill {
+    flex: none;
+}
 .cardSettingField .storage-source-option.is-disabled {
     opacity: 0.5;
     cursor: default;
@@ -2491,6 +2531,125 @@ html {
     color: var(--text);
     font-variant-numeric: tabular-nums;
 }
+
+/* ---- Container traffic, drawn across the card ----
+   Its own colour tokens rather than --green/--red directly: the accent presets
+   do not touch these, so the wave reads the same under every one, and light
+   mode gets deeper shades -- the neon pair that glows on a dark ground washes
+   out to nothing on a pale one. Download is green and upload red, matching the
+   sidebar's network legend. */
+:root {
+    --nw-rx: var(--green);
+    --nw-tx: var(--red);
+    --nw-fill: 0.42;
+    --nw-fill-faint: 0.05;
+    --nw-line: 0.95;
+}
+[data-theme="light"] {
+    /* Measured against the light card ground: 22 163 74 reached 3.2:1, at the
+       floor for graphics. These are 5.0:1 and 4.7:1. */
+    --nw-rx: 21 128 61;
+    --nw-tx: 220 38 38;
+    --nw-fill: 0.38;
+    --nw-fill-faint: 0.04;
+    --nw-line: 0.85;
+}
+.netWave {
+    position: absolute;
+    left: 0;
+    top: 0;
+    /* A positioned SVG sizes itself to its intrinsic 300x150 unless told. */
+    width: 100%;
+    height: 100%;
+    z-index: 0;
+    pointer-events: none;
+    /* Fades out toward the top, where the name and icon sit. The empty middle
+       and bottom of the card are where it is meant to be seen. */
+    -webkit-mask-image: linear-gradient(to bottom, rgb(0 0 0 / 0.25), #000 42%);
+    mask-image: linear-gradient(to bottom, rgb(0 0 0 / 0.25), #000 42%);
+}
+.card:not([data-netwave]) > .netWave {
+    display: none;
+}
+/* Lifts the content above the wave. z-index alone, with no position: these are
+   flex items, which take a z-index without being positioned. Making them
+   position: relative turned the top row into the status dot's containing
+   block, so on every wave card the dot sat lower and further in than on the
+   cards beside it. */
+.card[data-netwave] > :not(.netWave) {
+    z-index: 1;
+}
+.netWaveStopRx {
+    stop-color: rgb(var(--nw-rx));
+    stop-opacity: var(--nw-fill);
+}
+.netWaveStopTx {
+    stop-color: rgb(var(--nw-tx));
+    stop-opacity: var(--nw-fill);
+}
+.netWaveStopRx.is-faint,
+.netWaveStopTx.is-faint {
+    stop-opacity: var(--nw-fill-faint);
+}
+.netWaveLine {
+    fill: none;
+    stroke-width: 1.6px;
+    stroke-linejoin: round;
+    vector-effect: non-scaling-stroke;
+}
+.netWaveLine.rx {
+    stroke: rgb(var(--nw-rx) / var(--nw-line));
+}
+.netWaveLine.tx {
+    stroke: rgb(var(--nw-tx) / var(--nw-line));
+}
+.netWaveMid {
+    stroke: var(--stroke-2);
+    stroke-width: 1px;
+    vector-effect: non-scaling-stroke;
+}
+.card[data-netwave] .cardBottom {
+    /* When the figures do not fit beside CPU and RAM they drop to a line of
+       their own, rather than squeezing the two pills into a column. */
+    flex-wrap: wrap;
+    row-gap: 6px;
+}
+.card[data-netwave] .containerStats {
+    flex: 0 0 auto;
+    max-width: 100%;
+}
+.netFigures {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 1px;
+    margin-left: auto;
+    flex: none;
+    font-size: 11.5px;
+    line-height: 1.25;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    color: var(--text);
+    /* A halo in the ground colour, so the figures stay legible wherever the
+       wave happens to be passing behind them. */
+    text-shadow:
+        0 0 2px var(--bg-0),
+        0 0 8px var(--bg-0);
+}
+.netFigures[hidden] {
+    display: none;
+}
+.netFigures i {
+    margin-right: 3px;
+    font-style: normal;
+    font-weight: 700;
+}
+.netFigures .rx {
+    color: rgb(var(--nw-rx));
+}
+.netFigures .tx {
+    color: rgb(var(--nw-tx));
+}
 .cardSettingField {
     margin-top: 12px;
 }
@@ -2622,7 +2781,10 @@ textarea,
     input,
     textarea,
     select,
-    .search input {
+    .search input,
+    .field .categoryAdd input,
+    .aiRenew input,
+    .aiRenew select {
         font-size: 16px;
     }
 }
@@ -2801,6 +2963,23 @@ html {
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.04em;
+}
+
+/* Renewal date, entered in settings. Quiet until it is close: inside the
+   last few days it takes the warning colour, because that is the window in
+   which cancelling or changing plan still saves the charge. */
+.ai-renew {
+    margin: -4px 0 0;
+    font-size: 11.5px;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+}
+.ai-renew[data-soon="true"] {
+    color: var(--sev-warn-text);
+    font-weight: 600;
+}
+.ai-renew[hidden] {
+    display: none;
 }
 
 /* ---- the dials ---- */
@@ -3722,7 +3901,9 @@ html {
     color: rgb(var(--green));
 }
 .net-spark-tip .t-row .tx {
-    color: rgb(var(--blue));
+    /* Red, like the legend beside it and the upload half of every card's
+       traffic wave. It was blue here alone. */
+    color: rgb(var(--red));
 }
 
 /* Sparkline legend */
@@ -4565,6 +4746,58 @@ body.mobile-topbar-open .mobile-menu-icon span:nth-child(3) {
     display: none;
 }
 
+/* The renewal date sits on its own line across both columns, under whatever
+   the connection state is showing. It is there for every provider with a
+   reporter, connected or not: the date is a fact about the plan, not the
+   login, and it should not vanish while you sign back in. */
+.aiRenew {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 8px;
+    min-width: 0;
+}
+.aiRenew select[hidden] {
+    display: none;
+}
+.aiRenew input,
+.aiRenew select {
+    min-width: 0;
+    padding: 5px 9px;
+    border-radius: 10px;
+    border: 1px solid var(--stroke);
+    background: rgb(0, 0, 0, 0.25);
+    color: var(--text);
+    font-family: var(--font-body);
+    font-size: 12.5px;
+    outline: none;
+    /* The native date and select popups follow this, so they match the theme. */
+    color-scheme: dark;
+}
+.aiRenew input:focus,
+.aiRenew select:focus {
+    border-color: rgb(var(--accent-2) / 0.55);
+    box-shadow: 0 0 0 3px rgb(var(--accent-2) / 0.16);
+}
+[data-theme="light"] .aiRenew input,
+[data-theme="light"] .aiRenew select {
+    background: rgb(255, 255, 255, 0.7);
+    color-scheme: light;
+}
+.aiRenewClear {
+    padding: 4px 12px;
+    font-size: 12px;
+}
+.aiRenewClear[hidden] {
+    display: none;
+}
+.aiRenewHint {
+    flex-basis: 100%;
+    white-space: normal;
+    line-height: 1.45;
+}
+
 /* =========================
    EMPTY STATE
    =========================
@@ -5260,6 +5493,28 @@ body.mobile-topbar-open .mobile-menu-icon span:nth-child(3) {
                 </div>
                 <div class="iconStatus" id="iconStatus" data-state="idle"></div>
                 <div class="field cardSettingField">
+                    <span class="fieldLabel" id="categoryPickerLabel">Category</span>
+                    <details class="storage-source-picker" id="categoryPicker">
+                        <summary aria-labelledby="categoryPickerLabel">
+                            <span>Filed under</span><b id="categorySummary">Auto</b>
+                        </summary>
+                        <div class="storage-source-options" id="categoryOptions" role="radiogroup"></div>
+                        <div class="categoryAdd">
+                            <input
+                                id="categoryNewInput"
+                                type="text"
+                                maxlength="24"
+                                autocomplete="off"
+                                spellcheck="false"
+                                placeholder="New category name"
+                                aria-label="New category name"
+                            />
+                            <button class="pill" id="btnCategoryAdd" type="button">Add</button>
+                        </div>
+                    </details>
+                    <div class="subtle">Which filter chip this card sits under. Automatic files it by the card name.</div>
+                </div>
+                <div class="field cardSettingField">
                     <span class="fieldLabel" id="containerPickerLabel">Docker containers</span>
                     <details class="storage-source-picker" id="containerPicker">
                         <summary aria-labelledby="containerPickerLabel">
@@ -5482,6 +5737,17 @@ body.mobile-topbar-open .mobile-menu-icon span:nth-child(3) {
             var c = "cgroup_" + s.slug.replace(/-/g, "_");
             charts[c + ".cpu"] = { id: c + ".cpu", name: c + ".cpu", family: "cpu" };
             charts[c + ".mem_usage"] = { id: c + ".mem_usage", name: c + ".mem_usage", family: "mem" };
+            // Traffic, plus one of its look-alike siblings: the real Netdata
+            // publishes nine cgroup_NAME.net_* charts per interface and only
+            // this context is traffic, so the demo keeps the matcher honest.
+            charts[c + ".net_eth0"] = {
+                id: c + ".net_eth0", name: c + ".net_eth0", family: "net",
+                context: "cgroup.net_net", units: "kilobits/s"
+            };
+            charts[c + ".net_packets_eth0"] = {
+                id: c + ".net_packets_eth0", name: c + ".net_packets_eth0", family: "net",
+                context: "cgroup.net_packets", units: "packets/s"
+            };
         });
         return { charts: charts, hostname: "zima-board", cpus: 12 };
     }
@@ -5491,8 +5757,38 @@ body.mobile-topbar-open .mobile-menu-icon span:nth-child(3) {
         return lo + ((hi - lo) * (0.5 + 0.5 * Math.sin(t / period)));
     }
 
-    function ndData(chart) {
+    // Container traffic, as Netdata answers a history query: newest row first,
+    // "sent" as a positive number because the dashboard asks with options=abs.
+    // A function of time rather than random, so successive polls agree about
+    // the past and the wave scrolls instead of reshuffling.
+    function ndContainerNet(chart, points, after) {
+        var seed = 0;
+        for (var i = 0; i < chart.length; i++) seed = (seed * 31 + chart.charCodeAt(i)) >>> 0;
+        var base = 40 * Math.pow(10, (seed % 1000) / 1000 * 3); // 40 Kb/s .. 40 Mb/s
+        var upRatio = 0.08 + ((seed >>> 10) % 100) / 100 * 0.5;
+        var now = Math.floor(Date.now() / 5000) * 5;
+        var step = Math.max(1, Math.round(-after / points));
+        var rows = [];
+        for (var k = 0; k < points; k++) {
+            var t = now - k * step;
+            var a = Math.sin(t / 37 + seed) * 0.5 + 0.5;
+            var b = Math.pow(Math.sin(t / 83 + seed * 0.7) * 0.5 + 0.5, 6); // occasional bursts
+            // Short-period ripple: real five-second averages are never smooth.
+            var c = Math.sin(t / 9 + seed * 1.3) * 0.5 + Math.sin(t / 5.3 + seed) * 0.35;
+            var rx = base * Math.max(0.05, 0.35 + 0.45 * a + 2.2 * b + 0.22 * c);
+            var tx = rx * upRatio * (0.7 + 0.6 * (Math.sin(t / 23 + seed) * 0.5 + 0.5));
+            rows.push([t, rx, tx]);
+        }
+        return { labels: ["time", "received", "sent"], data: rows };
+    }
+
+    function ndData(chart, query) {
         var now = Math.floor(Date.now() / 1000);
+        if (/^cgroup_.+\.net_eth0$/.test(chart)) {
+            var pts = /[?&]points=(\d+)/.exec(query || "");
+            var aft = /[?&]after=(-?\d+)/.exec(query || "");
+            return ndContainerNet(chart, pts ? Number(pts[1]) : 1, aft ? Number(aft[1]) : -10);
+        }
         function frame(labels, values) {
             return { labels: ["time"].concat(labels), data: [[now].concat(values)] };
         }
@@ -5550,7 +5846,7 @@ body.mobile-topbar-open .mobile-menu-icon span:nth-child(3) {
         if (path.indexOf("/netdata/api/v1/charts") === 0) return json(ndCharts());
         if (path.indexOf("/netdata/api/v1/data") === 0) {
             var m = /[?&]chart=([^&]+)/.exec(path);
-            return json(ndData(m ? decodeURIComponent(m[1]) : ""));
+            return json(ndData(m ? decodeURIComponent(m[1]) : "", path));
         }
 
         // One route per reporter, matching the real deployment: each sidecar
@@ -5828,6 +6124,15 @@ let ND_SELECTED_DISKS = [];
 // host metrics — a mapped card costs two extra queries per tick.
 let ND_CONTAINERS = [];
 const CONTAINER_POLL_MS = 10000;
+// Each container's traffic charts (cgroup_NAME.net_eth0, one per interface it
+// has). A container on the host's own network has none -- its traffic is the
+// host's -- so it simply gets no wave rather than a flat line claiming zero.
+let ND_CONTAINER_NET = new Map();
+// The wave's window: 5 minutes as 60 five-second averages. Asked for whole on
+// every poll rather than appended to, so a missed poll or a tab that slept
+// leaves no gap and nothing to reconcile.
+const NET_WAVE_SECONDS = 300;
+const NET_WAVE_POINTS = 60;
 const CONTAINER_STORAGE_KEY = "serviceContainers";
 let SERVICE_CONTAINERS = loadServiceContainers();
 
@@ -5848,39 +6153,164 @@ const ACCENTS = [
     "plum",
 ];
 
-// Category detection keywords
+// <category-detection>
+// How a card gets its category. Three layers, most specific first:
+//
+//   1. The user's own pick for that card (SERVICE_CATEGORIES, shared settings).
+//   2. APP_CATEGORIES: a known app, matched by its normalised name.
+//   3. KEYWORDS: generic words in the name ("wiki", "backup", "proxy").
+//
+// It used to be layer 3 alone -- nine regexes, first match wins -- and on a real
+// install of 22 services it put 12 in Other. Eight of those twelve were well
+// known apps (Prowlarr, qBittorrent, SABnzbd, Homebridge, Mealie...) that the
+// regexes simply did not list. The other four were names no algorithm can read
+// ("Tony", "Brainiac"), which is what layer 1 is for.
+//
+// The icon catalogue looked like a ready-made source for layer 2 and is not:
+// its Category field only says whether an app is self-hostable, and its tags
+// are blank for exactly the apps that were missing. So the table is ours.
+
+// Keys are normalised the way the matcher normalises names: lowercase, letters
+// and digits only, so "home-assistant", "Home Assistant" and "HomeAssistant"
+// are one key. This deliberately does NOT call normalizeForMatch(): that is a
+// const declared thousands of lines further down, and this table is built while
+// the script is still loading, before that line has run. Touching it here
+// throws. Same rule, written out.
+const appCategoryKey = (value) =>
+    String(value ?? "")
+        .toLowerCase()
+        .replace(/[^a-z0-9]/g, "");
+
+// Grouped by category so a reader can see what each one means. An app belongs
+// to exactly one; check-categories enforces that, because a second entry for
+// the same app would silently win and nobody would notice which.
+const APP_CATEGORY_GROUPS = {
+    // Players, libraries, and what people use to ask for something to watch.
+    // Requests used to be its own chip; it held one or two cards and split
+    // Overseerr from its own twin Jellyseerr, so it folded in here.
+    media: [
+        "plex", "jellyfin", "emby", "tautulli", "jellystat", "overseerr", "jellyseerr",
+        "ombi", "petio", "audiobookshelf", "navidrome", "airsonic", "airsonic-advanced",
+        "funkwhale", "koel", "ampache", "gonic", "polaris", "mstream", "lyrion",
+        "kavita", "komga", "calibre", "calibre-web", "booklore", "immich", "photoprism",
+        "lychee", "piwigo", "ente", "stash", "tdarr", "unmanic", "handbrake", "makemkv",
+        "tube-archivist", "tubearchivist", "invidious", "piped", "peertube", "owncast",
+        "channels-dvr", "tvheadend", "threadfin", "xteve", "ersatztv", "dispatcharr",
+        "mopidy", "snapcast", "music-assistant", "kodi",
+    ],
+    // The *arr stack and the clients it drives. Separate from Media because it is
+    // a separate job: fetching, not watching.
+    downloads: [
+        "sonarr", "radarr", "lidarr", "readarr", "bazarr", "prowlarr", "whisparr",
+        "jackett", "mylar3", "lazylibrarian", "autobrr", "flaresolverr", "recyclarr",
+        "notifiarr", "unpackerr", "huntarr", "cleanuparr", "decluttarr", "profilarr",
+        "maintainerr", "doplarr", "cross-seed", "qbit-manage", "qbittorrent",
+        "transmission", "deluge", "rtorrent", "rutorrent", "flood", "sabnzbd",
+        "nzbget", "nzbhydra2", "slskd", "aria2", "ariang", "jdownloader", "pyload",
+        "metube", "pinchflat", "ytdl-sub",
+    ],
+    // Watching the lab itself, including dashboards -- which is what this is.
+    monitoring: [
+        "uptime-kuma", "grafana", "prometheus", "loki", "alertmanager", "netdata",
+        "glances", "zabbix", "nagios", "checkmk", "librenms", "observium", "influxdb",
+        "telegraf", "victoriametrics", "graylog", "beszel", "dozzle", "scrutiny",
+        "smokeping", "gatus", "healthchecks", "statping", "upptime", "changedetection",
+        "speedtest-tracker", "myspeed", "librespeed", "openspeedtest", "umami",
+        "plausible", "matomo", "goaccess", "cadvisor", "uptimerobot", "service-dash",
+        "homepage", "homarr", "heimdall", "dashy", "organizr", "flame", "glance", "homer",
+    ],
+    storage: [
+        "nextcloud", "owncloud", "ocis", "opencloud", "seafile", "filebrowser",
+        "filerun", "pydio", "sftpgo", "copyparty", "cloudreve", "alist", "openlist",
+        "minio", "garage", "truenas", "unraid", "openmediavault", "synology", "qnap",
+        "zimaos", "casaos", "umbrel", "pingvin-share", "psitransfer", "gokapi",
+        "zipline", "picoshare", "samba",
+    ],
+    automation: [
+        "home-assistant", "homebridge", "node-red", "n8n", "huginn", "zigbee2mqtt",
+        "zwave-js-ui", "mosquitto", "esphome", "openhab", "domoticz", "scrypted",
+        "activepieces", "windmill", "kestra", "automatisch", "cronicle", "ofelia",
+    ],
+    // The household: food, money, the house, the cameras on it.
+    home: [
+        "mealie", "tandoor", "kitchenowl", "recipesage", "bar-assistant", "grocy",
+        "homebox", "firefly-iii", "actual", "actual-budget", "ghostfolio", "wallos",
+        "budgetbee", "lubelogger", "hortusfox", "donetick", "baby-buddy", "monica",
+        "spoolman", "frigate", "shinobi", "zoneminder", "motioneye", "agentdvr",
+    ],
+    // Knowing things: wikis, notes, documents, saved pages, feeds, task boards.
+    docs: [
+        "bookstack", "wikijs", "wiki-js", "dokuwiki", "mediawiki", "outline", "docmost",
+        "trilium", "triliumnext", "joplin", "memos", "hedgedoc", "etherpad", "affine",
+        "appflowy", "siyuan", "silverbullet", "flatnotes", "blinko", "paperless",
+        "paperless-ngx", "papra", "docspell", "mayan-edms", "archivebox", "linkwarden",
+        "linkding", "shiori", "wallabag", "readeck", "karakeep", "hoarder", "freshrss",
+        "miniflux", "tt-rss", "vikunja", "planka", "wekan", "focalboard", "kanboard",
+        "leantime", "onlyoffice", "collabora", "cryptpad", "docusaurus", "mkdocs",
+    ],
+    tools: [
+        "it-tools", "stirling-pdf", "bentopdf", "convertx", "vert", "mini-qr",
+        "cyberchef", "omni-tools", "drawio", "excalidraw", "privatebin", "hastebin",
+        "shlink", "yourls", "kutt", "linkstack", "searxng", "whoogle", "libretranslate",
+        "ntfy", "gotify", "apprise", "jsoncrack", "squoosh", "reactive-resume",
+        "snipe-it", "open-webui", "ollama", "librechat", "anythingllm", "localai",
+        "comfyui", "flowise", "dify",
+    ],
+    network: [
+        "nginx-proxy-manager", "traefik", "caddy", "haproxy", "swag", "zoraxy",
+        "pangolin", "pihole", "pi-hole", "adguard", "adguard-home", "unbound",
+        "technitium", "blocky", "wireguard", "wg-easy", "tailscale", "headscale",
+        "headplane", "netbird", "zerotier", "cloudflared", "gluetun", "unifi", "omada",
+        "opnsense", "pfsense", "openwrt", "ddns-updater", "ddclient", "duckdns",
+        "netbox", "ntopng", "frp", "rathole",
+    ],
+    security: [
+        "vaultwarden", "bitwarden", "passbolt", "keeweb", "authelia", "authentik",
+        "keycloak", "lldap", "pocket-id", "tinyauth", "zitadel", "crowdsec", "fail2ban",
+        "wazuh", "step-ca", "infisical", "2fauth", "password-pusher",
+    ],
+    // Building and running things: code, containers, databases, the hypervisor.
+    dev: [
+        "gitea", "forgejo", "gitlab", "gogs", "onedev", "portainer", "dockge", "komodo",
+        "yacht", "code-server", "openvscode", "jenkins", "drone", "woodpecker",
+        "harbor", "sonarqube", "verdaccio", "coolify", "dokploy", "caprover",
+        "rancher", "semaphore", "watchtower", "diun", "whats-up-docker", "adminer",
+        "pgadmin", "phpmyadmin", "cloudbeaver", "dbgate", "mongo-express",
+        "redis-insight", "nocodb", "baserow", "directus", "strapi", "supabase",
+        "pocketbase", "appwrite", "jupyter", "proxmox", "proxmox-ve",
+    ],
+    backup: [
+        "borg", "borgmatic", "restic", "backrest", "kopia", "duplicati", "duplicacy",
+        "urbackup", "syncthing", "resilio", "proxmox-backup-server", "zerobyte",
+    ],
+};
+
+const APP_CATEGORIES = new Map();
+for (const [category, apps] of Object.entries(APP_CATEGORY_GROUPS)) {
+    for (const app of apps) APP_CATEGORIES.set(appCategoryKey(app), category);
+}
+
+// Layer 3: generic words, for names that are not an app at all ("Office NAS",
+// "Team Wiki"). Every pattern is anchored on word boundaries. The old ones were
+// not, so "nas" matched inside any longer word and "s3" inside any name that
+// happened to contain those two characters. App names do NOT belong here --
+// they go in APP_CATEGORY_GROUPS, where one entry is one app and a collision is
+// a test failure rather than a quiet first-match-wins.
 const KEYWORDS = [
-    {
-        regex: /plex|jellyfin|emby|sonarr|radarr|overseerr|bazarr|lidarr/i,
-        category: "media",
-    },
-    {
-        regex: /kuma|grafana|tautulli|prometheus|uptime|monitor|loki|alertmanager/i,
-        category: "monitoring",
-    },
-    {
-        regex: /nas|zima|casa|storage|nextcloud|synology|truenas|minio|s3/i,
-        category: "storage",
-    },
-    {
-        regex: /home assistant|automation|mqtt|zigbee|zwave|nodered|node-red/i,
-        category: "automation",
-    },
-    {
-        regex: /wiki|docs|bookstack|docusaurus|mkdocs|outline/i,
-        category: "docs",
-    },
-    { regex: /pdf|tools|util|toolbox|it-tools/i, category: "tools" },
-    {
-        regex: /request|ombi|jellyseerr|overseerr/i,
-        category: "requests",
-    },
-    {
-        regex: /stream|rtmp|restream|nginx|proxy|traefik|caddy/i,
-        category: "network",
-    },
-    { regex: /backup|borg|restic|syncthing/i, category: "backup" },
+    { regex: /\b(?:wiki|docs?|notes?|knowledge ?base|kb)\b/i, category: "docs" },
+    { regex: /\b(?:backups?)\b/i, category: "backup" },
+    { regex: /\b(?:downloads?|downloader|torrents?|usenet|indexers?)\b/i, category: "downloads" },
+    { regex: /\b(?:media|movies|films?|tv|music|photos?|books?|audiobooks?|podcasts?|streaming)\b/i, category: "media" },
+    { regex: /\b(?:monitor(?:ing)?|status|metrics|uptime|logs?|dashboard)\b/i, category: "monitoring" },
+    { regex: /\b(?:nas|storage|files?|drive|cloud|s3|share)\b/i, category: "storage" },
+    { regex: /\b(?:automations?|mqtt|zigbee|z-?wave|smart ?home)\b/i, category: "automation" },
+    { regex: /\b(?:recipes?|kitchen|budget|finance|inventory|cameras?|nvr|cctv)\b/i, category: "home" },
+    { regex: /\b(?:proxy|dns|vpn|router|firewall|gateway|tunnel)\b/i, category: "network" },
+    { regex: /\b(?:passwords?|auth|sso|identity|vault)\b/i, category: "security" },
+    { regex: /\b(?:git|ci|registry|database|db|docker|containers?|hypervisor|dev)\b/i, category: "dev" },
+    { regex: /\b(?:tools?|utils?|utilities|pdf|converter|toolbox)\b/i, category: "tools" },
 ];
+// </category-detection>
 
 // Real app icons from https://github.com/selfhst/icons, matched by service name.
 // Anything unmatched (or any host without internet) falls back to the bundled mark.
@@ -5942,18 +6372,46 @@ const SERVICE_ICONS = [
     { regex: /heimdall/i, slug: "heimdall", label: "Heimdall" },
 ];
 
+// The chips. Requests used to be one; it is folded into Media -- see the note on
+// APP_CATEGORY_GROUPS. A key removed from here is a key some browser may still
+// have saved as its active filter, which is why restorePrefs() validates it.
 const CATEGORY_META = {
     media: { icon: "🎬", label: "Media" },
+    downloads: { icon: "📥", label: "Downloads" },
     monitoring: { icon: "📡", label: "Monitoring" },
     storage: { icon: "🗄️", label: "Storage" },
     automation: { icon: "🤖", label: "Automation" },
+    home: { icon: "🏠", label: "Home" },
     docs: { icon: "📚", label: "Docs" },
     tools: { icon: "🧰", label: "Tools" },
-    requests: { icon: "📬", label: "Requests" },
     network: { icon: "🧭", label: "Network" },
+    security: { icon: "🔐", label: "Security" },
+    dev: { icon: "💻", label: "Dev" },
     backup: { icon: "🛟", label: "Backup" },
     other: { icon: "✨", label: "Other" },
 };
+
+// A card's category as the user chose it, shared like the icon and container
+// picks. Keyed by baseServiceKey -- the same identity the container mapping
+// uses -- so a Local/External pair is one card with one category.
+const CATEGORY_STORAGE_KEY = "serviceCategories";
+let SERVICE_CATEGORIES = loadServiceCategories();
+
+// Categories the user made up, shared like everything else they customise.
+// Stored as { key: label } and registered straight into CATEGORY_META, so every
+// check that asks "is this a real category" -- the saved filter, a card's pick
+// -- accepts them without knowing they are custom.
+//
+// Keys carry a "custom:" prefix no built-in key has, so a user's "Media" can
+// never shadow the real one, and an older dashboard sharing the document sees
+// an unknown category and falls back to the automatic match rather than
+// filing the card under a chip it cannot label.
+const CUSTOM_CATEGORY_STORAGE_KEY = "customCategories";
+const CUSTOM_CATEGORY_PREFIX = "custom:";
+const CUSTOM_CATEGORY_ICON = "🏷️";
+const CUSTOM_CATEGORY_MAX_LENGTH = 24;
+let CUSTOM_CATEGORIES = loadCustomCategories();
+registerCustomCategories();
 
 const STATUS_MAP = {
     0: "offline",
@@ -6038,6 +6496,11 @@ const els = {
     overlay: document.getElementById("overlay"),
     sideStack: document.querySelector(".side-stack"),
     iconOverlay: document.getElementById("iconOverlay"),
+    categoryPicker: document.getElementById("categoryPicker"),
+    categorySummary: document.getElementById("categorySummary"),
+    categoryOptions: document.getElementById("categoryOptions"),
+    categoryNewInput: document.getElementById("categoryNewInput"),
+    btnCategoryAdd: document.getElementById("btnCategoryAdd"),
     iconServiceName: document.getElementById("iconServiceName"),
     iconUrlInput: document.getElementById("iconUrlInput"),
     iconPreviewImg: document.getElementById("iconPreviewImg"),
@@ -6788,6 +7251,8 @@ async function initNetdataCharts() {
         .filter((name) => charts[`cgroup_${name}.mem_usage`])
         .sort((a, b) => a.localeCompare(b));
 
+    ND_CONTAINER_NET = containerNetCharts(charts, ND_CONTAINERS);
+
     // ---- Network ----
     const netIds = Object.keys(charts)
         .filter((id) => id.startsWith("net."))
@@ -6915,6 +7380,69 @@ async function fetchNetdataChartOnce(chartId) {
     return await fetchJsonNetdata(netdataUrl(`/api/v1/data?${q.toString()}`));
 }
 
+// Traffic is the one cgroup.net_net chart per interface. The id alone is not
+// enough to tell it apart: net_packets_eth0, net_drops_eth0 and seven others
+// share the cgroup_NAME.net_ prefix. The context says which is which; the units
+// are the fallback for a Netdata that does not report one.
+function containerNetCharts(charts, containers) {
+    const found = new Map();
+    for (const name of containers) {
+        const prefix = `cgroup_${name}.net_`;
+        const ids = Object.keys(charts).filter((id) => {
+            if (!id.startsWith(prefix)) return false;
+            const chart = charts[id] || {};
+            if (chart.context) return chart.context === "cgroup.net_net";
+            return /^kilobits\/s$/i.test(String(chart.units || ""));
+        });
+        if (ids.length) found.set(name, ids.sort());
+    }
+    return found;
+}
+
+// The last NET_WAVE_SECONDS of one chart as NET_WAVE_POINTS averages. "abs"
+// because Netdata stores sent traffic as negative numbers.
+async function fetchNetdataHistory(chartId) {
+    const q = new URLSearchParams({
+        chart: chartId,
+        after: String(-NET_WAVE_SECONDS),
+        points: String(NET_WAVE_POINTS),
+        format: "json",
+        options: "abs",
+    });
+    return await fetchJsonNetdata(netdataUrl(`/api/v1/data?${q.toString()}`));
+}
+
+// Adds several traffic charts together point by point, keyed on timestamp so
+// two interfaces or two containers line up even if one is missing a row.
+// Netdata returns rows newest first; the wave wants oldest first.
+function combineNetHistory(results) {
+    const byTime = new Map();
+    for (const nd of results) {
+        const labels = nd?.labels || nd?.result?.labels;
+        const data = nd?.data || nd?.result?.data;
+        if (!Array.isArray(labels) || !Array.isArray(data)) continue;
+        const rxIdx = labels.indexOf("received");
+        const txIdx = labels.indexOf("sent");
+        if (rxIdx < 0 && txIdx < 0) continue;
+        for (const row of data) {
+            if (!Array.isArray(row)) continue;
+            const t = Number(row[0]);
+            if (!Number.isFinite(t)) continue;
+            const slot = byTime.get(t) || { rx: 0, tx: 0 };
+            const rx = Number(row[rxIdx]);
+            const tx = Number(row[txIdx]);
+            if (Number.isFinite(rx)) slot.rx += Math.abs(rx);
+            if (Number.isFinite(tx)) slot.tx += Math.abs(tx);
+            byTime.set(t, slot);
+        }
+    }
+    if (!byTime.size) return null;
+    const times = [...byTime.keys()].sort((a, b) => a - b).slice(-NET_WAVE_POINTS);
+    const rx = times.map((t) => byTime.get(t).rx);
+    const tx = times.map((t) => byTime.get(t).tx);
+    return { rx, tx, rxNow: rx[rx.length - 1], txNow: tx[tx.length - 1] };
+}
+
 async function fetchSelectedDiskBundle() {
     const selected = ND_SELECTED_DISKS.length
         ? ND_SELECTED_DISKS
@@ -6987,6 +7515,9 @@ function cacheCardRefs(id, card) {
         containerStats: card.querySelector('[data-role="containerStats"]'),
         containerCpu: card.querySelector('[data-role="containerCpu"]'),
         containerRam: card.querySelector('[data-role="containerRam"]'),
+        netFigures: card.querySelector('[data-role="netFigures"]'),
+        netRx: card.querySelector('[data-role="netRx"]'),
+        netTx: card.querySelector('[data-role="netTx"]'),
     });
 }
 
@@ -7665,6 +8196,18 @@ async function tickContainerStats() {
                     })
                 );
 
+                // Traffic for every interface of every mapped container, summed.
+                // A failed history fetch leaves the wave as it was rather than
+                // drawing a false drop to zero.
+                const netCharts = containers.flatMap((container) => ND_CONTAINER_NET.get(container) || []);
+                const netResults = await Promise.allSettled(netCharts.map((id) => fetchNetdataHistory(id)));
+                const netOk = netResults.filter((r) => r.status === "fulfilled").map((r) => r.value);
+                const net = netCharts.length
+                    ? netOk.length === netCharts.length
+                        ? combineNetHistory(netOk)
+                        : undefined
+                    : null;
+
                 // Containers that answered are summed; ones that did not are
                 // reported instead of being silently counted as zero.
                 const live = samples.filter((sample) => sample.cpuPct != null || sample.ramMib != null);
@@ -7678,6 +8221,9 @@ async function tickContainerStats() {
                     liveCount: live.length,
                     cpuPct: total("cpuPct"),
                     ramMib: total("ramMib"),
+                    // null: no traffic charts at all. undefined: a fetch failed,
+                    // keep what is drawn.
+                    net,
                 });
             })
         );
@@ -7696,8 +8242,10 @@ function applyContainerStats(service, stats) {
 
     if (stats.cpuPct == null && stats.ramMib == null) {
         if (!row.hidden) row.hidden = true;
+        applyNetWave(refs, null);
         return;
     }
+    if (stats.net !== undefined) applyNetWave(refs, stats.net);
 
     // These land every ten seconds on every card that maps to a container.
     // Rewriting an unchanged figure costs a style recalculation on a card that
@@ -7720,6 +8268,198 @@ function applyContainerStats(service, stats) {
             : `Docker container: ${containers[0] ?? "—"}`
     );
     setDataIfChanged(row, "containerCount", String(containers.length));
+}
+
+// The container's traffic, drawn across the whole card behind everything else:
+// download rises above a centre line, upload falls below it, both scaled to
+// the same peak so their sizes compare honestly. Built once per card; after
+// that only the two paths' "d" change, and only when the numbers did.
+const NET_WAVE_MID = 58; // where the centre line sits, in viewBox units (0-100)
+const NET_WAVE_UP = 52; // the most download can rise above it
+const NET_WAVE_DOWN = 38; // the most upload can fall below it
+// The smallest peak the wave scales to. Each card scales to its own busiest
+// moment, so without a floor an idle container's background chatter -- under
+// 1 Kb/s on the smoke host -- would fill the card and read as busy. 100 Kb/s
+// keeps idle near the line while anything doing real work still fills it.
+const NET_WAVE_FLOOR_KBPS = 100;
+
+function netWavePaths(values, max, dir, height) {
+    const n = values.length;
+    if (n < 2) return { line: "", fill: "" };
+    const xy = values.map((v, i) => [
+        +((i / (n - 1)) * 100).toFixed(2),
+        +(NET_WAVE_MID - dir * (Math.min(v, max) / max) * height).toFixed(2),
+    ]);
+    // A quadratic through the midpoints: soft, and unlike a Catmull-Rom it
+    // never overshoots past the centre line on a sudden drop.
+    let line = `M${xy[0][0]},${xy[0][1]}`;
+    for (let i = 1; i < n - 1; i++) {
+        const mx = +((xy[i][0] + xy[i + 1][0]) / 2).toFixed(2);
+        const my = +((xy[i][1] + xy[i + 1][1]) / 2).toFixed(2);
+        line += ` Q${xy[i][0]},${xy[i][1]} ${mx},${my}`;
+    }
+    line += ` L${xy[n - 1][0]},${xy[n - 1][1]}`;
+    return { line, fill: `${line} L100,${NET_WAVE_MID} L0,${NET_WAVE_MID} Z` };
+}
+
+function netWaveScale(net) {
+    return Math.max(NET_WAVE_FLOOR_KBPS, ...net.rx, ...net.tx);
+}
+
+function ensureNetWave(refs) {
+    if (refs.netWave) return refs.netWave;
+    const svgNs = "http://www.w3.org/2000/svg";
+    const svg = document.createElementNS(svgNs, "svg");
+    svg.setAttribute("class", "netWave");
+    svg.setAttribute("viewBox", "0 0 100 100");
+    svg.setAttribute("preserveAspectRatio", "none");
+    svg.setAttribute("aria-hidden", "true");
+    // Gradient ids must be unique on the page; one card's would otherwise
+    // paint every other card's wave.
+    const uid = `nw${++_netWaveSeq}`;
+    svg.innerHTML = `
+        <defs>
+            <linearGradient id="${uid}rx" x1="0" x2="0" y1="0" y2="1">
+                <stop offset="0" class="netWaveStopRx"/>
+                <stop offset="1" class="netWaveStopRx is-faint"/>
+            </linearGradient>
+            <linearGradient id="${uid}tx" x1="0" x2="0" y1="1" y2="0">
+                <stop offset="0" class="netWaveStopTx"/>
+                <stop offset="1" class="netWaveStopTx is-faint"/>
+            </linearGradient>
+            <mask id="${uid}m" maskUnits="userSpaceOnUse" x="0" y="0" width="100" height="100">
+                <rect x="0" y="0" width="100" height="100" fill="#fff"/>
+                <g class="netWaveHoles"></g>
+            </mask>
+        </defs>
+        <g mask="url(#${uid}m)">
+            <path class="netWaveFill rx" fill="url(#${uid}rx)"/>
+            <path class="netWaveFill tx" fill="url(#${uid}tx)"/>
+            <line class="netWaveMid" x1="0" x2="100" y1="${NET_WAVE_MID}" y2="${NET_WAVE_MID}"/>
+            <path class="netWaveLine rx"/>
+            <path class="netWaveLine tx"/>
+        </g>`;
+    refs.card.prepend(svg);
+    refs.netWave = {
+        svg,
+        rxFill: svg.querySelector(".netWaveFill.rx"),
+        txFill: svg.querySelector(".netWaveFill.tx"),
+        rxLine: svg.querySelector(".netWaveLine.rx"),
+        txLine: svg.querySelector(".netWaveLine.tx"),
+        holes: svg.querySelector(".netWaveHoles"),
+        holesKey: "",
+    };
+    // The windows follow the card's layout, so they are redrawn when it
+    // resizes -- a narrower grid wraps the pills and moves every row.
+    if (window.ResizeObserver) {
+        _netWaveResize ??= new ResizeObserver((entries) => {
+            for (const entry of entries) scheduleNetWaveHoles(entry.target);
+        });
+        _netWaveResize.observe(refs.card);
+    }
+    return refs.netWave;
+}
+let _netWaveSeq = 0;
+let _netWaveResize = null;
+
+// What keeps a strong wave from costing readability: behind every element that
+// carries text, the wave is cut back to 30%. A mask rather than a backing
+// colour under the rows, because no single colour is right everywhere -- a
+// ground-coloured backing read as a dark slab on the lighter accents.
+const NET_WAVE_TEXT_SELECTOR = ".svcName, .linkLine, .containerStat, .netFigures";
+const _netWaveHolesPending = new Set();
+
+function scheduleNetWaveHoles(card) {
+    if (!_netWaveHolesPending.size) requestAnimationFrame(flushNetWaveHoles);
+    _netWaveHolesPending.add(card);
+}
+
+function flushNetWaveHoles() {
+    const cards = [..._netWaveHolesPending];
+    _netWaveHolesPending.clear();
+    for (const card of cards) {
+        const wave = card.isConnected ? _cardRefs.get(String(card.dataset.id))?.netWave : null;
+        if (wave) updateNetWaveHoles(card, wave);
+    }
+}
+
+// The union of an element's text runs, not of its boxes: a range over a block
+// still reports the block's full width.
+function textExtent(el) {
+    const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+    const range = document.createRange();
+    let left = Infinity, top = Infinity, right = -Infinity, bottom = -Infinity;
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+        if (!node.textContent.trim()) continue;
+        range.selectNodeContents(node);
+        for (const r of range.getClientRects()) {
+            left = Math.min(left, r.left);
+            top = Math.min(top, r.top);
+            right = Math.max(right, r.right);
+            bottom = Math.max(bottom, r.bottom);
+        }
+    }
+    if (!Number.isFinite(left)) return null;
+    // A little air, so the window does not cut the wave at the glyphs' edges.
+    return { left: left - 6, top: top - 3, width: right - left + 12, height: bottom - top + 6 };
+}
+
+function updateNetWaveHoles(card, wave) {
+    const box = card.getBoundingClientRect();
+    if (!box.width || !box.height) return;
+    const pctX = (v) => +((v / box.width) * 100).toFixed(2);
+    const pctY = (v) => +((v / box.height) * 100).toFixed(2);
+
+    const holes = [];
+    for (const el of card.querySelectorAll(NET_WAVE_TEXT_SELECTOR)) {
+        if (el.closest("[hidden]")) continue;
+        // The name block stretches to the status dot, and a window that wide
+        // shows as a pale rectangle in empty space. Its text is what needs it.
+        let r = el.getBoundingClientRect();
+        if (el.classList.contains("svcName")) r = textExtent(el) || r;
+        if (!r.width || !r.height) continue;
+        // The viewBox is stretched to the card, so a corner radius needs its
+        // own value on each axis to stay round.
+        const radius = parseFloat(getComputedStyle(el).borderTopLeftRadius) || 0;
+        holes.push(
+            `<rect x="${pctX(r.left - box.left)}" y="${pctY(r.top - box.top)}" width="${pctX(r.width)}" height="${pctY(r.height)}" rx="${pctX(radius)}" ry="${pctY(radius)}" fill="#000" fill-opacity="0.7"/>`
+        );
+    }
+    // Compare before writing, like everything else that runs on a poll.
+    const key = holes.join("");
+    if (key === wave.holesKey) return;
+    wave.holesKey = key;
+    wave.holes.innerHTML = key;
+}
+
+function setPathIfChanged(el, d) {
+    if (el.getAttribute("d") !== d) el.setAttribute("d", d);
+}
+
+function applyNetWave(refs, net) {
+    const card = refs.card;
+    if (!net || !net.rx.length) {
+        if (card.hasAttribute("data-netwave")) card.removeAttribute("data-netwave");
+        if (refs.netFigures && !refs.netFigures.hidden) refs.netFigures.hidden = true;
+        return;
+    }
+
+    const wave = ensureNetWave(refs);
+    const max = netWaveScale(net);
+    const down = netWavePaths(net.rx, max, 1, NET_WAVE_UP);
+    const up = netWavePaths(net.tx, max, -1, NET_WAVE_DOWN);
+    setPathIfChanged(wave.rxFill, down.fill);
+    setPathIfChanged(wave.rxLine, down.line);
+    setPathIfChanged(wave.txFill, up.fill);
+    setPathIfChanged(wave.txLine, up.line);
+    if (!card.hasAttribute("data-netwave")) card.setAttribute("data-netwave", "");
+
+    if (refs.netRx) setTextIfChanged(refs.netRx, formatRateKbps(net.rxNow));
+    if (refs.netTx) setTextIfChanged(refs.netTx, formatRateKbps(net.txNow));
+    if (refs.netFigures?.hidden) refs.netFigures.hidden = false;
+    // Figures and pills change width with their numbers, so the windows are
+    // re-measured after each poll; unchanged ones cost a comparison.
+    scheduleNetWaveHoles(card);
 }
 
 const pad2 = (x) => String(x).padStart(2, "0"); // (can keep; used elsewhere or safe to leave)
@@ -7807,7 +8547,13 @@ function loadPrefs() {
             state.linkMode = p.linkMode;
         }
         if (p.statusFilter) state.statusFilter = p.statusFilter;
-        if (p.categoryFilter) state.categoryFilter = p.categoryFilter;
+        // A saved filter for a category that no longer exists -- Requests,
+        // folded into Media -- would restore an empty grid under a chip that is
+        // no longer drawn. Start from All instead.
+        if (p.categoryFilter) {
+            state.categoryFilter =
+                p.categoryFilter === "all" || Object.hasOwn(CATEGORY_META, p.categoryFilter) ? p.categoryFilter : "all";
+        }
         if (typeof p.query === "string") state.query = p.query;
         if (Number.isFinite(Number(p.networkRefreshSeconds))) {
             state.networkRefreshSeconds = clampNetworkRefresh(p.networkRefreshSeconds);
@@ -8228,6 +8974,114 @@ const AI_SETUP_PROVIDERS = [
     },
 ];
 
+/* ---------- renewal dates, entered by hand ---------- */
+
+// Neither provider tells us when the plan renews. The saved logins carry the
+// plan name and nothing about billing, and the usage endpoints report the
+// usage windows only. A date worked out from an undocumented subscription
+// start would also be wrong after a plan change or an annual switch. So the
+// date is yours to set, once, and it rolls forward by itself from then on.
+//
+// Or it expires: a cancelled plan, or a trial, ends on one date and does not
+// come back. That is a different fact, not a cycle of length zero, so it never
+// rolls forward -- once it has passed, the card says it has expired.
+//
+// Shared with the other settings, so every device shows the same date. That
+// document is readable without signing in, like the usage documents are; a
+// renewal day is less revealing than the usage figures already there.
+const AI_RENEWAL_STORAGE_KEY = "aiRenewals";
+const AI_RENEWAL_CYCLES = { month: 1, year: 12 };
+const AI_RENEWAL_KINDS = ["renews", "expires"];
+// Inside this many days the line turns amber: enough notice to cancel or
+// change the plan before you are charged.
+const AI_RENEWAL_SOON_DAYS = 3;
+const AI_RENEWAL_HINTS = {
+    renews: "Any past renewal date works. It moves forward on its own.",
+    expires: "The day the plan ends. It does not repeat.",
+};
+
+let AI_RENEWALS = loadAiRenewals();
+
+function parseRenewalDate(text) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(text || ""));
+    if (!m) return null;
+    const [y, mo, d] = [Number(m[1]), Number(m[2]), Number(m[3])];
+    const date = new Date(y, mo - 1, d);
+    // Date rolls 2026-02-30 over into March without complaint; reject it.
+    if (date.getFullYear() !== y || date.getMonth() !== mo - 1 || date.getDate() !== d) return null;
+    return date;
+}
+
+// Always counted from the date you entered, never from the previous renewal.
+// Stepping month by month from a renewal on the 31st would clamp it to the 28th
+// in February and then stay on the 28th for good.
+function addMonthsClamped(date, months) {
+    const target = new Date(date.getFullYear(), date.getMonth() + months, 1);
+    const lastDay = new Date(target.getFullYear(), target.getMonth() + 1, 0).getDate();
+    target.setDate(Math.min(date.getDate(), lastDay));
+    return target;
+}
+
+// The next renewal on or after today. A date in the past is a renewal that
+// has happened, not one that is overdue: the plan renewed and the next one is
+// a cycle later.
+function nextRenewal(entry, today = new Date()) {
+    const anchor = parseRenewalDate(entry?.date);
+    if (anchor && entry?.kind === "expires") return anchor;
+    const step = AI_RENEWAL_CYCLES[entry?.every];
+    if (!anchor || !step) return null;
+    const midnight = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    // Start near today rather than walking up from a date years back.
+    const behind = (midnight.getFullYear() - anchor.getFullYear()) * 12 + midnight.getMonth() - anchor.getMonth();
+    let k = Math.max(0, Math.floor(behind / step) - 1);
+    let next = addMonthsClamped(anchor, k * step);
+    while (next < midnight) next = addMonthsClamped(anchor, ++k * step);
+    return next;
+}
+
+function renewalSummary(entry, today = new Date()) {
+    const next = nextRenewal(entry, today);
+    if (!next) return null;
+    const midnight = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    // Rounded, because a day across a clock change is 23 or 25 hours long.
+    const days = Math.round((next - midnight) / 86400000);
+    const date = next.toLocaleDateString(undefined, {
+        month: "short",
+        day: "numeric",
+        ...(next.getFullYear() !== today.getFullYear() ? { year: "numeric" } : {}),
+    });
+    // Only an expiry can be in the past; a renewal has already rolled on.
+    if (days < 0) return { text: `Expired ${date}`, days, soon: true };
+    const when = days === 0 ? "today" : days === 1 ? "tomorrow" : `in ${days} days`;
+    const word = entry?.kind === "expires" ? "Expires" : "Renews";
+    return { text: `${word} ${date} · ${when}`, days, soon: days <= AI_RENEWAL_SOON_DAYS };
+}
+
+function loadAiRenewals() {
+    const renewals = new Map();
+    try {
+        const stored = JSON.parse(localStorage.getItem(AI_RENEWAL_STORAGE_KEY) || "{}");
+        if (!stored || typeof stored !== "object") return renewals;
+        for (const [id, entry] of Object.entries(stored)) {
+            // A document from before "expires" existed has no kind: it renews.
+            const kind = AI_RENEWAL_KINDS.includes(entry?.kind) ? entry.kind : "renews";
+            if (parseRenewalDate(entry?.date) && AI_RENEWAL_CYCLES[entry?.every]) {
+                renewals.set(id, { date: entry.date, every: entry.every, kind });
+            }
+        }
+    } catch {
+        return new Map();
+    }
+    return renewals;
+}
+
+function saveAiRenewals() {
+    try {
+        localStorage.setItem(AI_RENEWAL_STORAGE_KEY, JSON.stringify(Object.fromEntries(AI_RENEWALS)));
+        scheduleSharedSettingsSave();
+    } catch {}
+}
+
 function formatCountdown(epochSeconds) {
     // A window nobody has used yet has no reset time at all. Guard null
     // explicitly: Number(null) is 0, which is finite, so it survived the check
@@ -8375,6 +9229,8 @@ function renderAiDetail(providers) {
                     <span class="ai-plan" data-role="plan"></span>
                 </header>
 
+                <p class="ai-renew" data-role="renew" hidden></p>
+
                 <span class="ai-dials-label">Used</span>
                 <div class="ai-dials">
                     ${allMeasures(p)
@@ -8411,6 +9267,14 @@ function renderAiDetail(providers) {
             const hasPlan = Boolean(provider.plan);
             if (hasPlan) setTextIfChanged(plan, provider.plan);
             if (plan.hidden === hasPlan) plan.hidden = !hasPlan;
+        }
+
+        const renew = card.querySelector('[data-role="renew"]');
+        if (renew) {
+            const summary = renewalSummary(AI_RENEWALS.get(provider.id));
+            if (summary) setTextIfChanged(renew, summary.text);
+            setDataIfChanged(renew, "soon", summary?.soon ? "true" : "false");
+            if (renew.hidden === Boolean(summary)) renew.hidden = !summary;
         }
 
         for (const measure of allMeasures(provider)) {
@@ -8580,8 +9444,67 @@ function ensureAiSetupRows() {
                 </a>
                 <button class="pill aiSetupSignOut" type="button" hidden></button>
             </div>
+            ${
+                entry.comingSoon
+                    ? ""
+                    : `
+            <div class="aiRenew">
+                <select data-renew="kind" aria-label="${escapeAttr(entry.label)}: renews or expires">
+                    <option value="renews">Renews</option>
+                    <option value="expires">Expires</option>
+                </select>
+                <input type="date" data-renew="date" aria-label="${escapeAttr(entry.label)} date"
+                    aria-describedby="aiRenewHint-${escapeAttr(entry.id)}" />
+                <select data-renew="every" aria-label="${escapeAttr(entry.label)} billing cycle">
+                    <option value="month">Monthly</option>
+                    <option value="year">Yearly</option>
+                </select>
+                <button class="pill aiRenewClear" type="button" hidden>Clear</button>
+                <div class="subtle aiRenewHint" id="aiRenewHint-${escapeAttr(entry.id)}">
+                    ${AI_RENEWAL_HINTS.renews}
+                </div>
+            </div>`
+            }
         </div>`,
     ).join("");
+
+    // One handler for every control: a date without a cycle, or the reverse,
+    // is not a renewal, so they are always saved together. Picking Renews or
+    // Expires before a date is entered saves nothing yet, and the poll leaves
+    // the choice alone until there is a date to save it with.
+    host.addEventListener("change", (event) => {
+        const box = event.target.closest(".aiRenew");
+        if (!box) return;
+        const id = box.closest(".aiSetup")?.dataset.provider;
+        if (!id) return;
+        const date = box.querySelector('[data-renew="date"]')?.value || "";
+        const every = box.querySelector('[data-renew="every"]')?.value || "month";
+        const picked = box.querySelector('[data-renew="kind"]')?.value;
+        const kind = AI_RENEWAL_KINDS.includes(picked) ? picked : "renews";
+        if (parseRenewalDate(date) && AI_RENEWAL_CYCLES[every]) AI_RENEWALS.set(id, { date, every, kind });
+        else AI_RENEWALS.delete(id);
+        saveAiRenewals();
+        renderAiSettings();
+        renderAiUsage();
+    });
+
+    host.addEventListener("click", (event) => {
+        const clear = event.target.closest(".aiRenewClear");
+        if (!clear) return;
+        const id = clear.closest(".aiSetup")?.dataset.provider;
+        if (!id) return;
+        AI_RENEWALS.delete(id);
+        // The controls only follow a saved entry, so with nothing saved they
+        // have to be put back by hand.
+        const box = clear.closest(".aiRenew");
+        for (const [role, value] of [["date", ""], ["every", "month"], ["kind", "renews"]]) {
+            const el = box?.querySelector(`[data-renew="${role}"]`);
+            if (el) el.value = value;
+        }
+        saveAiRenewals();
+        renderAiSettings();
+        renderAiUsage();
+    });
 
     host.addEventListener("click", (event) => {
         const toggle = event.target.closest(".aiSetupSignOut");
@@ -8655,7 +9578,36 @@ function renderAiSettings() {
         const action = row.querySelector(".aiSetupAction");
         const hideAction = !status.note && !status.command && !status.report && !status.signOut;
         if (action && action.hidden !== hideAction) action.hidden = hideAction;
+
+        renderAiRenewal(row, entry.id);
     }
+}
+
+// Also runs every poll. A field being typed in is left alone, or the poll
+// would put the old date back under the reader's cursor.
+// With nothing saved, the controls are left as the reader set them: a poll
+// must not flip a freshly picked "Expires" back before a date goes with it.
+function renderAiRenewal(row, id) {
+    const box = row.querySelector(".aiRenew");
+    if (!box) return;
+    const saved = AI_RENEWALS.get(id);
+    if (saved) {
+        for (const role of ["date", "every", "kind"]) {
+            const el = box.querySelector(`[data-renew="${role}"]`);
+            if (el && document.activeElement !== el && el.value !== saved[role]) el.value = saved[role];
+        }
+    }
+    const kind = box.querySelector('[data-renew="kind"]')?.value === "expires" ? "expires" : "renews";
+    // An expiry happens once, so a billing cycle means nothing beside it.
+    const every = box.querySelector('[data-renew="every"]');
+    if (every && every.hidden !== (kind === "expires")) every.hidden = kind === "expires";
+    const clear = box.querySelector(".aiRenewClear");
+    if (clear && clear.hidden === Boolean(saved)) clear.hidden = !saved;
+
+    // The hint says when the date falls once there is one; before that, it
+    // answers what people hesitate on -- whether an old date is fine.
+    const summary = renewalSummary(saved);
+    setTextIfChanged(box.querySelector(".aiRenewHint"), summary ? `${summary.text}.` : AI_RENEWAL_HINTS[kind]);
 }
 
 async function refreshOneProvider(entry) {
@@ -8967,12 +9919,169 @@ function escapeAttr(str) {
     return escapeHtml(str).replace(/"/g, "&quot;");
 }
 
-function detectCategory(name) {
-    const n = safeStr(name);
+// Apps whose name is also an ordinary word. Each is accepted as a WHOLE card
+// name -- a card called "Flood" is the torrent client -- but never picked out of
+// a longer one: "Flood Sensor" is not, and neither is "Garage Door".
+const AMBIGUOUS_APP_WORDS = new Set(
+    [
+        "actual", "flood", "flame", "glance", "homer", "homepage", "drone", "vert",
+        "garage", "monica", "stash", "outline", "memos", "affine", "polaris",
+        "komodo", "yacht", "harbor", "samba", "swag", "ente", "piped", "kodi",
+    ].map(appCategoryKey),
+);
+
+// The category a card gets with no override. See <category-detection>.
+function autoCategoryFor(name) {
+    const base = baseServiceKey(name);
+
+    // A known app by its whole name: "Home Assistant", "IT Tools", "Mini QR".
+    const whole = APP_CATEGORIES.get(appCategoryKey(base));
+    if (whole) return whole;
+
+    // ...or by a run of words inside a longer name: "Radarr 4K", "Plex Media
+    // Server", "qBittorrent VPN". Longest run first, so a two-word app is never
+    // beaten by one of its own words.
+    const words = base.split(/[\s._\-/()[\]{}]+/).filter(Boolean);
+    for (let size = Math.min(3, words.length); size >= 1; size--) {
+        for (let start = 0; start + size <= words.length; start++) {
+            const key = appCategoryKey(words.slice(start, start + size).join(""));
+            if (size === 1 && AMBIGUOUS_APP_WORDS.has(key)) continue;
+            const hit = APP_CATEGORIES.get(key);
+            if (hit) return hit;
+        }
+    }
+
+    // The icon matcher knows aliases the table does not -- "hass" is Home
+    // Assistant -- and, once the catalogue has loaded, thousands more names.
+    // Reuse what it resolved rather than teach a second matcher the same thing.
+    const entry = serviceIconEntryFor(name);
+    if (entry) {
+        const viaIcon = APP_CATEGORIES.get(appCategoryKey(entry.slug));
+        if (viaIcon) return viaIcon;
+    }
+
     for (const k of KEYWORDS) {
-        if (k.regex.test(n)) return k.category;
+        if (k.regex.test(base)) return k.category;
     }
     return "other";
+}
+
+function detectCategory(name) {
+    return categoryOverrideFor(name) ?? autoCategoryFor(name);
+}
+
+function loadServiceCategories() {
+    const chosen = new Map();
+    try {
+        const stored = JSON.parse(localStorage.getItem(CATEGORY_STORAGE_KEY) || "{}");
+        if (!stored || typeof stored !== "object") return chosen;
+        for (const [service, category] of Object.entries(stored)) {
+            const key = safeStr(service).trim().toLowerCase();
+            if (key && typeof category === "string") chosen.set(key, category);
+        }
+    } catch {
+        return new Map();
+    }
+    return chosen;
+}
+
+function saveServiceCategories() {
+    try {
+        localStorage.setItem(CATEGORY_STORAGE_KEY, JSON.stringify(Object.fromEntries(SERVICE_CATEGORIES)));
+        scheduleSharedSettingsSave();
+    } catch {}
+}
+
+function loadCustomCategories() {
+    const custom = new Map();
+    try {
+        const stored = JSON.parse(localStorage.getItem(CUSTOM_CATEGORY_STORAGE_KEY) || "{}");
+        if (!stored || typeof stored !== "object") return custom;
+        for (const [key, label] of Object.entries(stored)) {
+            const clean = safeStr(label).trim().slice(0, CUSTOM_CATEGORY_MAX_LENGTH);
+            if (key.startsWith(CUSTOM_CATEGORY_PREFIX) && clean) custom.set(key, clean);
+        }
+    } catch {
+        return new Map();
+    }
+    return custom;
+}
+
+function saveCustomCategories() {
+    try {
+        localStorage.setItem(CUSTOM_CATEGORY_STORAGE_KEY, JSON.stringify(Object.fromEntries(CUSTOM_CATEGORIES)));
+        scheduleSharedSettingsSave();
+    } catch {}
+}
+
+// Rebuilds the custom half of CATEGORY_META from scratch, so a category removed
+// on another device disappears here too instead of lingering until a reload.
+function registerCustomCategories() {
+    for (const key of Object.keys(CATEGORY_META)) {
+        if (key.startsWith(CUSTOM_CATEGORY_PREFIX)) delete CATEGORY_META[key];
+    }
+    for (const [key, label] of CUSTOM_CATEGORIES) {
+        CATEGORY_META[key] = { icon: CUSTOM_CATEGORY_ICON, label, custom: true };
+    }
+}
+
+// Typing the name of a category that already exists -- built-in or custom, in
+// any case -- selects that one rather than making a twin with the same label.
+function addCustomCategory(rawLabel) {
+    const label = safeStr(rawLabel).trim().replace(/\s+/g, " ").slice(0, CUSTOM_CATEGORY_MAX_LENGTH);
+    if (!label) return null;
+
+    const wanted = label.toLowerCase();
+    for (const [key, meta] of Object.entries(CATEGORY_META)) {
+        if (meta.label.toLowerCase() === wanted) return key;
+    }
+
+    const key = CUSTOM_CATEGORY_PREFIX + wanted;
+    CUSTOM_CATEGORIES.set(key, label);
+    registerCustomCategories();
+    saveCustomCategories();
+    return key;
+}
+
+// Cards filed under a removed category go back to their automatic match, and
+// their picks are dropped rather than left to revive if the name is reused.
+function removeCustomCategory(key) {
+    if (!CUSTOM_CATEGORIES.delete(key)) return false;
+    registerCustomCategories();
+    saveCustomCategories();
+
+    let picksChanged = false;
+    for (const [service, category] of SERVICE_CATEGORIES) {
+        if (category === key) {
+            SERVICE_CATEGORIES.delete(service);
+            picksChanged = true;
+        }
+    }
+    if (picksChanged) saveServiceCategories();
+    if (state.categoryFilter === key) state.categoryFilter = "all";
+    return true;
+}
+
+// A pick naming a category this version does not have is ignored rather than
+// obeyed. It can only come from a newer dashboard sharing the same settings
+// document, and filing the card under a chip this version cannot label would be
+// worse than falling back to the automatic match.
+function categoryOverrideFor(name) {
+    const chosen = SERVICE_CATEGORIES.get(baseServiceKey(name));
+    return chosen && Object.hasOwn(CATEGORY_META, chosen) ? chosen : null;
+}
+
+// Categories can move after the grid is built -- the user picks one, or the
+// icon catalogue finishes loading and a name resolves that did not before.
+// Compare before writing: this runs on every poll.
+function updateCardCategoriesInPlace() {
+    for (const s of state.services) {
+        const card = state.cardElById.get(String(s.id));
+        if (!card || card.dataset.category === s.category) continue;
+        card.dataset.category = s.category;
+        const meta = card.querySelector(".svcMeta");
+        if (meta) meta.textContent = (CATEGORY_META[s.category] || CATEGORY_META.other).label;
+    }
 }
 
 function iconFor(category) {
@@ -9280,7 +10389,16 @@ const SHARED_SETTINGS_URL = "/settings/state.json";
 // Everything a person customises, and nothing that identifies them: the Uptime
 // Kuma token, username and remember flag stay in the browser that entered
 // them and are never written to a document other devices can read.
-const SHARED_KEYS = ["serviceDashPrefs", "serviceIcons", "serviceContainers", "storageMounts", "netIface"];
+const SHARED_KEYS = [
+    "serviceDashPrefs",
+    "serviceIcons",
+    "serviceContainers",
+    "serviceCategories",
+    "customCategories",
+    "aiRenewals",
+    "storageMounts",
+    "netIface",
+];
 const SHARED_SAVE_DEBOUNCE_MS = 1200;
 // Writing the shared document is authenticated; reading it is not. There is no
 // separate password: the Uptime Kuma session already proves who you are, and
@@ -9345,6 +10463,10 @@ async function loadSharedSettings() {
         // the shared document arrived, so re-read them.
         BROWSER_ICON_OVERRIDES = loadBrowserIconOverrides();
         SERVICE_CONTAINERS = loadServiceContainers();
+        SERVICE_CATEGORIES = loadServiceCategories();
+        CUSTOM_CATEGORIES = loadCustomCategories();
+        registerCustomCategories();
+        AI_RENEWALS = loadAiRenewals();
         return true;
     } catch (error) {
         console.info("Shared settings unavailable; using this browser's own copy", error);
@@ -10204,7 +11326,12 @@ function renderChipsWithCounts() {
         })
         .join("");
 
-    const cats = Array.from(new Set(state.services.map((s) => s.category))).sort((a, b) => a.localeCompare(b));
+    // Sorted by what the chip says, not by key: a custom category's key carries
+    // a prefix and would otherwise sort every one of them under C.
+    const chipLabel = (c) => (CATEGORY_META[c] || CATEGORY_META.other).label;
+    const cats = Array.from(new Set(state.services.map((s) => s.category))).sort((a, b) =>
+        chipLabel(a).localeCompare(chipLabel(b))
+    );
     const list = ["all", ...cats];
     const allCatsCount = servicesBySearch.length;
 
@@ -10214,8 +11341,9 @@ function renderChipsWithCounts() {
             const label = c === "all" ? "All Categories" : meta.label;
             const icon = c === "all" ? "🌈" : meta.icon;
             const n = c === "all" ? allCatsCount : counts.byCategory.get(c) || 0;
-            return `<div class="chip" data-kind="category" data-value="${c}" data-active="${state.categoryFilter === c}">
-                    <span>${icon}</span><span>${label}</span><span class="cnum">${n}</span>
+            // Escaped because a custom category's name is whatever someone typed.
+            return `<div class="chip" data-kind="category" data-value="${escapeAttr(c)}" data-active="${state.categoryFilter === c}">
+                    <span>${icon}</span><span>${escapeHtml(label)}</span><span class="cnum">${n}</span>
                   </div>`;
         })
         .join("");
@@ -10339,6 +11467,10 @@ function buildDomOnceIfNeeded() {
                 <div class="containerStats" data-role="containerStats" hidden>
                   <span class="containerStat"><small>CPU</small><b data-role="containerCpu">—</b></span>
                   <span class="containerStat"><small>RAM</small><b data-role="containerRam">—</b></span>
+                </div>
+                <div class="netFigures" data-role="netFigures" hidden>
+                  <span title="Download"><i class="rx" aria-hidden="true">↓</i><b data-role="netRx">—</b></span>
+                  <span title="Upload"><i class="tx" aria-hidden="true">↑</i><b data-role="netTx">—</b></span>
                 </div>
               </div>
             `;
@@ -11171,6 +12303,7 @@ function openIconEditor(service) {
     if (els.iconUrlInput) els.iconUrlInput.value = _iconEditAutoLabel ?? current.url;
     updateIconPreview();
     populateContainerSelect(service);
+    populateCategorySelect(service);
 
     els.iconOverlay.classList.add("show");
     els.iconOverlay.setAttribute("aria-hidden", "false");
@@ -11254,6 +12387,99 @@ function closeIconEditor() {
     els.iconOverlay.setAttribute("aria-hidden", "true");
 }
 
+// Editor state for the category picker: "" means the card follows its name,
+// anything else is a category key picked by hand.
+let _categoryEditChoice = "";
+
+// "Automatic" is a real choice, not a placeholder: it says what the card would
+// get on its own, so picking it is visibly different from picking that same
+// category by hand (which would stop following the name if it changed).
+//
+// Built the same way as the container picker beside it -- a collapsed list
+// with the choice in the summary -- but with radios, because a card sits under
+// exactly one chip. Custom categories come after the built-in ones and before
+// Other, and carry a remove button the built-in ones do not.
+function renderCategoryOptions() {
+    if (!els.categoryOptions) return;
+
+    const name = _iconEditTarget?.name ?? "";
+    const auto = CATEGORY_META[autoCategoryFor(name)] || CATEGORY_META.other;
+    const entries = Object.entries(CATEGORY_META);
+    const ordered = [
+        ...entries.filter(([key, meta]) => !meta.custom && key !== "other"),
+        ...entries.filter(([, meta]) => meta.custom).sort((a, b) => a[1].label.localeCompare(b[1].label)),
+        ...entries.filter(([key]) => key === "other"),
+    ];
+
+    const row = (value, text, small, removable) => `
+        <label class="storage-source-option${removable ? " has-remove" : ""}">
+            <input type="radio" name="cardCategory" value="${escapeAttr(value)}"${_categoryEditChoice === value ? " checked" : ""} />
+            <span>${text}${small ? `<small>${escapeHtml(small)}</small>` : ""}</span>
+            ${
+                removable
+                    ? `<button type="button" class="categoryRemove" data-category-remove="${escapeAttr(value)}" aria-label="Remove the ${escapeAttr(CATEGORY_META[value].label)} category" title="Remove category">×</button>`
+                    : ""
+            }
+        </label>`;
+
+    const scroll = els.categoryOptions.scrollTop;
+    els.categoryOptions.innerHTML =
+        row("", "Match automatically", `Currently ${auto.icon} ${auto.label}`, false) +
+        ordered.map(([key, meta]) => row(key, `${meta.icon} ${escapeHtml(meta.label)}`, "", !!meta.custom)).join("");
+    els.categoryOptions.scrollTop = scroll;
+
+    if (els.categorySummary) {
+        const chosen = _categoryEditChoice ? CATEGORY_META[_categoryEditChoice] : null;
+        els.categorySummary.textContent = chosen ? `${chosen.icon} ${chosen.label}` : `Auto — ${auto.label}`;
+    }
+}
+
+function populateCategorySelect(service) {
+    if (!els.categoryOptions) return;
+    _categoryEditChoice = categoryOverrideFor(service.name) ?? "";
+    if (els.categoryPicker) els.categoryPicker.open = false;
+    if (els.categoryNewInput) els.categoryNewInput.value = "";
+    renderCategoryOptions();
+}
+
+function addCategoryFromInput() {
+    const key = addCustomCategory(els.categoryNewInput?.value);
+    if (!key) {
+        els.categoryNewInput?.focus();
+        return;
+    }
+    // Adding one is almost always so this card can go in it.
+    _categoryEditChoice = key;
+    els.categoryNewInput.value = "";
+    renderCategoryOptions();
+}
+
+// Returns the new label when the category changed, so the save toast can say so.
+function applyCategoryChoice(service) {
+    if (!els.categoryOptions) return null;
+
+    const key = baseServiceKey(service.name);
+    const before = detectCategory(service.name);
+    const value = _categoryEditChoice;
+    if (value && Object.hasOwn(CATEGORY_META, value)) SERVICE_CATEGORIES.set(key, value);
+    else SERVICE_CATEGORIES.delete(key);
+    saveServiceCategories();
+
+    const after = detectCategory(service.name);
+    if (after === before) return null;
+
+    // Recompute from the page already loaded rather than waiting for the next
+    // poll, then move the card and recount the chips.
+    refreshCardCategories();
+    return (CATEGORY_META[after] || CATEGORY_META.other).label;
+}
+
+function refreshCardCategories() {
+    buildServicesFromKuma();
+    updateCardCategoriesInPlace();
+    applyFiltersAndCounts();
+}
+
 function applyContainerChoice(service) {
     if (!els.containerOptions) return;
 
@@ -11265,8 +12491,10 @@ function applyContainerChoice(service) {
     // Hide immediately if the card no longer maps anywhere; otherwise the next
     // tick fills it in.
     if (!containerForService(service.name).containers.length) {
-        const row = state.cardElById.get(String(service.id))?.querySelector('[data-role="containerStats"]');
+        const card = state.cardElById.get(String(service.id));
+        const row = card?.querySelector('[data-role="containerStats"]');
         if (row) row.hidden = true;
+        if (card) applyNetWave(cardRefs(service.id, card), null);
     }
     tickContainerStats();
 }
@@ -11276,6 +12504,7 @@ function applyIconEdit(value) {
     if (!service) return;
 
     applyContainerChoice(service);
+    const movedTo = applyCategoryChoice(service);
 
     // null means "no override"; anything else is resolved the same way the
     // preview resolved it, so what was shown is what gets saved.
@@ -11294,10 +12523,15 @@ function applyIconEdit(value) {
     const failed = url !== null && url !== "" && _iconPreviewOk === false;
     closeIconEditor();
 
-    if (url === null) toast(`↩️ <b>${escapeHtml(service.name)}</b> • Icon reset to default`, 2000);
-    else if (failed) {
+    // Report what actually changed. An untouched icon field arrives here as
+    // null, which is also what "Default icon" sends -- so checking for null first
+    // told someone who had only moved a card to another category that its icon
+    // had been reset.
+    if (failed) {
         toast(`⚠️ <b>${escapeHtml(service.name)}</b> • Saved, but that image would not load — the card shows its initials.`, 4200);
-    } else toast(`🖼️ <b>${escapeHtml(service.name)}</b> • Icon updated`, 2000);
+    } else if (movedTo) toast(`🏷️ <b>${escapeHtml(service.name)}</b> • Moved to ${escapeHtml(movedTo)}`, 2200);
+    else if (url === null) toast(`↩️ <b>${escapeHtml(service.name)}</b> • Icon reset to default`, 2000);
+    else toast(`🖼️ <b>${escapeHtml(service.name)}</b> • Icon updated`, 2000);
 }
 
 els.iconUrlInput?.addEventListener("input", () => {
@@ -11349,6 +12583,35 @@ els.containerOptions?.addEventListener("change", (event) => {
     // Keep the order Netdata reports, so the summary and tooltip stay stable.
     _containerEditSelection = ND_CONTAINERS.filter((name) => selected.has(name));
     renderContainerOptions();
+});
+
+els.categoryOptions?.addEventListener("change", (event) => {
+    const input = event.target.closest('input[type="radio"]');
+    if (!input) return;
+    _categoryEditChoice = input.value;
+    renderCategoryOptions();
+});
+els.categoryOptions?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-category-remove]");
+    if (!button) return;
+    // The button sits inside the row's label; without this the click would
+    // also select the category it is removing.
+    event.preventDefault();
+
+    const key = button.dataset.categoryRemove;
+    const label = CATEGORY_META[key]?.label ?? "";
+    if (!removeCustomCategory(key)) return;
+    if (_categoryEditChoice === key) _categoryEditChoice = "";
+    renderCategoryOptions();
+    // Any card that was in it has just gone back to its automatic match.
+    refreshCardCategories();
+    toast(`🗑️ <b>${escapeHtml(label)}</b> • Category removed. Its cards are back on automatic.`, 2600);
+});
+els.btnCategoryAdd?.addEventListener("click", addCategoryFromInput);
+els.categoryNewInput?.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    addCategoryFromInput();
 });
 
 els.btnIconSave?.addEventListener("click", () => applyIconEdit(iconEditValue()));
@@ -11498,6 +12761,7 @@ async function pollOnce(showToast) {
 
         updateCardUrlsInPlace();
         updateStatusesInPlace();
+        updateCardCategoriesInPlace();
         applyFiltersAndCounts();
 
         if (showToast) {
