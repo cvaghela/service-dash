@@ -37,6 +37,9 @@ python3 scripts/check-docker-socket.py      # only CetusGuard holds the Docker s
 python3 scripts/check-release.py            # one version, stated the same everywhere
 python3 scripts/check-service-additions.py  # a new service must come with an upgrade path
 sh scripts/test-reporters.sh                # regression tests for the AI reporters
+node scripts/test-categories.mjs            # automatic categorisation
+node scripts/test-container-net.mjs         # per-container traffic wave
+node scripts/test-ai-renewal.mjs            # AI plan renewal dates
 ```
 
 `check-compose-networks.py` exists because of that outage: it cross-references
@@ -336,6 +339,31 @@ The `diagnostic` field carries **field names and window ids only** — the
 value leaking in there is a value published. `describe_shape` builds it with
 `keys` and `.id`, never a `values` walk, and that is the whole reason.
 
+**The renewal date is entered by hand, on purpose.** Neither provider sends
+one: the saved logins carry the plan name and rate tier and nothing about
+billing, and the usage endpoints report usage windows only. Claude Code does
+read an undocumented `subscription_created_at` and `billing_period`, but a date
+derived from them is wrong after a plan change, an annual switch or a retried
+payment, and undocumented fields have moved before. So Settings takes a date and
+a cycle per provider, shared as `aiRenewals`, and the card counts forward from
+it. Two things look simplifiable and are not:
+
+- **Every renewal is counted from the date entered, never from the last
+  renewal.** Stepping month to month clamps a renewal on the 31st to the 28th
+  in February and keeps it there for good.
+- **A past date is a renewal that happened, not one overdue.** It rolls on to
+  the next cycle, which is why any old receipt date works as the anchor.
+- **Expires is not a cycle of length zero.** A cancelled plan or a trial ends
+  once; it never rolls forward, and once past it reads "Expired". An entry
+  saved without a `kind` predates the choice and renews.
+
+`scripts/test-ai-renewal.mjs` runs the real functions out of `app.js`.
+Mutation-tested eleven ways: stepping from the previous renewal, no month-end
+clamp, an impossible date accepted, today compared with the time of day, days
+unrounded across a clock change, a wider warning window, the setting left
+out of the shared document or not re-read when it arrives, an expiry rolled
+forward, no expired state, and an expiry labelled as a renewal.
+
 ## The Codex usage reporter
 
 `codex-usage` is the second provider, on the same always-running footing. Three
@@ -524,6 +552,128 @@ fine by eye — measure it.
 `scripts/check-empty-state.py` guards all of the above. Its entrypoint check
 passed vacuously when first written, because it looked for the string
 `kumaPort` anywhere in the file and the explanatory *comment* satisfied it.
+
+## Categories
+
+A card's category decides which filter chip it sits under. Three layers, most
+specific first: **the user's pick** for that card (`serviceCategories` in shared
+settings, keyed by `baseServiceKey` like the container mapping), then
+**`APP_CATEGORY_GROUPS`** — a table of known apps — then **`KEYWORDS`**, generic
+words for names that are not an app at all ("Team Wiki", "Office NAS").
+
+It used to be the keywords alone: nine regexes, first match wins. On a real
+install of 22 services that filed **12 under Other**, and eight of those were
+well-known apps the regexes simply did not list. The rest were names nothing
+can read ("Tony"), which is what the per-card pick is for. Re-measured on the
+same install, the three layers leave 3 of 22 in Other, all of them names with
+no signal at all.
+
+Things that look removable and are not:
+
+- **The icon catalogue is not a category source.** It looks like one — 2,968
+  apps with a `Category` field — but that field only says whether an app is
+  self-hostable, and its tags are blank for exactly the apps that were missing.
+  So the table is ours. It does reuse the icon *matcher* as one layer, which is
+  how an alias like "HASS" reaches Home Assistant without the table listing it.
+- **Ordinary words that are also apps match only as a whole card name.**
+  "Flood" is a torrent client; "Flood Sensor" is not. "Garage" is a storage
+  server; "Garage Door" is not. `AMBIGUOUS_APP_WORDS` holds them; anything added
+  to the table that is also a common English word belongs there too.
+- **Every keyword is on word boundaries.** The old ones were not, so `nas`
+  fired inside any longer word and `s3` inside any name containing those two
+  characters. App names do not go in `KEYWORDS` at all — in the table, one entry
+  is one app and a collision fails a test instead of quietly winning.
+- **`appCategoryKey` does not call `normalizeForMatch`**, though it does the
+  same thing. That is a `const` declared thousands of lines later, and the table
+  is built while the script loads — before that line has run — so calling it
+  throws.
+- **Removing a category is an upgrade hazard.** Requests was folded into Media,
+  and a browser that had Requests selected would have restored an empty grid.
+  The saved filter is validated against `CATEGORY_META` on load, and a pick
+  naming an unknown category — which can only come from a newer dashboard
+  sharing the settings document — is ignored rather than obeyed.
+
+**Custom categories are registered into `CATEGORY_META` itself**, under a
+`custom:` key prefix no built-in has, and shared as `customCategories`. That is
+why every "is this a real category" check accepts them without knowing they are
+custom, and why an older dashboard reading the same document ignores the pick
+rather than drawing a chip it cannot label. Three things follow:
+
+- **Their names are user input, and the chips are built as markup.** The chip
+  label and key are escaped; they were not, because until custom categories
+  every label was a literal in this file.
+- **Removing one drops the picks that named it** and resets the filter if it
+  was the active one. Leaving the picks would revive them silently the day
+  someone reused the name.
+- **`registerCustomCategories()` rebuilds the custom half from scratch.** A
+  category removed on another device has to disappear here as well, not linger
+  in the table until a reload.
+
+`scripts/test-categories.mjs` runs the real code out of `app.js` and covers all
+of the above, plus a coverage list of popular apps that must never land in
+Other. Mutation-tested six ways: a typo'd category key, an app filed twice, an
+ambiguous word dropped from its list, boundaries removed from a keyword, the
+saved filter trusted again, and an app missing from the table. The custom
+half was mutation-tested five more: an unescaped chip, picks kept on removal,
+twin categories allowed, the filter left on a removed category, and a stale
+registration. That last one passed vacuously at first -- dropping the picks
+already sent the card home, so nothing noticed the chip outliving its
+category -- and now has its own check.
+
+## Container traffic on the cards
+
+A card mapped to a container draws that container's network traffic across
+its whole background, over the last five minutes: download (green) rises above
+a centre line, upload (red) falls below it, and the current rates sit at the
+right of the stats row. It rides the existing 10-second container poll and
+needs nothing new on the host -- Netdata already has `cgroup_NAME.net_eth0`
+for every container that has its own network namespace.
+
+Things that look removable and are not:
+
+- **Discovery goes by chart context, not by id.** Netdata publishes nine
+  `cgroup_NAME.net_*` charts per interface (packets, drops, MTU, operstate...)
+  and only `cgroup.net_net` is traffic. A prefix match draws packets/s as
+  bandwidth.
+- **A host-network container has no traffic chart at all**, and gets no wave
+  rather than a flat line. On the smoke host that is `cloudflared`: 12 of 13
+  containers had one.
+- **History is asked for whole every poll** (`after=-300&points=60`), not
+  appended to. A missed poll or a sleeping tab then leaves no gap. Netdata
+  answers newest row first and stores sent traffic as negative numbers; the
+  `abs` option and the sort in `combineNetHistory` handle the two.
+- **The scale has a 100 Kb/s floor.** Each card scales to its own peak, and
+  an idle container's chatter measured under 1 Kb/s on the smoke host; with
+  the 1 Kb/s floor first written, that noise filled the card and read as busy.
+- **A failed fetch keeps the wave as drawn.** Drawing a partial result would
+  show a dropped request as traffic falling to zero.
+- **The wave is masked, not the rows backed.** Behind the name, the link rows,
+  the pills and the figures the wave is cut to 30% by an SVG mask built from
+  their measured boxes. A ground-coloured backing under the rows was tried
+  first and read as a dark slab on the lighter accents (evergreen especially).
+  The name's window is measured from its *text runs*: the block itself
+  stretches to the status dot, and a window that wide showed as a pale
+  rectangle in the empty corner.
+- **The content is lifted above the wave with `z-index` alone.** The card's
+  rows are flex items, which take a z-index unpositioned. Making them
+  `position: relative` made the top row the status dot's containing block, and
+  on every wave card the dot sat lower and further in than on its neighbours.
+- **Light mode has its own colours.** `--nw-rx`/`--nw-tx` are separate tokens
+  so the accent presets cannot move them, and the dark pair measured 3.2:1 on
+  the light card ground. Light uses 21 128 61 / 220 38 38, which measure 5.0:1
+  and 4.7:1.
+
+**Test light mode with Dark Reader off.** The developer's Chrome runs it, and
+it repaints the light theme dark grey -- the first light-mode screenshots of
+this feature were Dark Reader's version, not ours. A local test copy can opt
+out with `<meta name="darkreader-lock">` in its head.
+
+`scripts/test-container-net.mjs` runs the real functions out of `app.js`.
+Mutation-tested ten ways: a prefix-only chart match, rows left newest-first,
+negative upload, no summing across interfaces, an unclamped peak, a partial
+fetch drawn, the link rows unmasked, light mode's colours dropped, the
+scale floor back at 1 Kb/s, and the rows positioned again so the status dot
+moves.
 
 ## Conventions
 

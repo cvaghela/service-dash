@@ -192,6 +192,17 @@
             var c = "cgroup_" + s.slug.replace(/-/g, "_");
             charts[c + ".cpu"] = { id: c + ".cpu", name: c + ".cpu", family: "cpu" };
             charts[c + ".mem_usage"] = { id: c + ".mem_usage", name: c + ".mem_usage", family: "mem" };
+            // Traffic, plus one of its look-alike siblings: the real Netdata
+            // publishes nine cgroup_NAME.net_* charts per interface and only
+            // this context is traffic, so the demo keeps the matcher honest.
+            charts[c + ".net_eth0"] = {
+                id: c + ".net_eth0", name: c + ".net_eth0", family: "net",
+                context: "cgroup.net_net", units: "kilobits/s"
+            };
+            charts[c + ".net_packets_eth0"] = {
+                id: c + ".net_packets_eth0", name: c + ".net_packets_eth0", family: "net",
+                context: "cgroup.net_packets", units: "packets/s"
+            };
         });
         return { charts: charts, hostname: "zima-board", cpus: 12 };
     }
@@ -201,8 +212,38 @@
         return lo + ((hi - lo) * (0.5 + 0.5 * Math.sin(t / period)));
     }
 
-    function ndData(chart) {
+    // Container traffic, as Netdata answers a history query: newest row first,
+    // "sent" as a positive number because the dashboard asks with options=abs.
+    // A function of time rather than random, so successive polls agree about
+    // the past and the wave scrolls instead of reshuffling.
+    function ndContainerNet(chart, points, after) {
+        var seed = 0;
+        for (var i = 0; i < chart.length; i++) seed = (seed * 31 + chart.charCodeAt(i)) >>> 0;
+        var base = 40 * Math.pow(10, (seed % 1000) / 1000 * 3); // 40 Kb/s .. 40 Mb/s
+        var upRatio = 0.08 + ((seed >>> 10) % 100) / 100 * 0.5;
+        var now = Math.floor(Date.now() / 5000) * 5;
+        var step = Math.max(1, Math.round(-after / points));
+        var rows = [];
+        for (var k = 0; k < points; k++) {
+            var t = now - k * step;
+            var a = Math.sin(t / 37 + seed) * 0.5 + 0.5;
+            var b = Math.pow(Math.sin(t / 83 + seed * 0.7) * 0.5 + 0.5, 6); // occasional bursts
+            // Short-period ripple: real five-second averages are never smooth.
+            var c = Math.sin(t / 9 + seed * 1.3) * 0.5 + Math.sin(t / 5.3 + seed) * 0.35;
+            var rx = base * Math.max(0.05, 0.35 + 0.45 * a + 2.2 * b + 0.22 * c);
+            var tx = rx * upRatio * (0.7 + 0.6 * (Math.sin(t / 23 + seed) * 0.5 + 0.5));
+            rows.push([t, rx, tx]);
+        }
+        return { labels: ["time", "received", "sent"], data: rows };
+    }
+
+    function ndData(chart, query) {
         var now = Math.floor(Date.now() / 1000);
+        if (/^cgroup_.+\.net_eth0$/.test(chart)) {
+            var pts = /[?&]points=(\d+)/.exec(query || "");
+            var aft = /[?&]after=(-?\d+)/.exec(query || "");
+            return ndContainerNet(chart, pts ? Number(pts[1]) : 1, aft ? Number(aft[1]) : -10);
+        }
         function frame(labels, values) {
             return { labels: ["time"].concat(labels), data: [[now].concat(values)] };
         }
@@ -260,7 +301,7 @@
         if (path.indexOf("/netdata/api/v1/charts") === 0) return json(ndCharts());
         if (path.indexOf("/netdata/api/v1/data") === 0) {
             var m = /[?&]chart=([^&]+)/.exec(path);
-            return json(ndData(m ? decodeURIComponent(m[1]) : ""));
+            return json(ndData(m ? decodeURIComponent(m[1]) : "", path));
         }
 
         // One route per reporter, matching the real deployment: each sidecar

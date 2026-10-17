@@ -38,7 +38,7 @@
             rel="stylesheet"
             href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,500,0,0"
         />
-        <link rel="stylesheet" href="assets/css/styles.css?v=1.5.6" />
+        <link rel="stylesheet" href="assets/css/styles.css?v=1.6.0" />
     </head>
     <body>
         <svg class="icon-sprite" aria-hidden="true" focusable="false">
@@ -558,6 +558,28 @@
                 </div>
                 <div class="iconStatus" id="iconStatus" data-state="idle"></div>
                 <div class="field cardSettingField">
+                    <span class="fieldLabel" id="categoryPickerLabel">Category</span>
+                    <details class="storage-source-picker" id="categoryPicker">
+                        <summary aria-labelledby="categoryPickerLabel">
+                            <span>Filed under</span><b id="categorySummary">Auto</b>
+                        </summary>
+                        <div class="storage-source-options" id="categoryOptions" role="radiogroup"></div>
+                        <div class="categoryAdd">
+                            <input
+                                id="categoryNewInput"
+                                type="text"
+                                maxlength="24"
+                                autocomplete="off"
+                                spellcheck="false"
+                                placeholder="New category name"
+                                aria-label="New category name"
+                            />
+                            <button class="pill" id="btnCategoryAdd" type="button">Add</button>
+                        </div>
+                    </details>
+                    <div class="subtle">Which filter chip this card sits under. Automatic files it by the card name.</div>
+                </div>
+                <div class="field cardSettingField">
                     <span class="fieldLabel" id="containerPickerLabel">Docker containers</span>
                     <details class="storage-source-picker" id="containerPicker">
                         <summary aria-labelledby="containerPickerLabel">
@@ -584,7 +606,7 @@
                 <path d="M12 5l-7 7h4v7h6v-7h4z"></path>
             </svg>
         </button>
-        <script src="/config.js?v=1.5.6"></script>
-        <script src="./assets/js/app.js?v=1.5.6" defer></script>
+        <script src="/config.js?v=1.6.0"></script>
+        <script src="./assets/js/app.js?v=1.6.0" defer></script>
     </body>
 </html>

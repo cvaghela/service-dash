@@ -63,6 +63,15 @@ jobs:
       - name: Reporter regression tests
         run: sh scripts/test-reporters.sh
 
+      - name: Categorisation regression tests
+        run: node scripts/test-categories.mjs
+
+      - name: Container traffic regression tests
+        run: node scripts/test-container-net.mjs
+
+      - name: AI renewal date regression tests
+        run: node scripts/test-ai-renewal.mjs
+
       - name: Check a new service is not shipped without an upgrade path
         run: python3 scripts/check-service-additions.py
 
