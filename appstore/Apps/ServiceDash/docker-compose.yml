@@ -2,7 +2,7 @@ name: service-dash
 
 services:
   service-dash:
-    image: ghcr.io/cvaghela/service-dash:1.6.0
+    image: ghcr.io/cvaghela/service-dash:1.6.1
     container_name: service-dash
     ports:
       - target: 80
@@ -59,7 +59,7 @@ services:
   # Answers one question for nginx: is this browser really signed in to Uptime
   # Kuma? Without it, saving settings would have to trust the browser's word.
   kuma-auth:
-    image: ghcr.io/cvaghela/service-dash-kuma-auth:1.6.0
+    image: ghcr.io/cvaghela/service-dash-kuma-auth:1.6.1
     container_name: service-dash-kuma-auth
     environment:
       # Must point at the same Uptime Kuma as KUMA_PORT above.
@@ -83,7 +83,7 @@ services:
     restart: unless-stopped
 
   network-info:
-    image: ghcr.io/cvaghela/service-dash-network-info:1.6.0
+    image: ghcr.io/cvaghela/service-dash-network-info:1.6.1
     container_name: service-dash-network-info
     network_mode: host
     read_only: true
@@ -197,7 +197,7 @@ services:
   #
   #   docker exec -it service-dash-claude-usage claude auth login
   claude-usage:
-    image: ghcr.io/cvaghela/service-dash-claude-usage:1.6.0
+    image: ghcr.io/cvaghela/service-dash-claude-usage:1.6.1
     container_name: service-dash-claude-usage
     environment:
       # Plan windows move slowly; polling harder gains nothing.
@@ -224,7 +224,7 @@ services:
   # localhost and hangs.
   #   docker exec -it service-dash-codex-usage codex login --device-auth
   codex-usage:
-    image: ghcr.io/cvaghela/service-dash-codex-usage:1.6.0
+    image: ghcr.io/cvaghela/service-dash-codex-usage:1.6.1
     container_name: service-dash-codex-usage
     environment:
       CODEX_USAGE_REFRESH_SECONDS: "300"
@@ -256,7 +256,7 @@ x-casaos:
   architectures:
     - amd64
     - arm64
-  version: "1.6.0"
+  version: "1.6.1"
   update_at: "2026-10-17"
   author: Chintan Vaghela
   developer: Chintan Vaghela
@@ -1392,256 +1392,169 @@ x-casaos:
         然后在 **8888** 端口打开 Service Dash。
   release_notes:
     en_US: |
-      1.6.0 adds three things to the dashboard.
+      1.6.1 stops a dashboard from deleting settings it does not recognise.
 
-      A card mapped to a container now shows that container's network traffic: a
-      wave across the card for the last five minutes, download above the line and
-      upload below it, with the current rates beside CPU and RAM.
+      Settings shared between devices are saved as one document. Until now each
+      version saved only the settings it knew about, so an older dashboard left
+      open on another device could remove newer ones the moment it saved anything
+      -- for example the card categories and renewal dates added in 1.6.0.
+      Dashboards now keep every setting they do not recognise.
 
-      Categories are filled in for well-known apps, so far fewer cards end up under
-      "Other". Any card can also be filed by hand from its settings, including under
-      categories you create yourself.
-
-      The AI usage panel can show when your Claude and ChatGPT plans renew or
-      expire. Neither service reports this, so you enter the date once in Settings
-      and it moves forward on its own.
-
-      The Compose file only changes its image tags, so updating the images is
-      enough -- including from the app store.
+      Updating the images is enough, including from the app store. Afterwards,
+      reload any dashboard that is still open on another device.
     en_GB: |
-      1.6.0 adds three things to the dashboard.
+      1.6.1 stops a dashboard from deleting settings it does not recognise.
 
-      A card mapped to a container now shows that container's network traffic: a
-      wave across the card for the last five minutes, download above the line and
-      upload below it, with the current rates beside CPU and RAM.
+      Settings shared between devices are saved as one document. Until now each
+      version saved only the settings it knew about, so an older dashboard left
+      open on another device could remove newer ones the moment it saved anything
+      -- for example the card categories and renewal dates added in 1.6.0.
+      Dashboards now keep every setting they do not recognise.
 
-      Categories are filled in for well-known apps, so far fewer cards end up under
-      "Other". Any card can also be filed by hand from its settings, including under
-      categories you create yourself.
-
-      The AI usage panel can show when your Claude and ChatGPT plans renew or
-      expire. Neither service reports this, so you enter the date once in Settings
-      and it moves forward on its own.
-
-      The Compose file only changes its image tags, so updating the images is
-      enough -- including from the app store.
+      Updating the images is enough, including from the app store. Afterwards,
+      reload any dashboard that is still open on another device.
     de_DE: |
-      1.6.0 bringt drei Neuerungen für das Dashboard.
+      1.6.1 verhindert, dass ein Dashboard Einstellungen löscht, die es nicht kennt.
 
-      Eine Karte, die einem Container zugeordnet ist, zeigt jetzt dessen
-      Netzwerkverkehr: eine Welle über die ganze Karte für die letzten fünf Minuten,
-      Download oberhalb der Linie und Upload darunter, mit den aktuellen Raten neben
-      CPU und RAM.
+      Geräteübergreifende Einstellungen werden als ein Dokument gespeichert. Bisher
+      speicherte jede Version nur die Einstellungen, die sie kannte -- ein älteres
+      Dashboard, das auf einem anderen Gerät offen war, konnte neuere also beim
+      nächsten Speichern entfernen, etwa die Kartenkategorien und Verlängerungsdaten
+      aus 1.6.0. Dashboards behalten jetzt jede Einstellung, die sie nicht kennen.
 
-      Für bekannte Apps werden die Kategorien automatisch gesetzt, sodass deutlich
-      weniger Karten unter "Other" landen. Jede Karte lässt sich außerdem in ihren
-      Einstellungen von Hand einordnen, auch in selbst angelegte Kategorien.
-
-      Die AI-usage-Anzeige kann zeigen, wann deine Claude- und ChatGPT-Abos sich
-      verlängern oder auslaufen. Keiner der Dienste meldet das, also trägst du das
-      Datum einmal in den Einstellungen ein, und es rückt von selbst weiter.
-
-      In der Compose-Datei ändern sich nur die Image-Tags -- die Images zu
-      aktualisieren genügt, auch aus dem App Store.
+      Die Images zu aktualisieren genügt, auch aus dem App Store. Lade danach jedes
+      Dashboard neu, das auf einem anderen Gerät noch offen ist.
     el_GR: |
-      Η 1.6.0 φέρνει τρία νέα στο dashboard.
+      Η 1.6.1 εμποδίζει ένα dashboard να διαγράφει ρυθμίσεις που δεν αναγνωρίζει.
 
-      Μια κάρτα που αντιστοιχεί σε container δείχνει τώρα την κίνηση δικτύου του: ένα
-      κύμα σε όλη την κάρτα για τα τελευταία πέντε λεπτά, λήψη πάνω από τη γραμμή και
-      αποστολή κάτω από αυτήν, με τους τρέχοντες ρυθμούς δίπλα σε CPU και RAM.
+      Οι ρυθμίσεις που μοιράζονται μεταξύ συσκευών αποθηκεύονται ως ένα έγγραφο.
+      Μέχρι τώρα κάθε έκδοση αποθήκευε μόνο όσες ρυθμίσεις γνώριζε, οπότε ένα
+      παλαιότερο dashboard ανοιχτό σε άλλη συσκευή μπορούσε να σβήσει νεότερες με την
+      πρώτη αποθήκευση -- για παράδειγμα τις κατηγορίες καρτών και τις ημερομηνίες
+      ανανέωσης της 1.6.0. Τώρα τα dashboards κρατούν κάθε ρύθμιση που δεν αναγνωρίζουν.
 
-      Οι κατηγορίες συμπληρώνονται αυτόματα για γνωστές εφαρμογές, οπότε πολύ λιγότερες
-      κάρτες καταλήγουν στο "Other". Κάθε κάρτα μπορεί επίσης να ταξινομηθεί με το χέρι
-      από τις ρυθμίσεις της, και σε κατηγορίες που δημιουργείς εσύ.
-
-      Το πάνελ AI usage μπορεί να δείχνει πότε ανανεώνονται ή λήγουν οι συνδρομές σου
-      σε Claude και ChatGPT. Καμία υπηρεσία δεν το αναφέρει, οπότε βάζεις την
-      ημερομηνία μία φορά στις ρυθμίσεις και προχωρά μόνη της.
-
-      Στο αρχείο Compose αλλάζουν μόνο τα tags των images, άρα αρκεί να ενημερώσεις τα
-      images -- και από το app store.
+      Αρκεί να ενημερώσεις τα images, και από το app store. Μετά, κάνε επαναφόρτωση σε
+      όποιο dashboard είναι ακόμα ανοιχτό σε άλλη συσκευή.
     fr_FR: |
-      La 1.6.0 apporte trois nouveautés au tableau de bord.
+      La 1.6.1 empêche un tableau de bord de supprimer les réglages qu'il ne connaît
+      pas.
 
-      Une carte associée à un conteneur affiche maintenant son trafic réseau : une
-      vague sur toute la carte pour les cinq dernières minutes, le téléchargement
-      au-dessus de la ligne et l'envoi en dessous, avec les débits actuels à côté du
-      CPU et de la RAM.
+      Les réglages partagés entre appareils sont enregistrés dans un seul document.
+      Jusqu'ici, chaque version n'enregistrait que les réglages qu'elle connaissait :
+      un tableau de bord plus ancien resté ouvert sur un autre appareil pouvait donc
+      effacer les plus récents dès qu'il enregistrait quoi que ce soit -- par exemple
+      les catégories de cartes et les dates de renouvellement ajoutées en 1.6.0. Les
+      tableaux de bord conservent désormais tout réglage qu'ils ne connaissent pas.
 
-      Les catégories sont renseignées pour les applications connues, si bien que bien
-      moins de cartes finissent dans « Other ». Chaque carte peut aussi être classée à
-      la main depuis ses réglages, y compris dans des catégories que vous créez.
-
-      Le panneau AI usage peut indiquer quand vos abonnements Claude et ChatGPT se
-      renouvellent ou expirent. Aucun des deux services ne le communique : vous
-      saisissez la date une fois dans les réglages et elle avance d'elle-même.
-
-      Seuls les tags d'images changent dans le fichier Compose : mettre à jour les
-      images suffit, y compris depuis l'app store.
+      Mettre à jour les images suffit, y compris depuis l'app store. Ensuite,
+      rechargez tout tableau de bord encore ouvert sur un autre appareil.
     hr_HR: |
-      1.6.0 donosi tri novosti na nadzornu ploču.
+      1.6.1 sprječava da nadzorna ploča briše postavke koje ne prepoznaje.
 
-      Kartica povezana s containerom sada prikazuje njegov mrežni promet: val preko
-      cijele kartice za zadnjih pet minuta, preuzimanje iznad crte i slanje ispod nje,
-      s trenutnim brzinama pokraj CPU-a i RAM-a.
+      Postavke dijeljene između uređaja spremaju se kao jedan dokument. Do sada je
+      svaka verzija spremala samo postavke koje poznaje, pa je starija ploča otvorena
+      na drugom uređaju mogla obrisati novije čim bi išta spremila -- primjerice
+      kategorije kartica i datume obnove dodane u 1.6.0. Ploče sada zadržavaju svaku
+      postavku koju ne prepoznaju.
 
-      Kategorije se popunjavaju za poznate aplikacije, pa znatno manje kartica završi
-      u "Other". Svaku karticu možete i ručno razvrstati u njezinim postavkama,
-      uključujući kategorije koje sami stvorite.
-
-      Ploča AI usage može prikazati kada se vaše Claude i ChatGPT pretplate obnavljaju
-      ili istječu. Nijedna usluga to ne javlja, pa datum unesete jednom u postavkama i
-      on se sam pomiče naprijed.
-
-      U Compose datoteci mijenjaju se samo oznake imagea, pa je dovoljno ažurirati
-      image -- i iz app storea.
+      Dovoljno je ažurirati image, i iz app storea. Nakon toga ponovno učitajte svaku
+      ploču koja je još otvorena na drugom uređaju.
     it_IT: |
-      La 1.6.0 porta tre novità nella dashboard.
+      La 1.6.1 impedisce a una dashboard di cancellare le impostazioni che non
+      riconosce.
 
-      Una scheda associata a un container ora mostra il suo traffico di rete: un'onda
-      su tutta la scheda per gli ultimi cinque minuti, download sopra la linea e
-      upload sotto, con le velocità attuali accanto a CPU e RAM.
+      Le impostazioni condivise tra dispositivi vengono salvate come un unico
+      documento. Finora ogni versione salvava solo le impostazioni che conosceva,
+      quindi una dashboard più vecchia rimasta aperta su un altro dispositivo poteva
+      eliminare quelle più recenti appena salvava qualcosa -- per esempio le categorie
+      delle schede e le date di rinnovo aggiunte nella 1.6.0. Ora le dashboard
+      conservano ogni impostazione che non riconoscono.
 
-      Le categorie vengono assegnate per le app più note, quindi molte meno schede
-      finiscono in "Other". Ogni scheda si può anche classificare a mano dalle sue
-      impostazioni, anche in categorie create da te.
-
-      Il pannello AI usage può mostrare quando i tuoi abbonamenti Claude e ChatGPT si
-      rinnovano o scadono. Nessuno dei due servizi lo comunica, quindi inserisci la
-      data una volta nelle impostazioni e avanza da sola.
-
-      Nel file Compose cambiano solo i tag delle immagini, quindi aggiornare le
-      immagini basta -- anche dall'app store.
+      Aggiornare le immagini basta, anche dall'app store. Dopo, ricarica ogni
+      dashboard ancora aperta su un altro dispositivo.
     ja_JP: |
-      1.6.0 ではダッシュボードに 3 つの機能が加わります。
+      1.6.1 では、ダッシュボードが認識できない設定を削除しないようになりました。
 
-      コンテナに割り当てたカードに、そのコンテナのネットワーク通信が表示されるように
-      なりました。直近 5 分間の波形がカード全体に描かれ、線より上がダウンロード、下が
-      アップロードで、現在の速度は CPU と RAM の横に表示されます。
+      デバイス間で共有する設定は 1 つのドキュメントとして保存されます。これまで各
+      バージョンは自分が知っている設定だけを保存していたため、別のデバイスで開いた
+      ままの古いダッシュボードが何かを保存した時点で、新しい設定を消してしまうことが
+      ありました。たとえば 1.6.0 で追加されたカードのカテゴリや更新日です。今後は
+      認識できない設定もすべて保持します。
 
-      よく知られたアプリにはカテゴリが自動で付くため、"Other" に入るカードが大きく
-      減ります。各カードは設定から手動で分類することもでき、自分で作ったカテゴリも
-      使えます。
-
-      AI usage パネルに、Claude と ChatGPT のプランの更新日や終了日を表示できます。
-      どちらのサービスもこれを提供していないため、設定で一度日付を入力すれば、あとは
-      自動で先へ進みます。
-
-      Compose ファイルで変わるのはイメージのタグだけなので、イメージを更新すれば
-      十分です。アプリストアからの更新でも適用されます。
+      イメージを更新すれば十分で、アプリストアからの更新でも適用されます。更新後は、
+      別のデバイスで開いたままのダッシュボードを再読み込みしてください。
     ko_KR: |
-      1.6.0은 대시보드에 세 가지를 더합니다.
+      1.6.1부터 대시보드가 인식하지 못하는 설정을 지우지 않습니다.
 
-      컨테이너에 연결된 카드에 이제 그 컨테이너의 네트워크 트래픽이 표시됩니다. 최근
-      5분 동안의 파형이 카드 전체에 그려지며, 선 위가 다운로드, 아래가 업로드이고, 현재
-      속도는 CPU와 RAM 옆에 표시됩니다.
+      기기 간에 공유되는 설정은 하나의 문서로 저장됩니다. 지금까지는 각 버전이 자신이
+      아는 설정만 저장했기 때문에, 다른 기기에서 열려 있던 이전 대시보드가 무언가를
+      저장하는 순간 새 설정을 지울 수 있었습니다. 예를 들어 1.6.0에서 추가된 카드
+      카테고리와 갱신일입니다. 이제 대시보드는 인식하지 못하는 설정도 모두 유지합니다.
 
-      잘 알려진 앱은 카테고리가 자동으로 지정되어 "Other"에 들어가는 카드가 크게
-      줄어듭니다. 각 카드는 설정에서 직접 분류할 수도 있고, 직접 만든 카테고리도 쓸 수
-      있습니다.
-
-      AI usage 패널에서 Claude와 ChatGPT 요금제의 갱신일이나 만료일을 볼 수 있습니다.
-      두 서비스 모두 이를 알려 주지 않으므로 설정에서 날짜를 한 번 입력하면 이후에는
-      알아서 앞으로 넘어갑니다.
-
-      Compose 파일에서는 이미지 태그만 바뀌므로 이미지만 업데이트하면 됩니다. 앱
-      스토어에서 업데이트해도 적용됩니다.
+      이미지만 업데이트하면 되며, 앱 스토어에서 업데이트해도 적용됩니다. 업데이트 후에는
+      다른 기기에서 아직 열려 있는 대시보드를 새로고침하세요.
     nb_NO: |
-      1.6.0 gir dashbordet tre nyheter.
+      1.6.1 hindrer et dashbord i å slette innstillinger det ikke kjenner igjen.
 
-      Et kort som er koblet til en container viser nå containerens nettverkstrafikk: en
-      bølge over hele kortet for de siste fem minuttene, nedlasting over linjen og
-      opplasting under den, med gjeldende hastigheter ved siden av CPU og RAM.
+      Innstillinger som deles mellom enheter lagres som ett dokument. Til nå lagret
+      hver versjon bare innstillingene den kjente til, så et eldre dashbord som sto
+      åpent på en annen enhet kunne fjerne nyere innstillinger så snart det lagret
+      noe -- for eksempel kortkategoriene og fornyelsesdatoene fra 1.6.0. Dashbord
+      beholder nå alle innstillinger de ikke kjenner igjen.
 
-      Kategorier fylles ut for kjente apper, så langt færre kort havner under "Other".
-      Hvert kort kan også sorteres for hånd i innstillingene, også i kategorier du
-      lager selv.
-
-      AI usage-panelet kan vise når Claude- og ChatGPT-abonnementene dine fornyes
-      eller utløper. Ingen av tjenestene oppgir dette, så du legger inn datoen én gang
-      i innstillingene, og den flytter seg fremover av seg selv.
-
-      Compose-filen endrer bare image-taggene, så det er nok å oppdatere imagene --
-      også fra appbutikken.
+      Det er nok å oppdatere imagene, også fra appbutikken. Last deretter inn på nytt
+      alle dashbord som fortsatt er åpne på andre enheter.
     pt_PT: |
-      A 1.6.0 traz três novidades ao painel.
+      A 1.6.1 impede que um painel apague definições que não reconhece.
 
-      Um cartão associado a um contentor mostra agora o tráfego de rede desse
-      contentor: uma onda em todo o cartão para os últimos cinco minutos, transferência
-      acima da linha e envio abaixo dela, com as velocidades atuais ao lado do CPU e
-      da RAM.
+      As definições partilhadas entre dispositivos são guardadas num único documento.
+      Até agora, cada versão guardava apenas as definições que conhecia, pelo que um
+      painel mais antigo aberto noutro dispositivo podia apagar as mais recentes assim
+      que guardasse alguma coisa -- por exemplo as categorias dos cartões e as datas de
+      renovação adicionadas na 1.6.0. Os painéis passam a manter todas as definições
+      que não reconhecem.
 
-      As categorias são preenchidas para aplicações conhecidas, pelo que muito menos
-      cartões acabam em "Other". Qualquer cartão pode também ser classificado à mão nas
-      suas definições, incluindo em categorias criadas por si.
-
-      O painel AI usage pode mostrar quando os seus planos Claude e ChatGPT renovam ou
-      expiram. Nenhum dos serviços o indica, por isso introduz a data uma vez nas
-      definições e ela avança sozinha.
-
-      O ficheiro Compose só muda as tags das imagens, pelo que atualizar as imagens é
-      suficiente -- incluindo a partir da loja de aplicações.
+      Atualizar as imagens é suficiente, incluindo a partir da loja de aplicações.
+      Depois, recarregue qualquer painel que ainda esteja aberto noutro dispositivo.
     ru_RU: |
-      В 1.6.0 на панели появились три новые возможности.
+      1.6.1 не даёт панели удалять настройки, которые она не знает.
 
-      Карточка, привязанная к контейнеру, теперь показывает его сетевой трафик: волна
-      через всю карточку за последние пять минут, загрузка над линией и отдача под
-      ней, а текущие скорости — рядом с CPU и RAM.
+      Настройки, общие для всех устройств, сохраняются одним документом. До сих пор
+      каждая версия сохраняла только известные ей настройки, поэтому более старая
+      панель, открытая на другом устройстве, могла удалить новые при первом же
+      сохранении — например, категории карточек и даты продления из 1.6.0. Теперь
+      панели сохраняют все настройки, которые они не знают.
 
-      Для известных приложений категории заполняются автоматически, поэтому в "Other"
-      попадает гораздо меньше карточек. Любую карточку можно также отнести к категории
-      вручную в её настройках, в том числе к категориям, созданным вами.
-
-      Панель AI usage может показывать, когда продлеваются или заканчиваются ваши
-      подписки Claude и ChatGPT. Ни один сервис этого не сообщает, поэтому дату нужно
-      один раз указать в настройках, дальше она сдвигается сама.
-
-      В файле Compose меняются только теги образов, так что достаточно обновить образы —
-      в том числе из магазина приложений.
+      Достаточно обновить образы, в том числе из магазина приложений. После этого
+      перезагрузите панели, которые ещё открыты на других устройствах.
     sv_SE: |
-      1.6.0 ger instrumentpanelen tre nyheter.
+      1.6.1 hindrar en instrumentpanel från att radera inställningar den inte känner
+      igen.
 
-      Ett kort som är kopplat till en container visar nu containerns nätverkstrafik:
-      en våg över hela kortet för de senaste fem minuterna, nedladdning ovanför linjen
-      och uppladdning under den, med aktuella hastigheter bredvid CPU och RAM.
+      Inställningar som delas mellan enheter sparas som ett dokument. Hittills
+      sparade varje version bara de inställningar den kände till, så en äldre panel
+      som stod öppen på en annan enhet kunde ta bort nyare så fort den sparade något
+      -- till exempel kortkategorierna och förnyelsedatumen från 1.6.0. Panelerna
+      behåller nu alla inställningar de inte känner igen.
 
-      Kategorier fylls i för välkända appar, så betydligt färre kort hamnar under
-      "Other". Varje kort kan också sorteras för hand i sina inställningar, även i
-      kategorier du skapar själv.
-
-      Panelen AI usage kan visa när dina Claude- och ChatGPT-abonnemang förnyas eller
-      upphör. Ingen av tjänsterna anger det, så du fyller i datumet en gång i
-      inställningarna och det flyttar fram av sig självt.
-
-      Compose-filen ändrar bara avbildningarnas taggar, så det räcker att uppdatera
-      avbildningarna -- även från appbutiken.
+      Det räcker att uppdatera avbildningarna, även från appbutiken. Ladda sedan om
+      paneler som fortfarande är öppna på andra enheter.
     tr_TR: |
-      1.6.0 panoya üç yenilik getiriyor.
+      1.6.1, bir panelin tanımadığı ayarları silmesini engelliyor.
 
-      Bir container'a eşlenen kart artık o container'ın ağ trafiğini gösteriyor: son
-      beş dakika için kartın tamamına yayılan bir dalga, çizginin üstünde indirme,
-      altında yükleme; anlık hızlar da CPU ve RAM'in yanında.
+      Cihazlar arasında paylaşılan ayarlar tek bir belge olarak kaydediliyor. Şimdiye
+      kadar her sürüm yalnızca bildiği ayarları kaydediyordu; bu yüzden başka bir
+      cihazda açık kalan eski bir panel, herhangi bir şeyi kaydettiği anda daha yeni
+      ayarları silebiliyordu -- örneğin 1.6.0 ile gelen kart kategorileri ve yenileme
+      tarihleri. Paneller artık tanımadıkları her ayarı koruyor.
 
-      Bilinen uygulamaların kategorileri otomatik dolduruluyor, böylece "Other" altında
-      çok daha az kart kalıyor. Her kart ayarlarından elle de sınıflandırılabiliyor,
-      kendi oluşturduğunuz kategoriler dahil.
-
-      AI usage paneli Claude ve ChatGPT planlarınızın ne zaman yenileneceğini ya da
-      sona ereceğini gösterebiliyor. İki hizmet de bunu bildirmediği için tarihi
-      ayarlara bir kez girersiniz, sonrasında kendiliğinden ilerler.
-
-      Compose dosyasında yalnızca imaj etiketleri değişiyor; imajları güncellemek
-      yeterli -- uygulama mağazasından güncellemek de dahil.
+      İmajları güncellemek yeterli, uygulama mağazasından da. Ardından başka
+      cihazlarda hâlâ açık olan panelleri yeniden yükleyin.
     zh_CN: |
-      1.6.0 为仪表盘带来三项新功能。
+      1.6.1 让仪表盘不再删除它不认识的设置。
 
-      关联到容器的卡片现在会显示该容器的网络流量：整张卡片上画出最近五分钟的波形，
-      线以上是下载，线以下是上传，当前速率显示在 CPU 和 RAM 旁边。
+      多设备共享的设置保存在同一份文档里。以前每个版本只保存它认识的设置，所以在另一台
+      设备上开着的旧版仪表盘一旦保存任何东西，就可能删掉较新的设置，例如 1.6.0 新增的
+      卡片分类和续订日期。现在仪表盘会保留所有它不认识的设置。
 
-      常见应用会自动归类，落进 "Other" 的卡片大大减少。每张卡片也可以在其设置里手动
-      归类，包括归到你自己创建的分类。
-
-      AI usage 面板可以显示你的 Claude 和 ChatGPT 套餐何时续订或到期。两项服务都不提供
-      这个信息，所以你在设置里填一次日期，之后它会自动顺延。
-
-      Compose 文件只改了镜像标签，更新镜像就够了，从应用商店更新同样适用。
+      更新镜像就够了，从应用商店更新同样适用。更新后，请刷新其他设备上仍开着的仪表盘。

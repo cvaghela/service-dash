@@ -72,6 +72,9 @@ jobs:
       - name: AI renewal date regression tests
         run: node scripts/test-ai-renewal.mjs
 
+      - name: Shared settings regression tests
+        run: node scripts/test-shared-settings.mjs
+
       - name: Check a new service is not shipped without an upgrade path
         run: python3 scripts/check-service-additions.py
 
