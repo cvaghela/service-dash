@@ -3,6 +3,33 @@
 All notable changes to Service Dash are recorded here. This project follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.1] — 2026-10-17
+
+**Saving settings no longer deletes settings from a newer version.** Updating the images is enough; reload any
+dashboard tab that is still open afterwards.
+
+### Fixed
+
+- **A dashboard deleted every shared setting it did not know about, whenever it saved anything.**
+
+  The shared settings document is written whole and the server replaces it. Each version built that document from its
+  own keys only, so a version that did not know a setting dropped it from the server. 1.5.6 does this to the per-card
+  categories, custom categories and renewal dates 1.6.0 added: one tab still running 1.5.6 on another device, saving
+  any setting, removed them for every device. A 1.6.0 browser still had its own copy and would put them back on its next
+  save, so nothing was lost for good, but they disappeared everywhere else until then.
+
+  Each save now re-reads the document first and carries every key it does not recognise through untouched. If that
+  re-read fails, it uses the copy from when the page loaded rather than sending nothing for them. A setting this
+  version owns and has removed stays removed.
+
+  This protects every release from here on. It cannot change what an already-open older tab does, so after this update
+  and any later one that adds a setting, reload open dashboards.
+
+### Added
+
+- `scripts/test-shared-settings.mjs`, run in CI. Mutation-tested six ways, and checked end to end in the demo: the
+  released 1.6.0 lost a setting a newer device had written, and this version kept it.
+
 ## [1.6.0] — 2026-10-17
 
 **Container traffic on the cards, categories that know common apps, and plan renewal dates.** Updating the images is
@@ -893,6 +920,7 @@ Housekeeping for the first public release. No functional changes to the dashboar
 
 See the [release history](https://github.com/cvaghela/service-dash/releases).
 
+[1.6.1]: https://github.com/cvaghela/service-dash/releases/tag/v1.6.1
 [1.6.0]: https://github.com/cvaghela/service-dash/releases/tag/v1.6.0
 [1.5.6]: https://github.com/cvaghela/service-dash/releases/tag/v1.5.6
 [1.5.5]: https://github.com/cvaghela/service-dash/releases/tag/v1.5.5

@@ -40,6 +40,7 @@ sh scripts/test-reporters.sh                # regression tests for the AI report
 node scripts/test-categories.mjs            # automatic categorisation
 node scripts/test-container-net.mjs         # per-container traffic wave
 node scripts/test-ai-renewal.mjs            # AI plan renewal dates
+node scripts/test-shared-settings.mjs       # saves keep settings from newer versions
 ```
 
 `check-compose-networks.py` exists because of that outage: it cross-references
@@ -674,6 +675,31 @@ negative upload, no summing across interfaces, an unclamped peak, a partial
 fetch drawn, the link rows unmasked, light mode's colours dropped, the
 scale floor back at 1 Kb/s, and the rows positioned again so the status dot
 moves.
+
+## Shared settings
+
+**A save carries every key it does not know.** The document is written whole
+and the server replaces it, so a dashboard that sends only its own keys deletes
+everything a newer release added. 1.5.6 did exactly that to 1.6.0's per-card
+categories, custom categories and renewal dates: one old tab left open on
+another device, saving anything, was enough. Each save now re-reads the
+document and carries the keys outside `SHARED_KEYS` through untouched, falling
+back to the copy from load if the re-read fails.
+
+Two things look simplifiable and are not:
+
+- **Only keys outside `SHARED_KEYS` are carried.** A key this version owns and
+  has removed locally must stay removed; taking it from the server's older copy
+  would resurrect it.
+- **It protects the future, not the past.** A tab still running 1.6.0 or older
+  deletes newer keys exactly as before. Releases that add a shared key still
+  need open tabs reloaded after updating.
+
+`scripts/test-shared-settings.mjs` runs the real functions out of `app.js`.
+Mutation-tested six ways: foreign keys dropped (the 1.5.6 behaviour), owned
+keys taken from the server, non-strings carried, the re-read ignored, no
+re-read at all, and no fallback copy from load. End to end in the demo, the
+released 1.6.0 lost a key a newer device wrote and this version kept it.
 
 ## Conventions
 
