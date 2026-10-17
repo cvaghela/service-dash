@@ -10417,9 +10417,26 @@ let _settingsAuthPrompted = false;
 // back until it has finished, so a read-only visitor is never nudged to sign in
 // merely for opening the page.
 let _sharedSettingsReady = false;
+// Settings in the shared document that this version does not know: written by
+// a newer dashboard on another device. Carried through every save untouched.
+// A save sends the whole document and the server replaces it, so leaving them
+// out deletes them -- which is exactly what 1.5.6 did to 1.6.0's categories
+// and renewal dates the first time an old tab saved anything.
+let _sharedForeignValues = {};
 
-function collectSharedSettings() {
-    const values = {};
+// Only keys outside SHARED_KEYS. A key this version owns and has since removed
+// locally must stay removed, not come back from the server's older copy.
+function foreignSharedValues(values) {
+    const foreign = {};
+    if (!values || typeof values !== "object") return foreign;
+    for (const [key, value] of Object.entries(values)) {
+        if (!SHARED_KEYS.includes(key) && typeof value === "string") foreign[key] = value;
+    }
+    return foreign;
+}
+
+function collectSharedSettings(foreign = {}) {
+    const values = { ...foreign };
     for (const key of SHARED_KEYS) {
         const value = localStorage.getItem(key);
         if (value !== null) values[key] = value;
@@ -10457,6 +10474,7 @@ async function loadSharedSettings() {
 
         const payload = await res.json();
         _sharedSettingsAvailable = true;
+        _sharedForeignValues = foreignSharedValues(payload?.values);
         if (!applySharedSettings(payload)) return false;
 
         // These were parsed from localStorage when the script loaded, before
@@ -10488,11 +10506,20 @@ async function saveSharedSettings() {
     const headers = { "Content-Type": "application/json" };
     if (state.kumaToken) headers[SETTINGS_TOKEN_HEADER] = state.kumaToken;
 
+    // Re-read first: a newer dashboard may have written settings since this
+    // page loaded. If the read fails, the copy from load is the best there is
+    // -- sending nothing for them would delete them.
+    try {
+        const current = await fetch(SHARED_SETTINGS_URL, { cache: "no-store" });
+        if (current.ok) _sharedForeignValues = foreignSharedValues((await current.json())?.values);
+        else if (current.status === 404) _sharedForeignValues = {};
+    } catch {}
+
     try {
         const res = await fetch(SHARED_SETTINGS_URL, {
             method: "PUT",
             headers,
-            body: JSON.stringify(collectSharedSettings()),
+            body: JSON.stringify(collectSharedSettings(_sharedForeignValues)),
         });
 
         // Not signed in, or Kuma no longer accepts the token: point at the
