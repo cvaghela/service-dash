@@ -3,6 +3,47 @@
 All notable changes to Service Dash are recorded here. This project follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.0] — 2026-10-17
+
+**Container traffic on the cards, categories that know common apps, and plan renewal dates.** Updating the images is
+enough; the Compose files change only their image tags.
+
+### Added
+
+- **Each card mapped to a container draws that container's network traffic.** Across the whole card, for the last five
+  minutes: download (green) rises above a centre line, upload (red) falls below it, and the current rates sit beside
+  CPU and RAM. It rides the existing 10-second container poll and needs nothing new on the host — Netdata already
+  publishes a traffic chart for every container with its own network namespace. A host-network container has no
+  chart of its own and gets no wave rather than a flat line.
+
+  Netdata publishes nine `cgroup_NAME.net_*` charts per interface, and only one is traffic, so discovery goes by chart
+  context rather than by name. History is fetched whole on every poll, so a missed poll leaves no gap, and a failed
+  fetch keeps the wave as it was rather than drawing a drop to zero. Each card scales to its own peak with a 100 Kb/s
+  floor, because an idle container's chatter otherwise filled the card. Behind the name, the link rows and the figures
+  the wave is cut back to 30%, so nothing on the card gets harder to read. Light mode has its own, deeper pair of
+  colours: the dark-mode pair measured 3.2:1 on the light card.
+
+- **Categories for well-known apps.** Categorisation used to be nine keyword patterns, and on a real install of 22
+  services it filed 12 under Other — eight of them well-known apps the patterns did not list. A table of known apps
+  now comes first, then the icon catalogue's aliases (so "HASS" reaches Home Assistant), then generic keywords, now
+  matched on word boundaries. The same install now leaves 3 of 22 in Other, all names with no signal at all. Ordinary
+  words that are also app names ("Flood", "Garage") match only as a whole card name.
+
+- **File any card by hand, under your own categories too.** Card settings gain a category picker in the same style as
+  the container picker. Custom categories are shared with the other settings, appear as filter chips, and removing one
+  sends its cards back to their automatic category. An older dashboard reading the same settings ignores a category it
+  does not know rather than drawing a chip it cannot label.
+
+- **Renewal and expiry dates for the AI plans.** Neither Claude nor ChatGPT reports when a plan renews, so Settings →
+  AI usage takes a date for each, with Monthly or Yearly, and the card counts forward from it: "Renews Nov 14 · in 28
+  days", amber in the last three days. Any past renewal date works, and a renewal on the 31st falls on the last day of
+  shorter months instead of drifting to the 28th. Switch it to Expires for a cancelled plan or a trial: the date then
+  stays put, and once it passes the card says so.
+
+- Three regression suites run in CI: `test-categories.mjs`, `test-container-net.mjs` and `test-ai-renewal.mjs`. Each
+  runs the real functions out of `app.js`. They were mutation-tested: each fault they guard was put back and failed a
+  check by name, including an unescaped chip label, since custom categories make those labels user input.
+
 ## [1.5.6] — 2026-10-03
 
 **The Claude panel said your login had expired when it had been signed out.** Updating the images is enough.
@@ -852,6 +893,7 @@ Housekeeping for the first public release. No functional changes to the dashboar
 
 See the [release history](https://github.com/cvaghela/service-dash/releases).
 
+[1.6.0]: https://github.com/cvaghela/service-dash/releases/tag/v1.6.0
 [1.5.6]: https://github.com/cvaghela/service-dash/releases/tag/v1.5.6
 [1.5.5]: https://github.com/cvaghela/service-dash/releases/tag/v1.5.5
 [1.5.4]: https://github.com/cvaghela/service-dash/releases/tag/v1.5.4

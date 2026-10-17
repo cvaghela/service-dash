@@ -1596,6 +1596,46 @@ html {
     overscroll-behavior: contain;
     padding: 0 0 6px;
 }
+/* The category picker is a radio list with one extra column: a remove button
+   on categories the user made, which built-in ones do not get. */
+.cardSettingField .storage-source-option.has-remove {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+}
+.categoryRemove {
+    display: grid;
+    place-items: center;
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    border: 1px solid transparent;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--muted-2);
+    font: inherit;
+    line-height: 1;
+    cursor: pointer;
+    touch-action: manipulation;
+}
+.categoryRemove:hover,
+.categoryRemove:focus-visible {
+    border-color: var(--stroke);
+    color: var(--text);
+}
+.categoryAdd {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    padding: 4px 0 8px;
+}
+.field .categoryAdd input {
+    flex: 1;
+    min-width: 0;
+    padding: 7px 11px;
+    font-size: 12.5px;
+}
+.categoryAdd .pill {
+    flex: none;
+}
 .cardSettingField .storage-source-option.is-disabled {
     opacity: 0.5;
     cursor: default;
@@ -2450,6 +2490,125 @@ html {
     color: var(--text);
     font-variant-numeric: tabular-nums;
 }
+
+/* ---- Container traffic, drawn across the card ----
+   Its own colour tokens rather than --green/--red directly: the accent presets
+   do not touch these, so the wave reads the same under every one, and light
+   mode gets deeper shades -- the neon pair that glows on a dark ground washes
+   out to nothing on a pale one. Download is green and upload red, matching the
+   sidebar's network legend. */
+:root {
+    --nw-rx: var(--green);
+    --nw-tx: var(--red);
+    --nw-fill: 0.42;
+    --nw-fill-faint: 0.05;
+    --nw-line: 0.95;
+}
+[data-theme="light"] {
+    /* Measured against the light card ground: 22 163 74 reached 3.2:1, at the
+       floor for graphics. These are 5.0:1 and 4.7:1. */
+    --nw-rx: 21 128 61;
+    --nw-tx: 220 38 38;
+    --nw-fill: 0.38;
+    --nw-fill-faint: 0.04;
+    --nw-line: 0.85;
+}
+.netWave {
+    position: absolute;
+    left: 0;
+    top: 0;
+    /* A positioned SVG sizes itself to its intrinsic 300x150 unless told. */
+    width: 100%;
+    height: 100%;
+    z-index: 0;
+    pointer-events: none;
+    /* Fades out toward the top, where the name and icon sit. The empty middle
+       and bottom of the card are where it is meant to be seen. */
+    -webkit-mask-image: linear-gradient(to bottom, rgb(0 0 0 / 0.25), #000 42%);
+    mask-image: linear-gradient(to bottom, rgb(0 0 0 / 0.25), #000 42%);
+}
+.card:not([data-netwave]) > .netWave {
+    display: none;
+}
+/* Lifts the content above the wave. z-index alone, with no position: these are
+   flex items, which take a z-index without being positioned. Making them
+   position: relative turned the top row into the status dot's containing
+   block, so on every wave card the dot sat lower and further in than on the
+   cards beside it. */
+.card[data-netwave] > :not(.netWave) {
+    z-index: 1;
+}
+.netWaveStopRx {
+    stop-color: rgb(var(--nw-rx));
+    stop-opacity: var(--nw-fill);
+}
+.netWaveStopTx {
+    stop-color: rgb(var(--nw-tx));
+    stop-opacity: var(--nw-fill);
+}
+.netWaveStopRx.is-faint,
+.netWaveStopTx.is-faint {
+    stop-opacity: var(--nw-fill-faint);
+}
+.netWaveLine {
+    fill: none;
+    stroke-width: 1.6px;
+    stroke-linejoin: round;
+    vector-effect: non-scaling-stroke;
+}
+.netWaveLine.rx {
+    stroke: rgb(var(--nw-rx) / var(--nw-line));
+}
+.netWaveLine.tx {
+    stroke: rgb(var(--nw-tx) / var(--nw-line));
+}
+.netWaveMid {
+    stroke: var(--stroke-2);
+    stroke-width: 1px;
+    vector-effect: non-scaling-stroke;
+}
+.card[data-netwave] .cardBottom {
+    /* When the figures do not fit beside CPU and RAM they drop to a line of
+       their own, rather than squeezing the two pills into a column. */
+    flex-wrap: wrap;
+    row-gap: 6px;
+}
+.card[data-netwave] .containerStats {
+    flex: 0 0 auto;
+    max-width: 100%;
+}
+.netFigures {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 1px;
+    margin-left: auto;
+    flex: none;
+    font-size: 11.5px;
+    line-height: 1.25;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    color: var(--text);
+    /* A halo in the ground colour, so the figures stay legible wherever the
+       wave happens to be passing behind them. */
+    text-shadow:
+        0 0 2px var(--bg-0),
+        0 0 8px var(--bg-0);
+}
+.netFigures[hidden] {
+    display: none;
+}
+.netFigures i {
+    margin-right: 3px;
+    font-style: normal;
+    font-weight: 700;
+}
+.netFigures .rx {
+    color: rgb(var(--nw-rx));
+}
+.netFigures .tx {
+    color: rgb(var(--nw-tx));
+}
 .cardSettingField {
     margin-top: 12px;
 }
@@ -2581,7 +2740,10 @@ textarea,
     input,
     textarea,
     select,
-    .search input {
+    .search input,
+    .field .categoryAdd input,
+    .aiRenew input,
+    .aiRenew select {
         font-size: 16px;
     }
 }
@@ -2760,6 +2922,23 @@ html {
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.04em;
+}
+
+/* Renewal date, entered in settings. Quiet until it is close: inside the
+   last few days it takes the warning colour, because that is the window in
+   which cancelling or changing plan still saves the charge. */
+.ai-renew {
+    margin: -4px 0 0;
+    font-size: 11.5px;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+}
+.ai-renew[data-soon="true"] {
+    color: var(--sev-warn-text);
+    font-weight: 600;
+}
+.ai-renew[hidden] {
+    display: none;
 }
 
 /* ---- the dials ---- */
@@ -3681,7 +3860,9 @@ html {
     color: rgb(var(--green));
 }
 .net-spark-tip .t-row .tx {
-    color: rgb(var(--blue));
+    /* Red, like the legend beside it and the upload half of every card's
+       traffic wave. It was blue here alone. */
+    color: rgb(var(--red));
 }
 
 /* Sparkline legend */
@@ -4522,6 +4703,58 @@ body.mobile-topbar-open .mobile-menu-icon span:nth-child(3) {
 }
 .aiSetupSignOut[hidden] {
     display: none;
+}
+
+/* The renewal date sits on its own line across both columns, under whatever
+   the connection state is showing. It is there for every provider with a
+   reporter, connected or not: the date is a fact about the plan, not the
+   login, and it should not vanish while you sign back in. */
+.aiRenew {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 8px;
+    min-width: 0;
+}
+.aiRenew select[hidden] {
+    display: none;
+}
+.aiRenew input,
+.aiRenew select {
+    min-width: 0;
+    padding: 5px 9px;
+    border-radius: 10px;
+    border: 1px solid var(--stroke);
+    background: rgb(0, 0, 0, 0.25);
+    color: var(--text);
+    font-family: var(--font-body);
+    font-size: 12.5px;
+    outline: none;
+    /* The native date and select popups follow this, so they match the theme. */
+    color-scheme: dark;
+}
+.aiRenew input:focus,
+.aiRenew select:focus {
+    border-color: rgb(var(--accent-2) / 0.55);
+    box-shadow: 0 0 0 3px rgb(var(--accent-2) / 0.16);
+}
+[data-theme="light"] .aiRenew input,
+[data-theme="light"] .aiRenew select {
+    background: rgb(255, 255, 255, 0.7);
+    color-scheme: light;
+}
+.aiRenewClear {
+    padding: 4px 12px;
+    font-size: 12px;
+}
+.aiRenewClear[hidden] {
+    display: none;
+}
+.aiRenewHint {
+    flex-basis: 100%;
+    white-space: normal;
+    line-height: 1.45;
 }
 
 /* =========================

@@ -91,7 +91,7 @@ session is real. You already have that login, so the dashboard does not invent a
 
 |  | |
 | --- | --- |
-| **Live service cards** | Status and uptime for every monitor on your Kuma status page. Search, filter by status or category, click to open. |
+| **Live service cards** | Status and uptime for every monitor on your Kuma status page. Search, filter by status or category, click to open. Categories come from the app name — a few hundred common self-hosted apps are recognised — and any card can be filed by hand, including under categories you make up. |
 | **Real service icons** | Automatic matching against the full [selfh.st](https://github.com/selfhst/icons) catalogue — 2,880 icons and growing — with a live picker per card. No internet? Every card falls back to a monogram drawn in the browser. |
 | **Private by default** | Service URLs, the host's own LAN and WAN addresses, and the AI usage panel are not requested until you sign in, so they never reach the browser and the dashboard can sit on a screen other people can see. It is a screen-level control, not an access control — see [What signing in reveals](#what-signing-in-reveals). |
 | **Behaves like an app on a phone** | No stray pinch-zoom, no double-tap zoom, no lurch when a field takes focus, and content clear of the notch. Taps and saves carry haptic feedback where the browser supports it (Android and Chrome; iOS Safari has no Vibration API). |
@@ -284,7 +284,8 @@ The gear in the top bar — visible once you are signed in — holds what does *
 - **Reveal service links on hover** — whether card links stay unreadable until pointed at.
 - **Reveal LAN and WAN addresses on hover** — the same, for the host's own addresses.
 - **AI usage** — whether the optional Claude reporter is running, connected, or waiting on a sign-in, with the exact
-  command for whichever step is next, and a one-click bug report for the one state no command can fix.
+  command for whichever step is next, and a one-click bug report for the one state no command can fix. Each provider
+  also takes a **renewal or expiry date**, shown on its card as "Renews Nov 14 · in 28 days".
 
 These apply to every browser and device. `network-info` reads the interval straight from the shared document and picks
 it up on its next pass; if it is missing or out of range it falls back to `NETWORK_INFO_REFRESH_SECONDS`, then 600.
@@ -329,6 +330,12 @@ normal login opens a browser at the container's own localhost, which nothing out
 You should not need this page again: **Settings → AI usage** shows each provider's state and hands you whichever command
 comes next, including a **Sign out** control once connected. Each login lives in its own volume, so `docker compose
 pull` does not sign you out.
+
+**Renewal dates are entered by hand.** Neither Claude nor ChatGPT reports when your plan renews, so Settings → AI usage
+takes a date and Monthly or Yearly for each. Any past renewal works — the date on an old receipt is fine — and the card
+counts forward from it, turning amber in the last three days. A renewal on the 31st falls on the last day of shorter
+months. For a cancelled plan or a trial, switch **Renews** to **Expires**: the date then stays put, and once it passes
+the card says the plan has expired. Like your other settings it is shared across devices, so the shared settings document carries it.
 
 **Why a sidecar and not the browser.** Plan usage is account-wide. A figure measured in a browser tab only reflects
 what *that* machine did — work from your phone for an afternoon and it is quietly wrong. A reporter on the host that is
@@ -442,9 +449,15 @@ pinned — and broken — when you open `dash.example.com` from a train later. T
 
 - **Icon** — type a service name to search the full selfh.st catalogue, or paste an image link. **Default icon**
   restores the automatic match; clearing the field shows a monogram.
-- **Mapped to** — which containers' CPU and RAM the card shows. Kuma monitor names and container names rarely agree, so
-  most cards need pointing at their container once. Map several and their figures are added together, with the tooltip
-  naming what was combined. A container that stops reporting is left out rather than counted as zero.
+- **Mapped to** — which containers' CPU, RAM and network traffic the card shows. Kuma monitor names and container names
+  rarely agree, so most cards need pointing at their container once. Map several and their figures are added together,
+  with the tooltip naming what was combined. A container that stops reporting is left out rather than counted as zero.
+- **Category** — which filter chip the card sits under: automatic from the name, one of the built-in categories, or one
+  you add yourself.
+
+A mapped card draws its container's traffic across its background — the last five minutes, download in green above the
+centre line and upload in red below it — with the current rates beside CPU and RAM. A container on the host's own
+network (`network_mode: host`) has no traffic of its own to show, so its card has no wave.
 
 **Host metrics** come from the bundled Netdata Agent: CPU utilisation with normalised 1-minute load (`32% (1.28 / 4)`),
 RAM, storage with used/free/total, and network throughput. Package power and temperature appear where the host exposes
@@ -664,7 +677,7 @@ Then hard-refresh the browser.
 
 ## Updating
 
-The current release is **1.5.6**; the Compose files in this repository reference the matching `1.5.6` images.
+The current release is **1.6.0**; the Compose files in this repository reference the matching `1.6.0` images.
 
 Most releases are drop-in:
 
